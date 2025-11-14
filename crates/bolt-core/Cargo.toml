@@ -1,0 +1,13 @@
+[package]
+name = "bolt-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+bytemuck.workspace = true
+
+[dev-dependencies]
+bolt-cpu = { path = "../bolt-cpu" }
