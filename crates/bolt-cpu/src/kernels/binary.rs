@@ -74,9 +74,10 @@ where
         });
     }
     let plan = BroadcastPlan::new(lhs, rhs)?;
-    let device = lhs.device();
+    let device = lhs.device()?;
     let cpu = downcast_cpu(&device)?;
-    let output = Tensor::allocate_uninit(device.clone(), &plan.shape, lhs.dtype())?;
+    let runtime = lhs.runtime();
+    let output = runtime.allocate_uninit(lhs.device_kind(), &plan.shape, lhs.dtype())?;
     let lhs_cell = cpu.buffer_cell(lhs.buffer_id())?;
     let rhs_cell = cpu.buffer_cell(rhs.buffer_id())?;
     let out_cell = cpu.buffer_cell(output.buffer_id())?;

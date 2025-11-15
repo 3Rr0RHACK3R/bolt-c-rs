@@ -1,4 +1,3 @@
-use std::sync::OnceLock;
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 use crate::{
@@ -79,24 +78,4 @@ impl Dispatcher {
         };
         (entry.func)(prepared_inputs.as_ref(), attrs)
     }
-}
-
-static DISPATCHER: OnceLock<Dispatcher> = OnceLock::new();
-
-pub fn init_dispatcher<F>(build: F) -> Result<()>
-where
-    F: FnOnce(&mut Dispatcher) -> Result<()>,
-{
-    if DISPATCHER.get().is_some() {
-        return Err(Error::DispatcherInitialized);
-    }
-    let mut dispatcher = Dispatcher::new();
-    build(&mut dispatcher)?;
-    DISPATCHER
-        .set(dispatcher)
-        .map_err(|_| Error::DispatcherInitialized)
-}
-
-pub fn global_dispatcher() -> Result<&'static Dispatcher> {
-    DISPATCHER.get().ok_or(Error::DispatcherUninitialized)
 }

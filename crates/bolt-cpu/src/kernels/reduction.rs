@@ -56,10 +56,12 @@ where
         Some(axes) => canonical_axes(axes, rank)?,
         None => (0..rank).collect(),
     };
-    let device = input.device();
+    let device = input.device()?;
     let cpu = downcast_cpu(&device)?;
     let out_shape = reduced_shape(input.shape(), &axes_vec)?;
-    let output = Tensor::allocate_uninit(device.clone(), &out_shape, input.dtype())?;
+    let runtime = input.runtime();
+    let output =
+        runtime.allocate_uninit(input.device_kind(), &out_shape, input.dtype())?;
     let in_cell = cpu.buffer_cell(input.buffer_id())?;
     let out_cell = cpu.buffer_cell(output.buffer_id())?;
     let axes_mask = axes_mask(&axes_vec, rank);

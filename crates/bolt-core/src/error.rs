@@ -40,12 +40,6 @@ pub enum Error {
     #[error("{op} requires floating point dtype, got {dtype:?}")]
     RequiresFloat { op: &'static str, dtype: DType },
 
-    #[error("dispatcher not initialized")]
-    DispatcherUninitialized,
-
-    #[error("dispatcher already initialized")]
-    DispatcherInitialized,
-
     #[error("invalid axes: {0}")]
     InvalidAxes(String),
 

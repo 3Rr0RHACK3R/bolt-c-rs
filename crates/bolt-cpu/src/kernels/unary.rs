@@ -65,9 +65,10 @@ where
             rhs: T::DTYPE,
         });
     }
-    let device = input.device();
+    let device = input.device()?;
     let cpu = downcast_cpu(&device)?;
-    let output = Tensor::allocate_uninit(device.clone(), input.shape(), input.dtype())?;
+    let runtime = input.runtime();
+    let output = runtime.allocate_uninit(input.device_kind(), input.shape(), input.dtype())?;
     let in_cell = cpu.buffer_cell(input.buffer_id())?;
     let out_cell = cpu.buffer_cell(output.buffer_id())?;
     let strides = input.strides().to_vec();

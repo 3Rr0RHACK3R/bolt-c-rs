@@ -1,15 +1,14 @@
 mod support;
 
-use bolt_core::{error::Result, tensor::Tensor};
+use bolt_core::error::Result;
 
-use support::{init_cpu_dispatcher, test_device};
+use support::test_runtime;
 
 #[test]
 fn slice_permute_and_contiguous_preserve_values() -> Result<()> {
-    init_cpu_dispatcher();
-    let device = test_device();
+    let runtime = test_runtime();
     let data: Vec<f32> = (0..12).map(|v| v as f32).collect();
-    let tensor = Tensor::from_slice(device.clone(), &[3, 4], &data)?;
+    let tensor = runtime.tensor_from_slice(&[3, 4], &data)?;
     let sliced = tensor.slice(1, 1, 4, 2)?;
     let transposed = sliced.transpose(0, 1)?;
     let dense = transposed.contiguous()?;
@@ -20,10 +19,9 @@ fn slice_permute_and_contiguous_preserve_values() -> Result<()> {
 
 #[test]
 fn binary_ops_handle_non_contiguous_inputs() -> Result<()> {
-    init_cpu_dispatcher();
-    let device = test_device();
-    let lhs = Tensor::from_slice(device.clone(), &[2, 2], &[1.0f32, 2.0, 3.0, 4.0])?;
-    let rhs = Tensor::from_slice(device.clone(), &[2, 2], &[5.0f32, 6.0, 7.0, 8.0])?;
+    let runtime = test_runtime();
+    let lhs = runtime.tensor_from_slice(&[2, 2], &[1.0f32, 2.0, 3.0, 4.0])?;
+    let rhs = runtime.tensor_from_slice(&[2, 2], &[5.0f32, 6.0, 7.0, 8.0])?;
     let lhs_view = lhs.transpose(0, 1)?; // make it non-contiguous
     let sum = lhs_view.add(&rhs)?;
     let expected: Vec<f32> = lhs_view
@@ -39,9 +37,8 @@ fn binary_ops_handle_non_contiguous_inputs() -> Result<()> {
 
 #[test]
 fn reshape_requires_contiguous_layout() -> Result<()> {
-    init_cpu_dispatcher();
-    let device = test_device();
-    let tensor = Tensor::from_slice(device.clone(), &[2, 4], &[1i32, 2, 3, 4, 5, 6, 7, 8])?;
+    let runtime = test_runtime();
+    let tensor = runtime.tensor_from_slice(&[2, 4], &[1i32, 2, 3, 4, 5, 6, 7, 8])?;
     let view = tensor.slice(1, 0, 4, 2)?;
     assert!(view.reshape(&[4]).is_err());
     let flattened = view.contiguous()?.reshape(&[4])?;

@@ -5,11 +5,11 @@ use bytemuck::cast_slice;
 use crate::{
     buffer::{BufferId, BufferView},
     device::{Device, DeviceKind},
-    dispatcher::global_dispatcher,
     dtype::{DType, NativeType},
     error::{Error, Result},
     layout::Layout,
-    op::{OpAttrs, OpKey, OpKind},
+    op::{OpAttrs, OpKind},
+    runtime::Runtime,
     shape::{ConcreteShape, canonical_axes},
 };
 
@@ -20,23 +20,28 @@ pub struct Tensor {
 }
 
 pub struct TensorStorage {
-    device: Arc<dyn Device>,
+    runtime: Arc<Runtime>,
+    device_kind: DeviceKind,
     buffer_id: BufferId,
 }
 
 impl Tensor {
-    pub fn zeros(device: Arc<dyn Device>, shape: &[usize], dtype: DType) -> Result<Self> {
-        let tensor = Self::allocate_uninit(device, shape, dtype)?;
+    pub(crate) fn zeros_in(
+        runtime: &Arc<Runtime>,
+        device_kind: DeviceKind,
+        shape: &[usize],
+        dtype: DType,
+    ) -> Result<Self> {
+        let tensor = Self::allocate_uninit(runtime, device_kind, shape, dtype)?;
         let zeros = vec![0u8; tensor.view.num_bytes()];
-        tensor
-            .storage
-            .device
-            .write(tensor.view.buffer_id, tensor.view.offset_bytes(), &zeros)?;
+        let device = runtime.device(device_kind)?;
+        device.write(tensor.view.buffer_id, tensor.view.offset_bytes(), &zeros)?;
         Ok(tensor)
     }
 
-    pub fn from_slice<T: NativeType>(
-        device: Arc<dyn Device>,
+    pub(crate) fn from_slice_in<T: NativeType>(
+        runtime: &Arc<Runtime>,
+        device_kind: DeviceKind,
         shape: &[usize],
         data: &[T],
     ) -> Result<Self> {
@@ -47,12 +52,11 @@ impl Tensor {
                 actual: data.len(),
             });
         }
-        let tensor = Self::allocate_with_shape(device, shape.clone(), T::DTYPE)?;
+        let tensor =
+            Self::allocate_with_shape(runtime, device_kind, shape.clone(), T::DTYPE)?;
         let bytes = cast_slice(data);
-        tensor
-            .storage
-            .device
-            .write(tensor.view.buffer_id, tensor.view.offset_bytes(), bytes)?;
+        let device = runtime.device(device_kind)?;
+        device.write(tensor.view.buffer_id, tensor.view.offset_bytes(), bytes)?;
         Ok(tensor)
     }
 
@@ -67,8 +71,7 @@ impl Tensor {
             return self.contiguous()?.to_vec();
         }
         let mut bytes = vec![0u8; self.view.num_bytes()];
-        self.storage
-            .device
+        self.device()?
             .read(self.view.buffer_id, self.view.offset_bytes(), &mut bytes)?;
         let values: Vec<T> = cast_slice(&bytes).to_vec();
         Ok(values)
@@ -174,16 +177,24 @@ impl Tensor {
         self.dispatch_single(OpKind::MatMul, &[self.clone(), other.clone()])
     }
 
+    pub fn runtime(&self) -> Arc<Runtime> {
+        self.storage.runtime.clone()
+    }
+
+    pub(crate) fn runtime_ptr(&self) -> &Arc<Runtime> {
+        &self.storage.runtime
+    }
+
     pub fn dtype(&self) -> DType {
         self.view.dtype
     }
 
     pub fn device_kind(&self) -> DeviceKind {
-        self.storage.device.kind()
+        self.storage.device_kind
     }
 
-    pub fn device(&self) -> Arc<dyn Device> {
-        self.storage.device.clone()
+    pub fn device(&self) -> Result<Arc<dyn Device>> {
+        self.storage.device()
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -218,18 +229,25 @@ impl Tensor {
         self.view.layout.is_contiguous()
     }
 
-    pub fn allocate_uninit(device: Arc<dyn Device>, shape: &[usize], dtype: DType) -> Result<Self> {
+    pub(crate) fn allocate_uninit(
+        runtime: &Arc<Runtime>,
+        device_kind: DeviceKind,
+        shape: &[usize],
+        dtype: DType,
+    ) -> Result<Self> {
         let shape = ConcreteShape::from_slice(shape)?;
-        Self::allocate_with_shape(device, shape, dtype)
+        Self::allocate_with_shape(runtime, device_kind, shape, dtype)
     }
 
     fn allocate_with_shape(
-        device: Arc<dyn Device>,
+        runtime: &Arc<Runtime>,
+        device_kind: DeviceKind,
         shape: ConcreteShape,
         dtype: DType,
     ) -> Result<Self> {
         let len_bytes = shape.num_elements() * dtype.size_in_bytes();
-        let storage = Arc::new(TensorStorage::new(device, len_bytes, dtype)?);
+        let storage =
+            Arc::new(TensorStorage::new(runtime.clone(), device_kind, len_bytes, dtype)?);
         let layout = Layout::contiguous(shape.clone());
         let view = BufferView {
             buffer_id: storage.buffer_id,
@@ -240,6 +258,7 @@ impl Tensor {
     }
 
     fn ensure_same_device_dtype(&self, other: &Tensor) -> Result<()> {
+        self.ensure_same_runtime(other)?;
         if self.dtype() != other.dtype() {
             return Err(Error::DTypeMismatch {
                 lhs: self.dtype(),
@@ -255,21 +274,22 @@ impl Tensor {
         Ok(())
     }
 
+    fn ensure_same_runtime(&self, other: &Tensor) -> Result<()> {
+        if !Arc::ptr_eq(self.runtime_ptr(), other.runtime_ptr()) {
+            return Err(Error::Device(
+                "tensors belong to different runtimes".into(),
+            ));
+        }
+        Ok(())
+    }
+
     fn dispatch_single(&self, op: OpKind, inputs: &[Tensor]) -> Result<Tensor> {
         self.dispatch_with_attrs(op, inputs, OpAttrs::None)
     }
 
     fn dispatch_with_attrs(&self, op: OpKind, inputs: &[Tensor], attrs: OpAttrs) -> Result<Tensor> {
-        let dispatcher = global_dispatcher()?;
-        let key = OpKey {
-            op,
-            device: self.device_kind(),
-            dtype: self.dtype(),
-        };
-        let mut outputs = dispatcher.dispatch(key, inputs, &attrs)?;
-        outputs
-            .pop()
-            .ok_or_else(|| Error::Device("kernel returned no outputs".into()))
+        let runtime = self.runtime();
+        runtime.dispatch_single(op, inputs, attrs)
     }
 
     fn require_float(&self, op: &'static str) -> Result<()> {
@@ -295,25 +315,45 @@ impl Tensor {
 }
 
 impl TensorStorage {
-    pub fn new(device: Arc<dyn Device>, len_bytes: usize, dtype: DType) -> Result<Self> {
+    pub fn new(
+        runtime: Arc<Runtime>,
+        device_kind: DeviceKind,
+        len_bytes: usize,
+        dtype: DType,
+    ) -> Result<Self> {
         if len_bytes == 0 {
             return Err(Error::invalid_shape(
                 "tensor must have at least one element",
             ));
         }
+        let device = runtime.device(device_kind)?;
         let buffer_id = device.alloc(len_bytes, dtype.alignment())?;
-        Ok(Self { device, buffer_id })
+        Ok(Self {
+            runtime,
+            device_kind,
+            buffer_id,
+        })
     }
 
-    pub fn device(&self) -> &Arc<dyn Device> {
-        &self.device
+    pub fn device(&self) -> Result<Arc<dyn Device>> {
+        self.runtime.device(self.device_kind)
     }
 }
 
 impl Drop for TensorStorage {
     fn drop(&mut self) {
-        if let Err(err) = self.device.free(self.buffer_id) {
-            eprintln!("failed to release buffer {:?}: {err}", self.buffer_id.raw());
+        match self.runtime.device(self.device_kind) {
+            Ok(device) => {
+                if let Err(err) = device.free(self.buffer_id) {
+                    eprintln!("failed to release buffer {:?}: {err}", self.buffer_id.raw());
+                }
+            }
+            Err(err) => {
+                eprintln!(
+                    "failed to recover device {:?} for buffer {:?}: {err}",
+                    self.device_kind, self.buffer_id.raw()
+                );
+            }
         }
     }
 }
