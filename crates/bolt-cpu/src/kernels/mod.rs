@@ -3,6 +3,7 @@ mod common;
 mod copy;
 mod matmul;
 mod reduction;
+mod split;
 mod unary;
 
 use bolt_core::{dispatcher::Dispatcher, error::Result};
@@ -13,5 +14,6 @@ pub fn register_cpu_kernels(dispatcher: &mut Dispatcher) -> Result<()> {
     reduction::register(dispatcher)?;
     matmul::register(dispatcher)?;
     copy::register(dispatcher)?;
+    split::register(dispatcher)?;
     Ok(())
 }

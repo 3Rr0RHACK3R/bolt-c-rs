@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::{device::DeviceKind, dtype::DType, op::OpKind};
 use thiserror::Error;
 
@@ -45,6 +47,13 @@ pub enum Error {
 
     #[error("device error: {0}")]
     Device(String),
+
+    #[error("kernel output mismatch for {op:?}: expected {expected}, got {actual}")]
+    KernelOutputMismatch {
+        op: OpKind,
+        expected: ExpectedOutputs,
+        actual: usize,
+    },
 }
 
 impl From<std::io::Error> for Error {
@@ -57,6 +66,19 @@ impl Error {
     pub fn invalid_shape(msg: impl Into<String>) -> Self {
         Self::InvalidShape {
             message: msg.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ExpectedOutputs {
+    Exactly(usize),
+}
+
+impl fmt::Display for ExpectedOutputs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExpectedOutputs::Exactly(count) => write!(f, "exactly {count}"),
         }
     }
 }

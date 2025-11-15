@@ -1,4 +1,7 @@
-use std::{ops::{AddAssign, Mul}, sync::Arc};
+use std::{
+    ops::{AddAssign, Mul},
+    sync::Arc,
+};
 
 use bolt_core::{
     device::DeviceKind,

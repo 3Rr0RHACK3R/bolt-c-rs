@@ -4,7 +4,7 @@ use crate::{
     device::{Device, DeviceKind},
     dispatcher::Dispatcher,
     dtype::{DType, NativeType},
-    error::{Error, Result},
+    error::{Error, ExpectedOutputs, Result},
     op::{OpAttrs, OpKey, OpKind},
     tensor::Tensor,
 };
@@ -80,13 +80,18 @@ impl Runtime {
         inputs: &[Tensor],
         attrs: OpAttrs,
     ) -> Result<Tensor> {
-        let mut outputs = self.dispatch_multi(op, inputs, &attrs)?;
-        outputs
-            .pop()
-            .ok_or_else(|| Error::Device("kernel returned no outputs".into()))
+        let outputs = self.dispatch_multi(op, inputs, &attrs)?;
+        if outputs.len() != 1 {
+            return Err(Error::KernelOutputMismatch {
+                op,
+                expected: ExpectedOutputs::Exactly(1),
+                actual: outputs.len(),
+            });
+        }
+        Ok(outputs.into_iter().next().expect("len validated"))
     }
 
-    fn dispatch_multi(
+    pub fn dispatch_multi(
         self: &Arc<Self>,
         op: OpKind,
         inputs: &[Tensor],

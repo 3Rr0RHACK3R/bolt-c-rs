@@ -8,10 +8,16 @@ use crate::{
     dtype::{DType, NativeType},
     error::{Error, Result},
     layout::Layout,
-    op::{OpAttrs, OpKind},
+    op::{OpAttrs, OpKind, SplitAttrs, SplitSpecAttrs},
     runtime::Runtime,
     shape::{ConcreteShape, canonical_axes},
 };
+
+#[derive(Clone, Debug)]
+pub enum SplitSpec {
+    ChunkSize(usize),
+    Sections(Vec<usize>),
+}
 
 #[derive(Clone)]
 pub struct Tensor {
@@ -52,8 +58,7 @@ impl Tensor {
                 actual: data.len(),
             });
         }
-        let tensor =
-            Self::allocate_with_shape(runtime, device_kind, shape.clone(), T::DTYPE)?;
+        let tensor = Self::allocate_with_shape(runtime, device_kind, shape.clone(), T::DTYPE)?;
         let bytes = cast_slice(data);
         let device = runtime.device(device_kind)?;
         device.write(tensor.view.buffer_id, tensor.view.offset_bytes(), bytes)?;
@@ -177,6 +182,19 @@ impl Tensor {
         self.dispatch_single(OpKind::MatMul, &[self.clone(), other.clone()])
     }
 
+    pub fn split(&self, spec: SplitSpec, axis: i64) -> Result<Vec<Tensor>> {
+        let rank = self.shape().len();
+        let axis = normalize_axis(axis, rank)?;
+        let axis_len = self.shape()[axis];
+        let spec_attrs = spec.into_kernel_spec(axis_len)?;
+        let attrs = OpAttrs::split(SplitAttrs {
+            axis,
+            spec: spec_attrs,
+        });
+        let runtime = self.runtime();
+        runtime.dispatch_multi(OpKind::Split, &[self.clone()], &attrs)
+    }
+
     pub fn runtime(&self) -> Arc<Runtime> {
         self.storage.runtime.clone()
     }
@@ -246,8 +264,12 @@ impl Tensor {
         dtype: DType,
     ) -> Result<Self> {
         let len_bytes = shape.num_elements() * dtype.size_in_bytes();
-        let storage =
-            Arc::new(TensorStorage::new(runtime.clone(), device_kind, len_bytes, dtype)?);
+        let storage = Arc::new(TensorStorage::new(
+            runtime.clone(),
+            device_kind,
+            len_bytes,
+            dtype,
+        )?);
         let layout = Layout::contiguous(shape.clone());
         let view = BufferView {
             buffer_id: storage.buffer_id,
@@ -276,9 +298,7 @@ impl Tensor {
 
     fn ensure_same_runtime(&self, other: &Tensor) -> Result<()> {
         if !Arc::ptr_eq(self.runtime_ptr(), other.runtime_ptr()) {
-            return Err(Error::Device(
-                "tensors belong to different runtimes".into(),
-            ));
+            return Err(Error::Device("tensors belong to different runtimes".into()));
         }
         Ok(())
     }
@@ -312,6 +332,55 @@ impl Tensor {
             },
         }
     }
+}
+
+impl SplitSpec {
+    fn into_kernel_spec(self, axis_len: usize) -> Result<SplitSpecAttrs> {
+        match self {
+            SplitSpec::ChunkSize(size) => {
+                if size == 0 {
+                    return Err(Error::invalid_shape("chunk size must be > 0"));
+                }
+                Ok(SplitSpecAttrs::ChunkSize { size })
+            }
+            SplitSpec::Sections(sections) => {
+                if sections.is_empty() {
+                    return Err(Error::invalid_shape("sections must be non-empty"));
+                }
+                let mut total = 0usize;
+                for (idx, section) in sections.iter().enumerate() {
+                    if *section == 0 {
+                        return Err(Error::invalid_shape(format!("section {idx} must be > 0")));
+                    }
+                    total += section;
+                }
+                if total != axis_len {
+                    return Err(Error::SizeMismatch {
+                        expected: axis_len,
+                        actual: total,
+                    });
+                }
+                Ok(SplitSpecAttrs::Sections(sections))
+            }
+        }
+    }
+}
+
+fn normalize_axis(axis: i64, rank: usize) -> Result<usize> {
+    if rank == 0 {
+        return Err(Error::invalid_shape("tensor must have rank > 0"));
+    }
+    let rank_i64 = rank as i64;
+    let mut resolved = axis;
+    if resolved < 0 {
+        resolved += rank_i64;
+    }
+    if resolved < 0 || resolved >= rank_i64 {
+        return Err(Error::invalid_shape(format!(
+            "axis {axis} out of bounds for rank {rank}"
+        )));
+    }
+    Ok(resolved as usize)
 }
 
 impl TensorStorage {
@@ -351,7 +420,8 @@ impl Drop for TensorStorage {
             Err(err) => {
                 eprintln!(
                     "failed to recover device {:?} for buffer {:?}: {err}",
-                    self.device_kind, self.buffer_id.raw()
+                    self.device_kind,
+                    self.buffer_id.raw()
                 );
             }
         }

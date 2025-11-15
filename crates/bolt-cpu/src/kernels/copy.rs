@@ -53,8 +53,7 @@ where
     let device = input.device()?;
     let cpu = downcast_cpu(&device)?;
     let runtime = input.runtime();
-    let output =
-        runtime.allocate_uninit(input.device_kind(), input.shape(), input.dtype())?;
+    let output = runtime.allocate_uninit(input.device_kind(), input.shape(), input.dtype())?;
     let in_cell = cpu.buffer_cell(input.buffer_id())?;
     let out_cell = cpu.buffer_cell(output.buffer_id())?;
     let in_strides = input.strides().to_vec();

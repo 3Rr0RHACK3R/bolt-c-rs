@@ -13,6 +13,7 @@ pub enum OpKind {
     Relu,
     Sum,
     MatMul,
+    Split,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -26,6 +27,7 @@ pub struct OpKey {
 pub enum OpAttrs {
     None,
     Reduce(ReduceAttrs),
+    Split(SplitAttrs),
 }
 
 #[derive(Clone, Debug)]
@@ -44,6 +46,17 @@ impl OpAttrs {
             _ => None,
         }
     }
+
+    pub fn split(attrs: SplitAttrs) -> Self {
+        Self::Split(attrs)
+    }
+
+    pub fn split_attrs(&self) -> Option<&SplitAttrs> {
+        match self {
+            OpAttrs::Split(attrs) => Some(attrs),
+            _ => None,
+        }
+    }
 }
 
 impl Default for OpAttrs {
@@ -52,3 +65,14 @@ impl Default for OpAttrs {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct SplitAttrs {
+    pub axis: usize,
+    pub spec: SplitSpecAttrs,
+}
+
+#[derive(Clone, Debug)]
+pub enum SplitSpecAttrs {
+    ChunkSize { size: usize },
+    Sections(Vec<usize>),
+}
