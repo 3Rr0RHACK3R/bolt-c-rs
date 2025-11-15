@@ -1,11 +1,11 @@
-use std::{ops::Add, sync::Arc};
+use std::ops::Add;
 
 use bolt_core::{
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::DType,
     error::{Error, Result},
-    op::{OpAttrs, OpKey, OpKind},
+    op::SumOp,
     shape::{ConcreteShape, canonical_axes, reduced_shape},
     tensor::Tensor,
 };
@@ -25,19 +25,15 @@ fn register_sum<T>(dispatcher: &mut Dispatcher, dtype: DType) -> Result<()>
 where
     T: Numeric + Add<Output = T>,
 {
-    let key = OpKey {
-        op: OpKind::Sum,
-        device: DeviceKind::Cpu,
+    dispatcher.register_operation::<SumOp, _>(
+        DeviceKind::Cpu,
         dtype,
-    };
-    dispatcher.register(
-        key,
         KernelLayoutReq::GeneralStrided,
-        Arc::new(|inputs, attrs| sum_kernel::<T>(inputs, attrs)),
+        |inputs, op| sum_kernel::<T>(inputs, op),
     )
 }
 
-fn sum_kernel<T>(inputs: &[Tensor], attrs: &OpAttrs) -> Result<Vec<Tensor>>
+fn sum_kernel<T>(inputs: &[Tensor], op: &SumOp) -> Result<Vec<Tensor>>
 where
     T: Numeric + Add<Output = T>,
 {
@@ -52,10 +48,7 @@ where
         });
     }
     let rank = input.shape().len();
-    let axes_vec = match attrs.reduce_axes() {
-        Some(axes) => canonical_axes(axes, rank)?,
-        None => (0..rank).collect(),
-    };
+    let axes_vec = canonical_axes(&op.axes, rank)?;
     let device = input.device()?;
     let cpu = downcast_cpu(&device)?;
     let out_shape = reduced_shape(input.shape(), &axes_vec)?;

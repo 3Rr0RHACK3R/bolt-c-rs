@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use bolt_core::{
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::{DType, NativeType},
     error::{Error, Result},
-    op::{OpKey, OpKind},
+    op::{ExpOp, NegOp, ReluOp},
     tensor::Tensor,
 };
 
@@ -14,39 +12,35 @@ use crate::kernels::common::{
 };
 
 pub fn register(dispatcher: &mut Dispatcher) -> Result<()> {
-    register_unary::<f32, _>(dispatcher, OpKind::Neg, DType::F32, "neg", |v| -v)?;
-    register_unary::<f64, _>(dispatcher, OpKind::Neg, DType::F64, "neg", |v| -v)?;
-    register_unary::<i32, _>(dispatcher, OpKind::Neg, DType::I32, "neg", |v| -v)?;
+    register_unary::<f32, NegOp, _>(dispatcher, DType::F32, "neg", |v| -v)?;
+    register_unary::<f64, NegOp, _>(dispatcher, DType::F64, "neg", |v| -v)?;
+    register_unary::<i32, NegOp, _>(dispatcher, DType::I32, "neg", |v| -v)?;
 
-    register_unary::<f32, _>(dispatcher, OpKind::Exp, DType::F32, "exp", |v| v.exp())?;
-    register_unary::<f64, _>(dispatcher, OpKind::Exp, DType::F64, "exp", |v| v.exp())?;
+    register_unary::<f32, ExpOp, _>(dispatcher, DType::F32, "exp", |v| v.exp())?;
+    register_unary::<f64, ExpOp, _>(dispatcher, DType::F64, "exp", |v| v.exp())?;
 
-    register_unary::<f32, _>(dispatcher, OpKind::Relu, DType::F32, "relu", |v| v.max(0.0))?;
-    register_unary::<f64, _>(dispatcher, OpKind::Relu, DType::F64, "relu", |v| v.max(0.0))?;
+    register_unary::<f32, ReluOp, _>(dispatcher, DType::F32, "relu", |v| v.max(0.0))?;
+    register_unary::<f64, ReluOp, _>(dispatcher, DType::F64, "relu", |v| v.max(0.0))?;
 
     Ok(())
 }
 
-fn register_unary<T, F>(
+fn register_unary<T, O, F>(
     dispatcher: &mut Dispatcher,
-    op: OpKind,
     dtype: DType,
     name: &'static str,
     func: F,
 ) -> Result<()>
 where
     T: NativeType,
+    O: bolt_core::op::Operation,
     F: Fn(T) -> T + Send + Sync + Copy + 'static,
 {
-    let key = OpKey {
-        op,
-        device: DeviceKind::Cpu,
+    dispatcher.register_operation::<O, _>(
+        DeviceKind::Cpu,
         dtype,
-    };
-    dispatcher.register(
-        key,
         KernelLayoutReq::GeneralStrided,
-        Arc::new(move |inputs, _| unary_kernel::<T, F>(inputs, name, func)),
+        move |inputs, _| unary_kernel::<T, F>(inputs, name, func),
     )
 }
 

@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use bolt_core::{
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::{DType, NativeType},
     error::{Error, Result},
-    op::{OpKey, OpKind},
+    op::{AddOp, DivOp, MulOp, SubOp},
     shape::broadcast_shapes,
     tensor::Tensor,
 };
@@ -15,45 +13,41 @@ use crate::kernels::common::{
 };
 
 pub fn register(dispatcher: &mut Dispatcher) -> Result<()> {
-    register_binary::<f32, _>(dispatcher, OpKind::Add, DType::F32, "add", |a, b| a + b)?;
-    register_binary::<f64, _>(dispatcher, OpKind::Add, DType::F64, "add", |a, b| a + b)?;
-    register_binary::<i32, _>(dispatcher, OpKind::Add, DType::I32, "add", |a, b| a + b)?;
+    register_binary::<f32, AddOp, _>(dispatcher, DType::F32, "add", |a, b| a + b)?;
+    register_binary::<f64, AddOp, _>(dispatcher, DType::F64, "add", |a, b| a + b)?;
+    register_binary::<i32, AddOp, _>(dispatcher, DType::I32, "add", |a, b| a + b)?;
 
-    register_binary::<f32, _>(dispatcher, OpKind::Sub, DType::F32, "sub", |a, b| a - b)?;
-    register_binary::<f64, _>(dispatcher, OpKind::Sub, DType::F64, "sub", |a, b| a - b)?;
-    register_binary::<i32, _>(dispatcher, OpKind::Sub, DType::I32, "sub", |a, b| a - b)?;
+    register_binary::<f32, SubOp, _>(dispatcher, DType::F32, "sub", |a, b| a - b)?;
+    register_binary::<f64, SubOp, _>(dispatcher, DType::F64, "sub", |a, b| a - b)?;
+    register_binary::<i32, SubOp, _>(dispatcher, DType::I32, "sub", |a, b| a - b)?;
 
-    register_binary::<f32, _>(dispatcher, OpKind::Mul, DType::F32, "mul", |a, b| a * b)?;
-    register_binary::<f64, _>(dispatcher, OpKind::Mul, DType::F64, "mul", |a, b| a * b)?;
-    register_binary::<i32, _>(dispatcher, OpKind::Mul, DType::I32, "mul", |a, b| a * b)?;
+    register_binary::<f32, MulOp, _>(dispatcher, DType::F32, "mul", |a, b| a * b)?;
+    register_binary::<f64, MulOp, _>(dispatcher, DType::F64, "mul", |a, b| a * b)?;
+    register_binary::<i32, MulOp, _>(dispatcher, DType::I32, "mul", |a, b| a * b)?;
 
-    register_binary::<f32, _>(dispatcher, OpKind::Div, DType::F32, "div", |a, b| a / b)?;
-    register_binary::<f64, _>(dispatcher, OpKind::Div, DType::F64, "div", |a, b| a / b)?;
-    register_binary::<i32, _>(dispatcher, OpKind::Div, DType::I32, "div", |a, b| a / b)?;
+    register_binary::<f32, DivOp, _>(dispatcher, DType::F32, "div", |a, b| a / b)?;
+    register_binary::<f64, DivOp, _>(dispatcher, DType::F64, "div", |a, b| a / b)?;
+    register_binary::<i32, DivOp, _>(dispatcher, DType::I32, "div", |a, b| a / b)?;
 
     Ok(())
 }
 
-fn register_binary<T, F>(
+fn register_binary<T, O, F>(
     dispatcher: &mut Dispatcher,
-    op: OpKind,
     dtype: DType,
     name: &'static str,
     func: F,
 ) -> Result<()>
 where
     T: NativeType,
+    O: bolt_core::op::Operation,
     F: Fn(T, T) -> T + Send + Sync + Copy + 'static,
 {
-    let key = OpKey {
-        op,
-        device: DeviceKind::Cpu,
+    dispatcher.register_operation::<O, _>(
+        DeviceKind::Cpu,
         dtype,
-    };
-    dispatcher.register(
-        key,
         KernelLayoutReq::GeneralStrided,
-        Arc::new(move |inputs, _| binary_kernel::<T, F>(inputs, name, func)),
+        move |inputs, _| binary_kernel::<T, F>(inputs, name, func),
     )
 }
 

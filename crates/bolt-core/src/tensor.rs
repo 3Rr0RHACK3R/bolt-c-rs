@@ -8,7 +8,10 @@ use crate::{
     dtype::{DType, NativeType},
     error::{Error, Result},
     layout::Layout,
-    op::{OpAttrs, OpKind, SplitAttrs, SplitSpecAttrs},
+    op::{
+        AddOp, CopyOp, DivOp, ExpOp, MatMulOp, MulOp, NegOp, ReluOp, SplitOp, SplitSpecAttrs,
+        SubOp, SumOp,
+    },
     runtime::Runtime,
     shape::{ConcreteShape, canonical_axes},
 };
@@ -110,41 +113,57 @@ impl Tensor {
         if self.is_contiguous() {
             return Ok(self.clone());
         }
-        self.dispatch_single(OpKind::Copy, &[self.clone()])
+        let runtime = self.runtime();
+        let op = CopyOp;
+        runtime.dispatch_op_single(&op, &[self.clone()])
     }
 
     pub fn add(&self, other: &Tensor) -> Result<Tensor> {
         self.ensure_same_device_dtype(other)?;
-        self.dispatch_single(OpKind::Add, &[self.clone(), other.clone()])
+        let runtime = self.runtime();
+        let op = AddOp;
+        runtime.dispatch_op_single(&op, &[self.clone(), other.clone()])
     }
 
     pub fn sub(&self, other: &Tensor) -> Result<Tensor> {
         self.ensure_same_device_dtype(other)?;
-        self.dispatch_single(OpKind::Sub, &[self.clone(), other.clone()])
+        let runtime = self.runtime();
+        let op = SubOp;
+        runtime.dispatch_op_single(&op, &[self.clone(), other.clone()])
     }
 
     pub fn mul(&self, other: &Tensor) -> Result<Tensor> {
         self.ensure_same_device_dtype(other)?;
-        self.dispatch_single(OpKind::Mul, &[self.clone(), other.clone()])
+        let runtime = self.runtime();
+        let op = MulOp;
+        runtime.dispatch_op_single(&op, &[self.clone(), other.clone()])
     }
 
     pub fn div(&self, other: &Tensor) -> Result<Tensor> {
         self.ensure_same_device_dtype(other)?;
-        self.dispatch_single(OpKind::Div, &[self.clone(), other.clone()])
+        let runtime = self.runtime();
+        let op = DivOp;
+        runtime.dispatch_op_single(&op, &[self.clone(), other.clone()])
     }
 
     pub fn neg(&self) -> Result<Tensor> {
-        self.dispatch_single(OpKind::Neg, &[self.clone()])
+        let runtime = self.runtime();
+        let op = NegOp;
+        runtime.dispatch_op_single(&op, &[self.clone()])
     }
 
     pub fn exp(&self) -> Result<Tensor> {
         self.require_float("exp")?;
-        self.dispatch_single(OpKind::Exp, &[self.clone()])
+        let runtime = self.runtime();
+        let op = ExpOp;
+        runtime.dispatch_op_single(&op, &[self.clone()])
     }
 
     pub fn relu(&self) -> Result<Tensor> {
         self.require_float("relu")?;
-        self.dispatch_single(OpKind::Relu, &[self.clone()])
+        let runtime = self.runtime();
+        let op = ReluOp;
+        runtime.dispatch_op_single(&op, &[self.clone()])
     }
 
     pub fn sum(&self) -> Result<Tensor> {
@@ -153,8 +172,9 @@ impl Tensor {
 
     pub fn sum_axes(&self, axes: &[usize]) -> Result<Tensor> {
         let axes = canonical_axes(axes, self.shape().len())?;
-        let attrs = OpAttrs::reduce(axes.clone());
-        self.dispatch_with_attrs(OpKind::Sum, &[self.clone()], attrs)
+        let op = SumOp { axes };
+        let runtime = self.runtime();
+        runtime.dispatch_op_single(&op, &[self.clone()])
     }
 
     pub fn matmul(&self, other: &Tensor) -> Result<Tensor> {
@@ -179,7 +199,9 @@ impl Tensor {
                 rhs: other.shape().to_vec(),
             });
         }
-        self.dispatch_single(OpKind::MatMul, &[self.clone(), other.clone()])
+        let runtime = self.runtime();
+        let op = MatMulOp;
+        runtime.dispatch_op_single(&op, &[self.clone(), other.clone()])
     }
 
     pub fn split(&self, spec: SplitSpec, axis: i64) -> Result<Vec<Tensor>> {
@@ -187,12 +209,12 @@ impl Tensor {
         let axis = normalize_axis(axis, rank)?;
         let axis_len = self.shape()[axis];
         let spec_attrs = spec.into_kernel_spec(axis_len)?;
-        let attrs = OpAttrs::split(SplitAttrs {
+        let runtime = self.runtime();
+        let op = SplitOp {
             axis,
             spec: spec_attrs,
-        });
-        let runtime = self.runtime();
-        runtime.dispatch_multi(OpKind::Split, &[self.clone()], &attrs)
+        };
+        runtime.dispatch_op(&op, &[self.clone()])
     }
 
     pub fn runtime(&self) -> Arc<Runtime> {
@@ -301,15 +323,6 @@ impl Tensor {
             return Err(Error::Device("tensors belong to different runtimes".into()));
         }
         Ok(())
-    }
-
-    fn dispatch_single(&self, op: OpKind, inputs: &[Tensor]) -> Result<Tensor> {
-        self.dispatch_with_attrs(op, inputs, OpAttrs::None)
-    }
-
-    fn dispatch_with_attrs(&self, op: OpKind, inputs: &[Tensor], attrs: OpAttrs) -> Result<Tensor> {
-        let runtime = self.runtime();
-        runtime.dispatch_single(op, inputs, attrs)
     }
 
     fn require_float(&self, op: &'static str) -> Result<()> {

@@ -1,14 +1,11 @@
-use std::{
-    ops::{AddAssign, Mul},
-    sync::Arc,
-};
+use std::ops::{AddAssign, Mul};
 
 use bolt_core::{
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::DType,
     error::{Error, Result},
-    op::{OpAttrs, OpKey, OpKind},
+    op::MatMulOp,
     tensor::Tensor,
 };
 
@@ -24,19 +21,15 @@ fn register_matmul<T>(dispatcher: &mut Dispatcher, dtype: DType) -> Result<()>
 where
     T: Numeric + Copy + AddAssign + Mul<Output = T>,
 {
-    let key = OpKey {
-        op: OpKind::MatMul,
-        device: DeviceKind::Cpu,
+    dispatcher.register_operation::<MatMulOp, _>(
+        DeviceKind::Cpu,
         dtype,
-    };
-    dispatcher.register(
-        key,
         KernelLayoutReq::Contiguous,
-        Arc::new(|inputs, attrs| matmul_kernel::<T>(inputs, attrs)),
+        |inputs, op| matmul_kernel::<T>(inputs, op),
     )
 }
 
-fn matmul_kernel<T>(inputs: &[Tensor], _: &OpAttrs) -> Result<Vec<Tensor>>
+fn matmul_kernel<T>(inputs: &[Tensor], _op: &MatMulOp) -> Result<Vec<Tensor>>
 where
     T: Numeric + Copy + AddAssign + Mul<Output = T>,
 {

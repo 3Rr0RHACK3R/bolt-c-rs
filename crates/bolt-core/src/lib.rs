@@ -17,6 +17,9 @@ pub use dispatcher::{Dispatcher, KernelLayoutReq};
 pub use dtype::{DType, NativeType};
 pub use error::{Error, ExpectedOutputs, Result};
 pub use layout::{Layout, LayoutKind};
-pub use op::{OpAttrs, OpKey, OpKind};
+pub use op::{
+    AddOp, CopyOp, DivOp, ExpOp, FillOp, MatMulOp, MulOp, NegOp, OpAttrs, OpKey, OpKind, Operation,
+    ReluOp, SplitOp, SplitSpecAttrs, SubOp, SumOp,
+};
 pub use runtime::{Runtime, RuntimeBuilder};
 pub use tensor::{SplitSpec, Tensor};

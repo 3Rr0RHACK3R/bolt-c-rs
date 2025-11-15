@@ -54,6 +54,13 @@ pub enum Error {
         expected: ExpectedOutputs,
         actual: usize,
     },
+
+    #[error("op {op:?} expected attrs {expected}, got {actual}")]
+    OpAttrMismatch {
+        op: OpKind,
+        expected: &'static str,
+        actual: &'static str,
+    },
 }
 
 impl From<std::io::Error> for Error {

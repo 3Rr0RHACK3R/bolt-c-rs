@@ -1,8 +1,10 @@
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 use crate::{
+    device::DeviceKind,
+    dtype::DType,
     error::{Error, Result},
-    op::{OpAttrs, OpKey},
+    op::{OpAttrs, OpKey, Operation},
     tensor::Tensor,
 };
 
@@ -77,5 +79,28 @@ impl Dispatcher {
             }
         };
         (entry.func)(prepared_inputs.as_ref(), attrs)
+    }
+
+    pub fn register_operation<O, F>(
+        &mut self,
+        device: DeviceKind,
+        dtype: DType,
+        layout_req: KernelLayoutReq,
+        kernel: F,
+    ) -> Result<()>
+    where
+        O: Operation,
+        F: Fn(&[Tensor], &O) -> Result<Vec<Tensor>> + Send + Sync + 'static,
+    {
+        let key = OpKey {
+            op: O::KIND,
+            device,
+            dtype,
+        };
+        let func: Arc<KernelFn> = Arc::new(move |inputs, attrs| {
+            let op = O::from_opattrs(attrs)?;
+            kernel(inputs, &op)
+        });
+        self.register(key, layout_req, func)
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     dispatcher::Dispatcher,
     dtype::{DType, NativeType},
     error::{Error, ExpectedOutputs, Result},
-    op::{OpAttrs, OpKey, OpKind},
+    op::{OpAttrs, OpKey, OpKind, Operation},
     tensor::Tensor,
 };
 
@@ -84,6 +84,29 @@ impl Runtime {
         if outputs.len() != 1 {
             return Err(Error::KernelOutputMismatch {
                 op,
+                expected: ExpectedOutputs::Exactly(1),
+                actual: outputs.len(),
+            });
+        }
+        Ok(outputs.into_iter().next().expect("len validated"))
+    }
+
+    pub fn dispatch_op<O>(self: &Arc<Self>, op: &O, inputs: &[Tensor]) -> Result<Vec<Tensor>>
+    where
+        O: Operation,
+    {
+        let attrs = op.to_opattrs();
+        self.dispatch_multi(O::KIND, inputs, &attrs)
+    }
+
+    pub fn dispatch_op_single<O>(self: &Arc<Self>, op: &O, inputs: &[Tensor]) -> Result<Tensor>
+    where
+        O: Operation,
+    {
+        let outputs = self.dispatch_op(op, inputs)?;
+        if outputs.len() != 1 {
+            return Err(Error::KernelOutputMismatch {
+                op: O::KIND,
                 expected: ExpectedOutputs::Exactly(1),
                 actual: outputs.len(),
             });

@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use bolt_core::{
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::{DType, NativeType},
     error::{Error, Result},
-    op::{OpKey, OpKind},
+    op::CopyOp,
     tensor::Tensor,
 };
 
@@ -24,15 +22,11 @@ fn register_copy<T>(dispatcher: &mut Dispatcher, dtype: DType) -> Result<()>
 where
     T: NativeType,
 {
-    let key = OpKey {
-        op: OpKind::Copy,
-        device: DeviceKind::Cpu,
+    dispatcher.register_operation::<CopyOp, _>(
+        DeviceKind::Cpu,
         dtype,
-    };
-    dispatcher.register(
-        key,
         KernelLayoutReq::GeneralStrided,
-        Arc::new(|inputs, _| copy_kernel::<T>(inputs)),
+        |inputs, _| copy_kernel::<T>(inputs),
     )
 }
 
