@@ -5,6 +5,7 @@ use bolt_core::{
     error::{Error, Result},
     op::CopyOp,
     tensor::Tensor,
+    Operation,
 };
 
 use crate::kernels::common::{
@@ -22,20 +23,17 @@ fn register_copy<T>(dispatcher: &mut Dispatcher, dtype: DType) -> Result<()>
 where
     T: NativeType,
 {
-    dispatcher.register_operation::<CopyOp, _>(
-        DeviceKind::Cpu,
-        dtype,
-        KernelLayoutReq::GeneralStrided,
-        |inputs, _| copy_kernel::<T>(inputs),
-    )
+    dispatcher.register_operation::<CopyOp, _>(DeviceKind::Cpu, dtype, KernelLayoutReq::GeneralStrided, |inputs, op| {
+        copy_kernel::<T>(inputs, op)
+    })
 }
 
-fn copy_kernel<T>(inputs: &[Tensor]) -> Result<Vec<Tensor>>
+fn copy_kernel<T>(inputs: &[Tensor], _op: &CopyOp) -> Result<Vec<Tensor>>
 where
     T: NativeType,
 {
     if inputs.len() != 1 {
-        return Err(Error::Device("copy expects 1 input".into()));
+        return Err(Error::Device(format!("{:?} expects 1 input", CopyOp::KIND)));
     }
     let input = &inputs[0];
     if input.dtype() != T::DTYPE {

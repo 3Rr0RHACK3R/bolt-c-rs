@@ -1,4 +1,5 @@
 use bolt_core::{
+    Operation,
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::{DType, NativeType},
@@ -13,31 +14,26 @@ use crate::kernels::common::{
 };
 
 pub fn register(dispatcher: &mut Dispatcher) -> Result<()> {
-    register_binary::<f32, AddOp, _>(dispatcher, DType::F32, "add", |a, b| a + b)?;
-    register_binary::<f64, AddOp, _>(dispatcher, DType::F64, "add", |a, b| a + b)?;
-    register_binary::<i32, AddOp, _>(dispatcher, DType::I32, "add", |a, b| a + b)?;
+    register_binary::<f32, AddOp, _>(dispatcher, DType::F32, |a, b| a + b)?;
+    register_binary::<f64, AddOp, _>(dispatcher, DType::F64, |a, b| a + b)?;
+    register_binary::<i32, AddOp, _>(dispatcher, DType::I32, |a, b| a + b)?;
 
-    register_binary::<f32, SubOp, _>(dispatcher, DType::F32, "sub", |a, b| a - b)?;
-    register_binary::<f64, SubOp, _>(dispatcher, DType::F64, "sub", |a, b| a - b)?;
-    register_binary::<i32, SubOp, _>(dispatcher, DType::I32, "sub", |a, b| a - b)?;
+    register_binary::<f32, SubOp, _>(dispatcher, DType::F32, |a, b| a - b)?;
+    register_binary::<f64, SubOp, _>(dispatcher, DType::F64, |a, b| a - b)?;
+    register_binary::<i32, SubOp, _>(dispatcher, DType::I32, |a, b| a - b)?;
 
-    register_binary::<f32, MulOp, _>(dispatcher, DType::F32, "mul", |a, b| a * b)?;
-    register_binary::<f64, MulOp, _>(dispatcher, DType::F64, "mul", |a, b| a * b)?;
-    register_binary::<i32, MulOp, _>(dispatcher, DType::I32, "mul", |a, b| a * b)?;
+    register_binary::<f32, MulOp, _>(dispatcher, DType::F32, |a, b| a * b)?;
+    register_binary::<f64, MulOp, _>(dispatcher, DType::F64, |a, b| a * b)?;
+    register_binary::<i32, MulOp, _>(dispatcher, DType::I32, |a, b| a * b)?;
 
-    register_binary::<f32, DivOp, _>(dispatcher, DType::F32, "div", |a, b| a / b)?;
-    register_binary::<f64, DivOp, _>(dispatcher, DType::F64, "div", |a, b| a / b)?;
-    register_binary::<i32, DivOp, _>(dispatcher, DType::I32, "div", |a, b| a / b)?;
+    register_binary::<f32, DivOp, _>(dispatcher, DType::F32, |a, b| a / b)?;
+    register_binary::<f64, DivOp, _>(dispatcher, DType::F64, |a, b| a / b)?;
+    register_binary::<i32, DivOp, _>(dispatcher, DType::I32, |a, b| a / b)?;
 
     Ok(())
 }
 
-fn register_binary<T, O, F>(
-    dispatcher: &mut Dispatcher,
-    dtype: DType,
-    name: &'static str,
-    func: F,
-) -> Result<()>
+fn register_binary<T, O, F>(dispatcher: &mut Dispatcher, dtype: DType, func: F) -> Result<()>
 where
     T: NativeType,
     O: bolt_core::op::Operation,
@@ -47,17 +43,18 @@ where
         DeviceKind::Cpu,
         dtype,
         KernelLayoutReq::GeneralStrided,
-        move |inputs, _| binary_kernel::<T, F>(inputs, name, func),
+        move |inputs, op| binary_kernel::<T, O, F>(inputs, op, func),
     )
 }
 
-fn binary_kernel<T, F>(inputs: &[Tensor], name: &'static str, func: F) -> Result<Vec<Tensor>>
+fn binary_kernel<T, O, F>(inputs: &[Tensor], _op: &O, func: F) -> Result<Vec<Tensor>>
 where
     T: NativeType,
+    O: Operation,
     F: Fn(T, T) -> T + Copy,
 {
     if inputs.len() != 2 {
-        return Err(Error::Device(format!("{name} expects 2 inputs")));
+        return Err(Error::Device(format!("{:?} expects 2 inputs", O::KIND)));
     }
     let lhs = &inputs[0];
     let rhs = &inputs[1];

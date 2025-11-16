@@ -1,4 +1,5 @@
 use bolt_core::{
+    Operation,
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::{DType, NativeType},
@@ -12,45 +13,41 @@ use crate::kernels::common::{
 };
 
 pub fn register(dispatcher: &mut Dispatcher) -> Result<()> {
-    register_unary::<f32, NegOp, _>(dispatcher, DType::F32, "neg", |v| -v)?;
-    register_unary::<f64, NegOp, _>(dispatcher, DType::F64, "neg", |v| -v)?;
-    register_unary::<i32, NegOp, _>(dispatcher, DType::I32, "neg", |v| -v)?;
+    register_unary::<f32, NegOp, _>(dispatcher, DType::F32, |v: f32| -v)?;
+    register_unary::<f64, NegOp, _>(dispatcher, DType::F64, |v: f64| -v)?;
+    register_unary::<i32, NegOp, _>(dispatcher, DType::I32, |v: i32| -v)?;
 
-    register_unary::<f32, ExpOp, _>(dispatcher, DType::F32, "exp", |v| v.exp())?;
-    register_unary::<f64, ExpOp, _>(dispatcher, DType::F64, "exp", |v| v.exp())?;
+    register_unary::<f32, ExpOp, _>(dispatcher, DType::F32, |v: f32| v.exp())?;
+    register_unary::<f64, ExpOp, _>(dispatcher, DType::F64, |v: f64| v.exp())?;
 
-    register_unary::<f32, ReluOp, _>(dispatcher, DType::F32, "relu", |v| v.max(0.0))?;
-    register_unary::<f64, ReluOp, _>(dispatcher, DType::F64, "relu", |v| v.max(0.0))?;
+    register_unary::<f32, ReluOp, _>(dispatcher, DType::F32, |v: f32| v.max(0.0))?;
+    register_unary::<f64, ReluOp, _>(dispatcher, DType::F64, |v: f64| v.max(0.0))?;
 
     Ok(())
 }
 
-fn register_unary<T, O, F>(
-    dispatcher: &mut Dispatcher,
-    dtype: DType,
-    name: &'static str,
-    func: F,
-) -> Result<()>
+fn register_unary<T, O, F>(dispatcher: &mut Dispatcher, dtype: DType, func: F) -> Result<()>
 where
     T: NativeType,
-    O: bolt_core::op::Operation,
+    O: Operation,
     F: Fn(T) -> T + Send + Sync + Copy + 'static,
 {
     dispatcher.register_operation::<O, _>(
         DeviceKind::Cpu,
         dtype,
         KernelLayoutReq::GeneralStrided,
-        move |inputs, _| unary_kernel::<T, F>(inputs, name, func),
+        move |inputs, op| unary_kernel::<T, O, F>(inputs, op, func),
     )
 }
 
-fn unary_kernel<T, F>(inputs: &[Tensor], name: &'static str, func: F) -> Result<Vec<Tensor>>
+fn unary_kernel<T, O, F>(inputs: &[Tensor], _op: &O, func: F) -> Result<Vec<Tensor>>
 where
     T: NativeType,
+    O: Operation,
     F: Fn(T) -> T + Copy,
 {
     if inputs.len() != 1 {
-        return Err(Error::Device(format!("{name} expects 1 input")));
+        return Err(Error::Device(format!("{:?} expects 1 input", O::KIND)));
     }
     let input = &inputs[0];
     if input.dtype() != T::DTYPE {
