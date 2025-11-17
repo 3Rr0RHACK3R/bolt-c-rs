@@ -32,7 +32,10 @@ impl CpuDevice {
     }
 
     pub(crate) fn buffer_cell(&self, id: BufferId) -> Result<Arc<BufferCell>> {
-        let buffers = self.buffers.lock().unwrap();
+        let buffers = self.buffers.lock().map_err(|_| Error::DeviceLockPoisoned {
+            device: DeviceKind::Cpu,
+            lock: "buffers",
+        })?;
         buffers
             .get(&id.raw())
             .cloned()
@@ -55,13 +58,19 @@ impl Device for CpuDevice {
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let buffer = self.insert_buffer(size);
-        let mut buffers = self.buffers.lock().unwrap();
+        let mut buffers = self.buffers.lock().map_err(|_| Error::DeviceLockPoisoned {
+            device: DeviceKind::Cpu,
+            lock: "buffers",
+        })?;
         buffers.insert(id, buffer);
         Ok(BufferId::new(id))
     }
 
     fn free(&self, buffer: BufferId) -> Result<()> {
-        let mut buffers = self.buffers.lock().unwrap();
+        let mut buffers = self.buffers.lock().map_err(|_| Error::DeviceLockPoisoned {
+            device: DeviceKind::Cpu,
+            lock: "buffers",
+        })?;
         buffers
             .remove(&buffer.raw())
             .ok_or_else(|| Error::Device(format!("double free buffer {}", buffer.raw())))
@@ -171,7 +180,10 @@ impl BufferCell {
     where
         F: FnOnce(&mut [u8]) -> Result<T>,
     {
-        let mut guard = self.data.write().unwrap();
+        let mut guard = self.data.write().map_err(|_| Error::DeviceLockPoisoned {
+            device: DeviceKind::Cpu,
+            lock: "buffer_cell.write",
+        })?;
         f(&mut guard)
     }
 
@@ -179,7 +191,10 @@ impl BufferCell {
     where
         F: FnOnce(&[u8]) -> Result<T>,
     {
-        let guard = self.data.read().unwrap();
+        let guard = self.data.read().map_err(|_| Error::DeviceLockPoisoned {
+            device: DeviceKind::Cpu,
+            lock: "buffer_cell.read",
+        })?;
         f(&guard)
     }
 }
