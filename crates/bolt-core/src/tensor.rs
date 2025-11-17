@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{slice, sync::Arc};
 
 use bytemuck::cast_slice;
 
@@ -115,7 +115,7 @@ impl Tensor {
         }
         let runtime = self.runtime();
         let op = CopyOp;
-        runtime.dispatch_op_single(&op, &[self.clone()])
+        runtime.dispatch_op_single(&op, slice::from_ref(self))
     }
 
     pub fn add(&self, other: &Tensor) -> Result<Tensor> {
@@ -149,21 +149,21 @@ impl Tensor {
     pub fn neg(&self) -> Result<Tensor> {
         let runtime = self.runtime();
         let op = NegOp;
-        runtime.dispatch_op_single(&op, &[self.clone()])
+        runtime.dispatch_op_single(&op, slice::from_ref(self))
     }
 
     pub fn exp(&self) -> Result<Tensor> {
         self.require_float("exp")?;
         let runtime = self.runtime();
         let op = ExpOp;
-        runtime.dispatch_op_single(&op, &[self.clone()])
+        runtime.dispatch_op_single(&op, slice::from_ref(self))
     }
 
     pub fn relu(&self) -> Result<Tensor> {
         self.require_float("relu")?;
         let runtime = self.runtime();
         let op = ReluOp;
-        runtime.dispatch_op_single(&op, &[self.clone()])
+        runtime.dispatch_op_single(&op, slice::from_ref(self))
     }
 
     pub fn sum(&self) -> Result<Tensor> {
@@ -174,7 +174,7 @@ impl Tensor {
         let axes = canonical_axes(axes, self.shape().len())?;
         let op = SumOp { axes };
         let runtime = self.runtime();
-        runtime.dispatch_op_single(&op, &[self.clone()])
+        runtime.dispatch_op_single(&op, slice::from_ref(self))
     }
 
     pub fn matmul(&self, other: &Tensor) -> Result<Tensor> {
@@ -214,7 +214,7 @@ impl Tensor {
             axis,
             spec: spec_attrs,
         };
-        runtime.dispatch_op(&op, &[self.clone()])
+        runtime.dispatch_op(&op, slice::from_ref(self))
     }
 
     pub fn runtime(&self) -> Arc<Runtime> {

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{slice, sync::Arc};
 
 use bolt_core::{
     Tensor,
@@ -16,10 +16,10 @@ fn dispatch_multi_surfaces_all_outputs_and_single_errors() -> Result<()> {
     let runtime = runtime_with_test_kernels()?;
     let input = runtime.tensor_from_slice(&[2usize], &[1.0f32, 2.0])?;
 
-    let outputs = runtime.dispatch_multi(OpKind::Fill, &[input.clone()], &OpAttrs::None)?;
+    let outputs = runtime.dispatch_multi(OpKind::Fill, slice::from_ref(&input), &OpAttrs::None)?;
     assert_eq!(outputs.len(), 2);
 
-    let err = match runtime.dispatch_single(OpKind::Fill, &[input.clone()], OpAttrs::None) {
+    let err = match runtime.dispatch_single(OpKind::Fill, slice::from_ref(&input), OpAttrs::None) {
         Ok(_) => panic!("dispatch_single should error on >1 outputs"),
         Err(err) => err,
     };
@@ -43,10 +43,10 @@ fn dispatch_multi_allows_zero_outputs() -> Result<()> {
     let runtime = runtime_with_test_kernels()?;
     let input = runtime.tensor_from_slice(&[2usize], &[1i32, 2])?;
 
-    let outputs = runtime.dispatch_multi(OpKind::Fill, &[input.clone()], &OpAttrs::None)?;
+    let outputs = runtime.dispatch_multi(OpKind::Fill, slice::from_ref(&input), &OpAttrs::None)?;
     assert!(outputs.is_empty());
 
-    let err = match runtime.dispatch_single(OpKind::Fill, &[input.clone()], OpAttrs::None) {
+    let err = match runtime.dispatch_single(OpKind::Fill, slice::from_ref(&input), OpAttrs::None) {
         Ok(_) => panic!("dispatch_single should error on zero outputs"),
         Err(err) => err,
     };
@@ -71,7 +71,7 @@ fn register_operation_surfaces_attr_mismatches() -> Result<()> {
     let input = runtime.tensor_from_slice(&[2usize], &[1.0f32, 2.0])?;
 
     let mismatch_attrs = OpAttrs::Sum { axes: vec![0] };
-    let err = match runtime.dispatch_multi(OpKind::Fill, &[input.clone()], &mismatch_attrs) {
+    let err = match runtime.dispatch_multi(OpKind::Fill, slice::from_ref(&input), &mismatch_attrs) {
         Ok(_) => panic!("mismatched attrs should error"),
         Err(err) => err,
     };

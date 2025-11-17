@@ -36,7 +36,7 @@ pub fn register(dispatcher: &mut Dispatcher) -> Result<()> {
 fn register_binary<T, O, F>(dispatcher: &mut Dispatcher, dtype: DType, func: F) -> Result<()>
 where
     T: NativeType,
-    O: bolt_core::op::Operation,
+    O: Operation,
     F: Fn(T, T) -> T + Send + Sync + Copy + 'static,
 {
     dispatcher.register_operation::<O, _>(

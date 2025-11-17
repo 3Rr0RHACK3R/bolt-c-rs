@@ -91,7 +91,7 @@ impl Layout {
                 "invalid slice range [{start}, {end}) for dim {dim}"
             )));
         }
-        let new_len = ((end - start) + step - 1) / step;
+        let new_len = (end - start).div_ceil(step);
         let mut new_shape = self.shape().to_vec();
         new_shape[axis] = new_len;
         let mut new_strides = self.strides().to_vec();

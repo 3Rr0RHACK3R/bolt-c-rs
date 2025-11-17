@@ -1,11 +1,11 @@
 use bolt_core::{
+    Operation,
     device::DeviceKind,
     dispatcher::{Dispatcher, KernelLayoutReq},
     dtype::{DType, NativeType},
     error::{Error, Result},
     op::CopyOp,
     tensor::Tensor,
-    Operation,
 };
 
 use crate::kernels::common::{
@@ -23,9 +23,12 @@ fn register_copy<T>(dispatcher: &mut Dispatcher, dtype: DType) -> Result<()>
 where
     T: NativeType,
 {
-    dispatcher.register_operation::<CopyOp, _>(DeviceKind::Cpu, dtype, KernelLayoutReq::GeneralStrided, |inputs, op| {
-        copy_kernel::<T>(inputs, op)
-    })
+    dispatcher.register_operation::<CopyOp, _>(
+        DeviceKind::Cpu,
+        dtype,
+        KernelLayoutReq::GeneralStrided,
+        |inputs, op| copy_kernel::<T>(inputs, op),
+    )
 }
 
 fn copy_kernel<T>(inputs: &[Tensor], _op: &CopyOp) -> Result<Vec<Tensor>>

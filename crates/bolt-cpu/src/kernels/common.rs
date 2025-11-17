@@ -33,11 +33,11 @@ pub fn offset_from_strides(indices: &[usize], strides: &[isize]) -> isize {
         .fold(0isize, |acc, (idx, stride)| acc + *idx as isize * *stride)
 }
 
-pub fn typed_storage<'a, T: NativeType>(buffer: &'a [u8]) -> &'a [T] {
+pub fn typed_storage<T: NativeType>(buffer: &[u8]) -> &[T] {
     cast_slice(buffer)
 }
 
-pub fn typed_storage_mut<'a, T: NativeType>(buffer: &'a mut [u8]) -> &'a mut [T] {
+pub fn typed_storage_mut<T: NativeType>(buffer: &mut [u8]) -> &mut [T] {
     cast_slice_mut(buffer)
 }
 

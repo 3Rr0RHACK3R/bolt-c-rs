@@ -29,3 +29,14 @@ fn reshape_requires_contiguous_layout() -> Result<()> {
     assert!(sliced.reshape(ConcreteShape::from_slice(&[6])?).is_err());
     Ok(())
 }
+
+#[test]
+fn reshape_rejects_invalid_element_counts() -> Result<()> {
+    let base = Layout::contiguous(ConcreteShape::from_slice(&[2, 3])?);
+    let err = base.reshape(ConcreteShape::from_slice(&[2, 2])?);
+    assert!(matches!(
+        err,
+        Err(bolt_core::error::Error::SizeMismatch { .. })
+    ));
+    Ok(())
+}

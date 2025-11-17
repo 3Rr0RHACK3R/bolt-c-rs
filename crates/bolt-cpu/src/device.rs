@@ -17,6 +17,12 @@ pub struct CpuDevice {
     next_id: AtomicU64,
 }
 
+impl Default for CpuDevice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CpuDevice {
     pub fn new() -> Self {
         Self {
@@ -100,27 +106,32 @@ impl Device for CpuDevice {
         dst_offset: usize,
         size: usize,
     ) -> Result<()> {
-        let src_cell = self.buffer_cell(src)?;
-        let dst_cell = self.buffer_cell(dst)?;
-        src_cell.with_read(|src_data| {
-            let src_end = src_offset + size;
-            if src_end > src_data.len() {
-                return Err(Error::SizeMismatch {
-                    expected: src_data.len() - src_offset,
-                    actual: size,
-                });
-            }
-            dst_cell.with_write(|dst_data| {
-                let dst_end = dst_offset + size;
-                if dst_end > dst_data.len() {
-                    return Err(Error::SizeMismatch {
-                        expected: dst_data.len() - dst_offset,
-                        actual: size,
-                    });
-                }
-                dst_data[dst_offset..dst_end].copy_from_slice(&src_data[src_offset..src_end]);
+        if src == dst {
+            let cell = self.buffer_cell(src)?;
+            return cell.with_write(|data| {
+                Self::check_bounds(data.len(), src_offset, size)?;
+                Self::check_bounds(data.len(), dst_offset, size)?;
+                data.copy_within(src_offset..src_offset + size, dst_offset);
                 Ok(())
-            })
+            });
+        }
+
+        // Two-phase copy to avoid nested lock scopes and deadlocks when multiple
+        // threads copy opposite directions. Temporary allocation is acceptable
+        // today; revisit with lock ordering once profiling shows Device::copy is hot.
+        let temp = {
+            let cell = self.buffer_cell(src)?;
+            cell.with_read(|src_data| {
+                Self::check_bounds(src_data.len(), src_offset, size)?;
+                Ok(src_data[src_offset..src_offset + size].to_vec())
+            })?
+        };
+
+        let cell = self.buffer_cell(dst)?;
+        cell.with_write(|dst_data| {
+            Self::check_bounds(dst_data.len(), dst_offset, size)?;
+            dst_data[dst_offset..dst_offset + size].copy_from_slice(&temp);
+            Ok(())
         })
     }
 
@@ -130,6 +141,18 @@ impl Device for CpuDevice {
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+impl CpuDevice {
+    fn check_bounds(len: usize, offset: usize, size: usize) -> Result<()> {
+        if offset.checked_add(size).is_none_or(|end| end > len) {
+            return Err(Error::SizeMismatch {
+                expected: len.saturating_sub(offset),
+                actual: size,
+            });
+        }
+        Ok(())
     }
 }
 

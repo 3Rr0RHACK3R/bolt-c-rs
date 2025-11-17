@@ -13,7 +13,7 @@ pub fn register(dispatcher: &mut Dispatcher) -> Result<()> {
             DeviceKind::Cpu,
             dtype,
             KernelLayoutReq::GeneralStrided,
-            |inputs, op| split_kernel(inputs, op),
+            split_kernel,
         )?;
     }
     Ok(())

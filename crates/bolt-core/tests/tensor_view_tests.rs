@@ -1,6 +1,6 @@
 mod support;
 
-use bolt_core::error::Result;
+use bolt_core::error::{Error, Result};
 
 use support::test_runtime;
 
@@ -44,5 +44,22 @@ fn reshape_requires_contiguous_layout() -> Result<()> {
     let flattened = view.contiguous()?.reshape(&[4])?;
     assert_eq!(flattened.shape(), &[4]);
     assert_eq!(flattened.to_vec::<i32>()?, vec![1, 3, 5, 7]);
+    Ok(())
+}
+
+#[test]
+fn tensor_creation_rejects_zero_dim_shapes() {
+    let runtime = test_runtime();
+    let data: [f32; 0] = [];
+    let err = runtime.tensor_from_slice(&[2, 0], &data);
+    assert!(matches!(err, Err(Error::InvalidShape { .. })));
+}
+
+#[test]
+fn tensor_reshape_rejects_zero_dim_shapes() -> Result<()> {
+    let runtime = test_runtime();
+    let tensor = runtime.tensor_from_slice(&[2, 2], &[1.0f32, 2.0, 3.0, 4.0])?;
+    let err = tensor.reshape(&[0, 4]);
+    assert!(matches!(err, Err(Error::InvalidShape { .. })));
     Ok(())
 }

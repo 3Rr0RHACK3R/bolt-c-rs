@@ -27,11 +27,17 @@ pub struct OpKey {
     pub dtype: DType,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum OpAttrs {
+    #[default]
     None,
-    Sum { axes: Vec<usize> },
-    Split { axis: usize, spec: SplitSpecAttrs },
+    Sum {
+        axes: Vec<usize>,
+    },
+    Split {
+        axis: usize,
+        spec: SplitSpecAttrs,
+    },
 }
 
 impl OpAttrs {
@@ -41,12 +47,6 @@ impl OpAttrs {
             OpAttrs::Sum { .. } => "Sum",
             OpAttrs::Split { .. } => "Split",
         }
-    }
-}
-
-impl Default for OpAttrs {
-    fn default() -> Self {
-        OpAttrs::None
     }
 }
 

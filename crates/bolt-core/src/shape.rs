@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
 
+/// Runtime-validated shape metadata (rank >= 1, every dimension > 0).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConcreteShape {
     dims: Vec<usize>,
@@ -7,16 +8,7 @@ pub struct ConcreteShape {
 
 impl ConcreteShape {
     pub fn from_slice(dims: &[usize]) -> Result<Self> {
-        if dims.is_empty() {
-            return Err(Error::invalid_shape(
-                "shape must have at least one dimension",
-            ));
-        }
-        if dims.iter().any(|&d| d == 0) {
-            return Err(Error::invalid_shape(
-                "zero-sized dimensions are not supported",
-            ));
-        }
+        Self::validate_dims(dims)?;
         Ok(Self {
             dims: dims.to_vec(),
         })
@@ -43,6 +35,20 @@ impl ConcreteShape {
         }
         strides
     }
+
+    fn validate_dims(dims: &[usize]) -> Result<()> {
+        if dims.is_empty() {
+            return Err(Error::invalid_shape(
+                "shape must have at least one dimension",
+            ));
+        }
+        if dims.contains(&0) {
+            return Err(Error::invalid_shape(
+                "zero-sized dimensions are not supported",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl From<&ConcreteShape> for ConcreteShape {
@@ -51,9 +57,20 @@ impl From<&ConcreteShape> for ConcreteShape {
     }
 }
 
-impl From<Vec<usize>> for ConcreteShape {
-    fn from(value: Vec<usize>) -> Self {
-        Self { dims: value }
+impl TryFrom<Vec<usize>> for ConcreteShape {
+    type Error = Error;
+
+    fn try_from(dims: Vec<usize>) -> Result<Self> {
+        ConcreteShape::validate_dims(&dims)?;
+        Ok(Self { dims })
+    }
+}
+
+impl TryFrom<&[usize]> for ConcreteShape {
+    type Error = Error;
+
+    fn try_from(dims: &[usize]) -> Result<Self> {
+        ConcreteShape::from_slice(dims)
     }
 }
 

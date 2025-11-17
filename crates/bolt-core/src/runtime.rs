@@ -148,6 +148,12 @@ pub struct RuntimeBuilder {
     default_device: Option<DeviceKind>,
 }
 
+impl Default for RuntimeBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuntimeBuilder {
     pub fn new() -> Self {
         Self {
