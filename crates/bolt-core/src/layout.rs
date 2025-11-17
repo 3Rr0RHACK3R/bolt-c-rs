@@ -1,8 +1,9 @@
 use crate::{
     dtype::DType,
     error::{Error, Result},
-    shape::ConcreteShape,
+    shape::{ConcreteShape, MAX_RANK},
 };
+use tinyvec::ArrayVec;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LayoutKind {
@@ -13,7 +14,7 @@ pub enum LayoutKind {
 #[derive(Clone, Debug)]
 pub struct Layout {
     shape: ConcreteShape,
-    strides: Vec<isize>,
+    strides: ArrayVec<[isize; MAX_RANK]>,
     offset_bytes: usize,
     kind: LayoutKind,
 }
@@ -31,13 +32,17 @@ impl Layout {
 
     pub fn with_strides(
         shape: ConcreteShape,
-        strides: Vec<isize>,
+        strides: &[isize],
         offset_bytes: usize,
     ) -> Result<Self> {
         if shape.rank() != strides.len() {
             return Err(Error::invalid_shape("strides rank must match shape rank"));
         }
-        Ok(Self::new_unchecked(shape, strides, offset_bytes))
+        let mut stride_store = ArrayVec::<[isize; MAX_RANK]>::new();
+        for &stride in strides {
+            stride_store.push(stride);
+        }
+        Ok(Self::new_unchecked(shape, stride_store, offset_bytes))
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -49,7 +54,7 @@ impl Layout {
     }
 
     pub fn strides(&self) -> &[isize] {
-        &self.strides
+        self.strides.as_slice()
     }
 
     pub fn offset_bytes(&self) -> usize {
@@ -94,7 +99,7 @@ impl Layout {
         let new_len = (end - start).div_ceil(step);
         let mut new_shape = self.shape().to_vec();
         new_shape[axis] = new_len;
-        let mut new_strides = self.strides().to_vec();
+        let mut new_strides = self.strides;
         new_strides[axis] *= step as isize;
         let stride = self.strides()[axis];
         let elem_offset = stride * start as isize;
@@ -104,7 +109,7 @@ impl Layout {
             .checked_add(byte_offset_delta as usize)
             .ok_or_else(|| Error::invalid_shape("slice offset overflow"))?;
         let shape = ConcreteShape::from_slice(&new_shape)?;
-        Layout::with_strides(shape, new_strides, offset_bytes)
+        Layout::with_strides(shape, new_strides.as_slice(), offset_bytes)
     }
 
     pub fn permute(&self, axes: &[usize]) -> Result<Self> {
@@ -125,13 +130,13 @@ impl Layout {
             seen[axis] = true;
         }
         let mut new_shape = Vec::with_capacity(axes.len());
-        let mut new_strides = Vec::with_capacity(axes.len());
+        let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
         for &axis in axes {
             new_shape.push(self.shape()[axis]);
             new_strides.push(self.strides()[axis]);
         }
         let shape = ConcreteShape::from_slice(&new_shape)?;
-        Layout::with_strides(shape, new_strides, self.offset_bytes)
+        Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
     pub fn transpose(&self, axis_a: usize, axis_b: usize) -> Result<Self> {
@@ -162,8 +167,12 @@ impl Layout {
         (self.offset_bytes / dtype.size_in_bytes()) as isize
     }
 
-    fn new_unchecked(shape: ConcreteShape, strides: Vec<isize>, offset_bytes: usize) -> Self {
-        let kind = compute_kind(shape.as_slice(), &strides);
+    fn new_unchecked(
+        shape: ConcreteShape,
+        strides: ArrayVec<[isize; MAX_RANK]>,
+        offset_bytes: usize,
+    ) -> Self {
+        let kind = compute_kind(shape.as_slice(), strides.as_slice());
         Self {
             shape,
             strides,

@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 thiserror.workspace = true
 bytemuck.workspace = true
+tinyvec = "1.10.0"
 
 [dev-dependencies]
 bolt-cpu = { path = "../bolt-cpu" }
