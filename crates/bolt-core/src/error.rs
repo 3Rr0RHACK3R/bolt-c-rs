@@ -48,6 +48,12 @@ pub enum Error {
     #[error("device error: {0}")]
     Device(String),
 
+    #[error("device lock poisoned: {device:?} {lock}")]
+    DeviceLockPoisoned {
+        device: DeviceKind,
+        lock: &'static str,
+    },
+
     #[error("kernel output mismatch for {op:?}: expected {expected}, got {actual}")]
     KernelOutputMismatch {
         op: OpKind,
@@ -74,6 +80,10 @@ impl Error {
         Self::InvalidShape {
             message: msg.into(),
         }
+    }
+
+    pub fn is_device_poisoned(&self) -> bool {
+        matches!(self, Self::DeviceLockPoisoned { .. })
     }
 }
 
