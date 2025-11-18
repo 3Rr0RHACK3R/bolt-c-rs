@@ -22,6 +22,9 @@ pub enum Error {
     #[error("size mismatch: expected {expected}, got {actual}")]
     SizeMismatch { expected: usize, actual: usize },
 
+    #[error("tensor too large: limit {limit} elements, requested {requested}")]
+    TensorTooLarge { limit: usize, requested: usize },
+
     #[error("op {op:?} is missing kernel for {device:?}/{dtype:?}")]
     KernelNotFound {
         op: OpKind,

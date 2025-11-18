@@ -1,21 +1,24 @@
 use crate::error::{Error, Result};
+use tinyvec::ArrayVec;
+
+pub const MAX_RANK: usize = 12;
+pub const MAX_ELEMENTS: usize = isize::MAX as usize;
 
 /// Runtime-validated shape metadata (rank >= 1, every dimension > 0).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConcreteShape {
-    dims: Vec<usize>,
+    dims: ArrayVec<[usize; MAX_RANK]>,
 }
 
 impl ConcreteShape {
     pub fn from_slice(dims: &[usize]) -> Result<Self> {
-        Self::validate_dims(dims)?;
         Ok(Self {
-            dims: dims.to_vec(),
+            dims: Self::collect_dims(dims)?,
         })
     }
 
     pub fn as_slice(&self) -> &[usize] {
-        &self.dims
+        self.dims.as_slice()
     }
 
     pub fn rank(&self) -> usize {
@@ -23,31 +26,64 @@ impl ConcreteShape {
     }
 
     pub fn num_elements(&self) -> usize {
-        self.dims.iter().product()
+        let mut num = 1usize;
+        for &dim in self.dims.iter() {
+            num = num
+                .checked_mul(dim)
+                .expect("shape invariant violated: num_elements overflow");
+        }
+        num
     }
 
-    pub fn contiguous_strides(&self) -> Vec<isize> {
-        let mut strides = vec![0isize; self.rank()];
+    pub fn contiguous_strides(&self) -> ArrayVec<[isize; MAX_RANK]> {
+        let rank = self.rank();
+        let mut strides = ArrayVec::<[isize; MAX_RANK]>::new();
+        for _ in 0..rank {
+            strides.push(0);
+        }
         let mut stride = 1isize;
-        for (i, dim) in self.dims.iter().enumerate().rev() {
+        for i in (0..rank).rev() {
+            let dim = self.dims[i];
             strides[i] = stride;
-            stride *= *dim as isize;
+            stride *= dim as isize;
         }
         strides
     }
 
-    fn validate_dims(dims: &[usize]) -> Result<()> {
+    fn collect_dims(dims: &[usize]) -> Result<ArrayVec<[usize; MAX_RANK]>> {
         if dims.is_empty() {
             return Err(Error::invalid_shape(
                 "shape must have at least one dimension",
             ));
         }
-        if dims.contains(&0) {
-            return Err(Error::invalid_shape(
-                "zero-sized dimensions are not supported",
-            ));
+        if dims.len() > MAX_RANK {
+            return Err(Error::invalid_shape(format!(
+                "tensor rank must be <= {MAX_RANK}"
+            )));
         }
-        Ok(())
+        let mut collected = ArrayVec::<[usize; MAX_RANK]>::new();
+        let mut num_elements = 1u128;
+        for &dim in dims {
+            if dim == 0 {
+                return Err(Error::invalid_shape(
+                    "zero-sized dimensions are not supported",
+                ));
+            }
+            num_elements = num_elements
+                .checked_mul(dim as u128)
+                .ok_or(Error::TensorTooLarge {
+                    limit: MAX_ELEMENTS,
+                    requested: usize::MAX,
+                })?;
+            if num_elements > MAX_ELEMENTS as u128 {
+                return Err(Error::TensorTooLarge {
+                    limit: MAX_ELEMENTS,
+                    requested: num_elements.try_into().unwrap_or(usize::MAX),
+                });
+            }
+            collected.push(dim);
+        }
+        Ok(collected)
     }
 }
 
@@ -61,8 +97,7 @@ impl TryFrom<Vec<usize>> for ConcreteShape {
     type Error = Error;
 
     fn try_from(dims: Vec<usize>) -> Result<Self> {
-        ConcreteShape::validate_dims(&dims)?;
-        Ok(Self { dims })
+        ConcreteShape::from_slice(&dims)
     }
 }
 

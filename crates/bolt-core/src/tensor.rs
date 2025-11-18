@@ -285,7 +285,14 @@ impl Tensor {
         shape: ConcreteShape,
         dtype: DType,
     ) -> Result<Self> {
-        let len_bytes = shape.num_elements() * dtype.size_in_bytes();
+        let numel = shape.num_elements();
+        let dtype_size = dtype.size_in_bytes();
+        debug_assert!(dtype_size > 0, "dtype {dtype:?} reported zero size");
+        let elem_limit = usize::MAX / dtype_size;
+        let len_bytes = numel.checked_mul(dtype_size).ok_or(Error::TensorTooLarge {
+            limit: elem_limit,
+            requested: numel,
+        })?;
         let storage = Arc::new(TensorStorage::new(
             runtime.clone(),
             device_kind,
