@@ -5,7 +5,7 @@ use bytemuck::cast_slice;
 use crate::{
     buffer::{BufferId, BufferView},
     device::{Device, DeviceKind},
-    dtype::{DType, NativeType},
+    dtype::{DType, MAX_NATIVE_TYPE_SIZE, NativeType},
     error::{Error, Result},
     layout::Layout,
     op::{
@@ -83,6 +83,29 @@ impl Tensor {
             .read(self.view.buffer_id, self.view.offset_bytes(), &mut bytes)?;
         let values: Vec<T> = cast_slice(&bytes).to_vec();
         Ok(values)
+    }
+
+    pub fn item<T: NativeType>(&self) -> Result<T> {
+        if self.numel() != 1 {
+            return Err(Error::invalid_shape(format!(
+                "Tensor::item requires a scalar tensor, got shape {:?}",
+                self.shape()
+            )));
+        }
+        if self.view.dtype != T::DTYPE {
+            return Err(Error::DTypeMismatch {
+                lhs: self.view.dtype,
+                rhs: T::DTYPE,
+            });
+        }
+        let mut raw = [0u8; MAX_NATIVE_TYPE_SIZE];
+        let dtype_size = T::DTYPE.size_in_bytes();
+        self.device()?.read(
+            self.view.buffer_id,
+            self.view.offset_bytes(),
+            &mut raw[..dtype_size],
+        )?;
+        Ok(*bytemuck::from_bytes::<T>(&raw[..dtype_size]))
     }
 
     pub fn reshape(&self, new_shape: &[usize]) -> Result<Self> {
