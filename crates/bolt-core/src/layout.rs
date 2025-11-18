@@ -102,14 +102,29 @@ impl Layout {
         let mut new_strides = self.strides;
         new_strides[axis] *= step as isize;
         let stride = self.strides()[axis];
-        let elem_offset = stride * start as isize;
-        let byte_offset_delta = elem_offset * dtype.size_in_bytes() as isize;
-        let offset_bytes = self
-            .offset_bytes()
-            .checked_add(byte_offset_delta as usize)
-            .ok_or_else(|| Error::invalid_shape("slice offset overflow"))?;
+        let offset_bytes =
+            Self::validate_slice_offset_bytes(stride, start, dtype, self.offset_bytes())?;
         let shape = ConcreteShape::from_slice(&new_shape)?;
         Layout::with_strides(shape, new_strides.as_slice(), offset_bytes)
+    }
+
+    fn validate_slice_offset_bytes(
+        stride: isize,
+        start: usize,
+        dtype: DType,
+        base_offset: usize,
+    ) -> Result<usize> {
+        let start_isize = isize::try_from(start)
+            .map_err(|_| Error::invalid_shape("slice start exceeds addressable range"))?;
+        let elem_offset = stride
+            .checked_mul(start_isize)
+            .ok_or_else(|| Error::invalid_shape("slice offset overflow (stride*start)"))?;
+        let byte_delta = elem_offset
+            .checked_mul(dtype.size_in_bytes() as isize)
+            .ok_or_else(|| Error::invalid_shape("slice offset overflow (bytes)"))?;
+        base_offset
+            .checked_add_signed(byte_delta)
+            .ok_or_else(|| Error::invalid_shape("slice offset overflow (base+delta)"))
     }
 
     pub fn permute(&self, axes: &[usize]) -> Result<Self> {
