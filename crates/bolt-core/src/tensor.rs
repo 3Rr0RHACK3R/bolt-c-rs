@@ -1,4 +1,4 @@
-use std::{slice, sync::Arc};
+use std::{mem::MaybeUninit, slice, sync::Arc};
 
 use bytemuck::cast_slice;
 
@@ -83,6 +83,30 @@ impl Tensor {
             .read(self.view.buffer_id, self.view.offset_bytes(), &mut bytes)?;
         let values: Vec<T> = cast_slice(&bytes).to_vec();
         Ok(values)
+    }
+
+    pub fn item<T: NativeType>(&self) -> Result<T> {
+        if self.numel() != 1 {
+            return Err(Error::invalid_shape(format!(
+                "Tensor::item requires a scalar tensor, got shape {:?}",
+                self.shape()
+            )));
+        }
+        if self.view.dtype != T::DTYPE {
+            return Err(Error::DTypeMismatch {
+                lhs: self.view.dtype,
+                rhs: T::DTYPE,
+            });
+        }
+        let mut slot = MaybeUninit::<T>::uninit();
+        let dtype_size = self.view.dtype.size_in_bytes();
+        let bytes = unsafe {
+            slice::from_raw_parts_mut(slot.as_mut_ptr() as *mut u8, dtype_size)
+        };
+        self.device()?
+            .read(self.view.buffer_id, self.view.offset_bytes(), bytes)?;
+        let value = unsafe { slot.assume_init() };
+        Ok(value)
     }
 
     pub fn reshape(&self, new_shape: &[usize]) -> Result<Self> {

@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let activated = product.add(&bias)?.relu()?;
     println!("relu(add(matmul, bias)): {:?}", activated.to_vec::<f32>()?);
 
-    let loss = activated.sum()?.to_vec::<f32>()?.pop().unwrap();
+    let loss: f32 = activated.sum()?.item()?;
     println!("sum reduction: {loss}");
 
     Ok(())
