@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem};
 
 use bytemuck::Pod;
 
@@ -8,6 +8,8 @@ pub enum DType {
     F64,
     I32,
 }
+
+pub const MAX_NATIVE_TYPE_SIZE: usize = mem::size_of::<f64>();
 
 impl DType {
     pub fn size_in_bytes(self) -> usize {

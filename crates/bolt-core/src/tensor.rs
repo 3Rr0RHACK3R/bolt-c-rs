@@ -1,11 +1,11 @@
-use std::{mem::MaybeUninit, slice, sync::Arc};
+use std::{slice, sync::Arc};
 
 use bytemuck::cast_slice;
 
 use crate::{
     buffer::{BufferId, BufferView},
     device::{Device, DeviceKind},
-    dtype::{DType, NativeType},
+    dtype::{DType, MAX_NATIVE_TYPE_SIZE, NativeType},
     error::{Error, Result},
     layout::Layout,
     op::{
@@ -98,15 +98,14 @@ impl Tensor {
                 rhs: T::DTYPE,
             });
         }
-        let mut slot = MaybeUninit::<T>::uninit();
-        let dtype_size = self.view.dtype.size_in_bytes();
-        let bytes = unsafe {
-            slice::from_raw_parts_mut(slot.as_mut_ptr() as *mut u8, dtype_size)
-        };
-        self.device()?
-            .read(self.view.buffer_id, self.view.offset_bytes(), bytes)?;
-        let value = unsafe { slot.assume_init() };
-        Ok(value)
+        let mut raw = [0u8; MAX_NATIVE_TYPE_SIZE];
+        let dtype_size = T::DTYPE.size_in_bytes();
+        self.device()?.read(
+            self.view.buffer_id,
+            self.view.offset_bytes(),
+            &mut raw[..dtype_size],
+        )?;
+        Ok(*bytemuck::from_bytes::<T>(&raw[..dtype_size]))
     }
 
     pub fn reshape(&self, new_shape: &[usize]) -> Result<Self> {
