@@ -4,4 +4,6 @@ pub enum DeviceKind {
     Cuda,
 }
 
-// Legacy Device trait removed.
+pub trait BackendDevice {
+    fn kind(&self) -> DeviceKind;
+}

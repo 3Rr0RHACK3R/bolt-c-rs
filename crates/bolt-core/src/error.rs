@@ -17,6 +17,18 @@ pub enum Error {
     #[error("device mismatch: {lhs:?} vs {rhs:?}")]
     DeviceMismatch { lhs: DeviceKind, rhs: DeviceKind },
 
+    #[error("backend already registered for {device:?}/{dtype:?}")]
+    BackendAlreadyRegistered { device: DeviceKind, dtype: DType },
+
+    #[error("backend not registered for {device:?}/{dtype:?}")]
+    BackendNotRegistered { device: DeviceKind, dtype: DType },
+
+    #[error("backend type mismatch for {device:?}/{dtype:?}")]
+    BackendTypeMismatch { device: DeviceKind, dtype: DType },
+
+    #[error("tensor type mismatch for {device:?}/{dtype:?}")]
+    TensorTypeMismatch { device: DeviceKind, dtype: DType },
+
     #[error("size mismatch: expected {expected}, got {actual}")]
     SizeMismatch { expected: usize, actual: usize },
 

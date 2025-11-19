@@ -3,6 +3,7 @@ use std::{marker::PhantomData, sync::Arc};
 use bolt_core::{
     allocator::{AllocatorHandle, AllocatorMetrics, StorageAllocator, StorageBlock},
     backend::Backend,
+    device::BackendDevice,
     device::DeviceKind,
     dtype::{NativeType, TensorNum},
     error::{Error, Result},
@@ -53,8 +54,8 @@ impl CpuAllocators {
 #[derive(Clone, Copy, Debug)]
 pub struct CpuDevice;
 
-impl CpuDevice {
-    pub fn kind(&self) -> DeviceKind {
+impl BackendDevice for CpuDevice {
+    fn kind(&self) -> DeviceKind {
         DeviceKind::Cpu
     }
 }

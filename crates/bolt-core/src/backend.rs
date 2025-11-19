@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{allocator::StorageAllocator, dtype::NativeType, error::Result, layout::Layout};
+use crate::{
+    allocator::StorageAllocator, device::BackendDevice, dtype::NativeType, error::Result,
+    layout::Layout,
+};
 
 pub struct KernelContext<'a, B, D>
 where
@@ -33,7 +36,7 @@ where
 }
 
 pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
-    type Device: Clone + Send + Sync + 'static;
+    type Device: BackendDevice + Clone + Send + Sync + 'static;
     type Storage: Clone + Send + Sync + 'static;
     type Allocator: StorageAllocator<D, Storage = Self::Storage>;
 

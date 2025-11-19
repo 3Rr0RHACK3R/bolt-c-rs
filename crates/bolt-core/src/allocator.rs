@@ -58,7 +58,6 @@ impl AllocatorHandle {
             .bytes_in_use
             .fetch_add(bytes, Ordering::Relaxed);
     }
-
 }
 
 pub struct StorageBlock<D: NativeType> {
