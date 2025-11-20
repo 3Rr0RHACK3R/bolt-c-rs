@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, sync::Arc};
+use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
 
 use bytemuck::try_cast_slice;
 
@@ -11,18 +11,63 @@ use crate::{
     tensor::Tensor,
 };
 
-type SliceFn = dyn Fn(&[usize], &[u8]) -> Result<AnyTensor> + Send + Sync;
-type ZerosFn = dyn Fn(&[usize]) -> Result<AnyTensor> + Send + Sync;
+trait ErasedBackendSlot: Send + Sync {
+    fn backend_any(&self) -> Arc<dyn Any + Send + Sync>;
+    fn from_slice(&self, shape: &[usize], bytes: &[u8]) -> Result<AnyTensor>;
+    fn zeros(&self, shape: &[usize]) -> Result<AnyTensor>;
+}
 
-struct BackendRecord {
-    backend: Arc<dyn Any + Send + Sync>,
-    from_slice: Arc<SliceFn>,
-    zeros: Arc<ZerosFn>,
+struct TypedBackendSlot<B, D>
+where
+    B: Backend<D> + 'static,
+    D: NativeType,
+{
+    device: DeviceKind,
+    backend: Arc<B>,
+    _marker: PhantomData<D>,
+}
+
+impl<B, D> TypedBackendSlot<B, D>
+where
+    B: Backend<D> + 'static,
+    D: NativeType,
+{
+    fn new(device: DeviceKind, backend: Arc<B>) -> Self {
+        Self {
+            device,
+            backend,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<B, D> ErasedBackendSlot for TypedBackendSlot<B, D>
+where
+    B: Backend<D> + 'static,
+    D: NativeType,
+{
+    fn backend_any(&self) -> Arc<dyn Any + Send + Sync> {
+        self.backend.clone() as Arc<dyn Any + Send + Sync>
+    }
+
+    fn from_slice(&self, shape: &[usize], bytes: &[u8]) -> Result<AnyTensor> {
+        let typed: &[D] = try_cast_slice(bytes).map_err(|_| Error::TensorTypeMismatch {
+            dtype: D::DTYPE,
+            device: self.device,
+        })?;
+        let tensor = Tensor::<B, D>::from_slice(&self.backend, typed, shape)?;
+        Ok(AnyTensor::from_tensor(tensor))
+    }
+
+    fn zeros(&self, shape: &[usize]) -> Result<AnyTensor> {
+        let tensor = Tensor::<B, D>::zeros(&self.backend, shape)?;
+        Ok(AnyTensor::from_tensor(tensor))
+    }
 }
 
 #[derive(Default)]
 pub struct BackendRegistry {
-    entries: HashMap<(DeviceKind, DType), BackendRecord>,
+    entries: HashMap<(DeviceKind, DType), Arc<dyn ErasedBackendSlot>>,
 }
 
 impl BackendRegistry {
@@ -44,33 +89,13 @@ impl BackendRegistry {
                 dtype: D::DTYPE,
             });
         }
-        let backend_clone = backend.clone();
-        let from_slice = Arc::new(move |shape: &[usize], bytes: &[u8]| -> Result<AnyTensor> {
-            let typed: &[D] = try_cast_slice(bytes).map_err(|_| Error::TensorTypeMismatch {
-                dtype: D::DTYPE,
-                device,
-            })?;
-            let tensor = Tensor::<B, D>::from_slice(&backend_clone, typed, shape)?;
-            Ok(AnyTensor::from_tensor(tensor))
-        });
-        let backend_clone = backend.clone();
-        let zeros = Arc::new(move |shape: &[usize]| -> Result<AnyTensor> {
-            let tensor = Tensor::<B, D>::zeros(&backend_clone, shape)?;
-            Ok(AnyTensor::from_tensor(tensor))
-        });
-        let erased_backend: Arc<dyn Any + Send + Sync> = backend;
-        self.entries.insert(
-            key,
-            BackendRecord {
-                backend: erased_backend,
-                from_slice,
-                zeros,
-            },
-        );
+        let slot: Arc<dyn ErasedBackendSlot> =
+            Arc::new(TypedBackendSlot::<B, D>::new(device, backend));
+        self.entries.insert(key, slot);
         Ok(())
     }
 
-    fn entry(&self, device: DeviceKind, dtype: DType) -> Result<&BackendRecord> {
+    fn entry(&self, device: DeviceKind, dtype: DType) -> Result<&Arc<dyn ErasedBackendSlot>> {
         self.entries
             .get(&(device, dtype))
             .ok_or(Error::BackendNotRegistered { device, dtype })
@@ -83,13 +108,16 @@ impl BackendRegistry {
     {
         let entry = self.entry(device, D::DTYPE)?;
         entry
-            .backend
-            .clone()
+            .backend_any()
             .downcast::<B>()
             .map_err(|_| Error::BackendTypeMismatch {
                 device,
                 dtype: D::DTYPE,
             })
+    }
+
+    fn erased(&self, device: DeviceKind, dtype: DType) -> Result<&Arc<dyn ErasedBackendSlot>> {
+        self.entry(device, dtype)
     }
 }
 
@@ -117,9 +145,9 @@ impl Runtime {
         shape: &[usize],
         data: &[T],
     ) -> Result<AnyTensor> {
-        let entry = self.registry.entry(device, T::DTYPE)?;
+        let entry = self.registry.erased(device, T::DTYPE)?;
         let bytes = bytemuck::cast_slice(data);
-        (entry.from_slice)(shape, bytes)
+        entry.from_slice(shape, bytes)
     }
 
     pub fn tensor_zeros(&self, shape: &[usize], dtype: DType) -> Result<AnyTensor> {
@@ -132,8 +160,47 @@ impl Runtime {
         shape: &[usize],
         dtype: DType,
     ) -> Result<AnyTensor> {
-        let entry = self.registry.entry(device, dtype)?;
-        (entry.zeros)(shape)
+        let entry = self.registry.erased(device, dtype)?;
+        entry.zeros(shape)
+    }
+
+    pub fn tensor<B, D>(&self, shape: &[usize], data: &[D]) -> Result<Tensor<B, D>>
+    where
+        B: Backend<D> + 'static,
+        D: NativeType,
+    {
+        self.tensor_on(self.default_device, shape, data)
+    }
+
+    pub fn tensor_on<B, D>(
+        &self,
+        device: DeviceKind,
+        shape: &[usize],
+        data: &[D],
+    ) -> Result<Tensor<B, D>>
+    where
+        B: Backend<D> + 'static,
+        D: NativeType,
+    {
+        let backend = self.backend::<B, D>(device)?;
+        Tensor::from_slice(&backend, data, shape)
+    }
+
+    pub fn zeros<B, D>(&self, shape: &[usize]) -> Result<Tensor<B, D>>
+    where
+        B: Backend<D> + 'static,
+        D: NativeType,
+    {
+        self.zeros_on(self.default_device, shape)
+    }
+
+    pub fn zeros_on<B, D>(&self, device: DeviceKind, shape: &[usize]) -> Result<Tensor<B, D>>
+    where
+        B: Backend<D> + 'static,
+        D: NativeType,
+    {
+        let backend = self.backend::<B, D>(device)?;
+        Tensor::zeros(&backend, shape)
     }
 
     pub fn backend<B, D>(&self, device: DeviceKind) -> Result<Arc<B>>

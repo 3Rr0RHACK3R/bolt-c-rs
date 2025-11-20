@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     allocator::StorageAllocator,
-    backend::Backend,
+    backend::{Backend, MeanOp},
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
@@ -165,5 +165,20 @@ where
 
     pub fn storage(&self) -> &B::Storage {
         &self.storage
+    }
+}
+
+impl<B, D> Tensor<B, D>
+where
+    B: MeanOp<D, f32>,
+    D: NativeType,
+{
+    pub fn mean_f32(&self) -> Result<Tensor<B, f32>> {
+        let (storage, layout) = self.backend.mean(&self.storage, &self.layout)?;
+        Ok(Tensor::<B, f32>::from_parts(
+            self.backend.clone(),
+            storage,
+            layout,
+        ))
     }
 }

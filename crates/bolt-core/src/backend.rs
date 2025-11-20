@@ -71,3 +71,15 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         rhs_layout: &Layout,
     ) -> Result<(Self::Storage, Layout)>;
 }
+
+pub trait MeanOp<D, Out>: Backend<D> + Backend<Out>
+where
+    D: NativeType,
+    Out: NativeType,
+{
+    fn mean(
+        &self,
+        storage: &<Self as Backend<D>>::Storage,
+        layout: &Layout,
+    ) -> Result<(<Self as Backend<Out>>::Storage, Layout)>;
+}

@@ -51,3 +51,12 @@ fn non_contiguous_view_ops() -> Result<()> {
     assert_eq!(result, vec![2.0, 5.0, 3.0, 6.0, 4.0, 7.0]);
     Ok(())
 }
+
+#[test]
+fn mean_returns_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, i32>::from_slice(&backend, &[1, 3, 5, 7], &[2, 2])?;
+    let mean = tensor.mean_f32()?.to_vec()?;
+    assert_eq!(mean, vec![4.0]);
+    Ok(())
+}

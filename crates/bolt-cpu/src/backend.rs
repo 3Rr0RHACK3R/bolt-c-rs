@@ -1,10 +1,9 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 use bolt_core::{
     allocator::{AllocatorHandle, AllocatorMetrics, StorageAllocator, StorageBlock},
-    backend::Backend,
-    device::BackendDevice,
-    device::DeviceKind,
+    backend::{Backend, MeanOp},
+    device::{BackendDevice, DeviceKind},
     dtype::{NativeType, TensorNum},
     error::{Error, Result},
     layout::Layout,
@@ -12,6 +11,28 @@ use bolt_core::{
 };
 
 type CpuStorage<D> = Arc<StorageBlock<D>>;
+
+pub trait ToF32 {
+    fn to_f32(self) -> f32;
+}
+
+impl ToF32 for f32 {
+    fn to_f32(self) -> f32 {
+        self
+    }
+}
+
+impl ToF32 for f64 {
+    fn to_f32(self) -> f32 {
+        self as f32
+    }
+}
+
+impl ToF32 for i32 {
+    fn to_f32(self) -> f32 {
+        self as f32
+    }
+}
 
 #[derive(Clone)]
 pub struct CpuBackend {
@@ -182,6 +203,49 @@ macro_rules! impl_backend_for {
 impl_backend_for!(f32, f32);
 impl_backend_for!(f64, f64);
 impl_backend_for!(i32, i32);
+
+impl<D> MeanOp<D, f32> for CpuBackend
+where
+    D: ToF32 + NativeType,
+    CpuBackend: Backend<D>,
+    <CpuBackend as Backend<D>>::Storage: Deref<Target = StorageBlock<D>>,
+{
+    fn mean(
+        &self,
+        storage: &<Self as Backend<D>>::Storage,
+        layout: &Layout,
+    ) -> Result<(<Self as Backend<f32>>::Storage, Layout)> {
+        let numel = layout.num_elements();
+        if numel == 0 {
+            return Err(Error::InvalidShape {
+                message: "mean requires at least one element".into(),
+            });
+        }
+
+        let shape = layout.shape();
+        let strides = expand_strides(layout, shape)?;
+        let data = storage.deref().as_slice();
+        let offset = layout.offset_elements(D::DTYPE);
+        let mut coords = vec![0usize; shape.len()];
+        let mut acc = 0f32;
+        for idx in 0..numel {
+            linear_to_indices(idx, shape, &mut coords);
+            let src_idx = offset + offset_from_strides(&coords, &strides);
+            acc += data[src_idx as usize].to_f32();
+        }
+        let mean = acc / numel as f32;
+
+        let mut output = self.allocators.f32.allocate(1)?;
+        {
+            let slice = Arc::get_mut(&mut output)
+                .expect("unique storage")
+                .as_mut_slice();
+            slice[0] = mean;
+        }
+        let layout = Layout::contiguous(ConcreteShape::from_slice(&[1])?);
+        Ok((output, layout))
+    }
+}
 
 fn read_into_slice<D: NativeType>(
     storage: &CpuStorage<D>,
