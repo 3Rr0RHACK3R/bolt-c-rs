@@ -47,6 +47,10 @@ pub trait NativeType: Copy + Pod + Send + Sync + 'static + fmt::Debug + Default 
     const DTYPE: DType;
 }
 
+pub trait OneValue {
+    fn one() -> Self;
+}
+
 pub trait ToF32 {
     fn to_f32(self) -> f32;
 }
@@ -61,6 +65,12 @@ impl ToF32 for f32 {
     }
 }
 
+impl OneValue for f32 {
+    fn one() -> Self {
+        1.0
+    }
+}
+
 impl NativeType for f64 {
     const DTYPE: DType = DType::F64;
 }
@@ -71,6 +81,12 @@ impl ToF32 for f64 {
     }
 }
 
+impl OneValue for f64 {
+    fn one() -> Self {
+        1.0
+    }
+}
+
 impl NativeType for i32 {
     const DTYPE: DType = DType::I32;
 }
@@ -78,5 +94,11 @@ impl NativeType for i32 {
 impl ToF32 for i32 {
     fn to_f32(self) -> f32 {
         self as f32
+    }
+}
+
+impl OneValue for i32 {
+    fn one() -> Self {
+        1
     }
 }

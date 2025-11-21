@@ -7,8 +7,8 @@ mod storage;
 use std::sync::Arc;
 
 use bolt_core::{
-    allocator::StorageAllocator,
     TensorParts, TensorView,
+    allocator::StorageAllocator,
     backend::Backend,
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
