@@ -182,6 +182,47 @@ impl Layout {
         (self.offset_bytes / dtype.size_in_bytes()) as isize
     }
 
+    pub fn validate_bounds(&self, dtype: DType, buffer_len_bytes: usize) -> Result<()> {
+        let end = self.max_offset_bytes(dtype)?;
+        if end >= buffer_len_bytes {
+            return Err(Error::invalid_shape(format!(
+                "layout exceeds buffer bounds: end={} bytes, buffer_len={} bytes",
+                end, buffer_len_bytes
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn max_offset_bytes(&self, dtype: DType) -> Result<usize> {
+        let elem_size = dtype.size_in_bytes();
+        let mut max_offset = isize::try_from(self.offset_bytes)
+            .map_err(|_| Error::invalid_shape("layout offset exceeds addressable isize range"))?;
+        for (dim, stride) in self.shape.as_slice().iter().zip(self.strides.iter()) {
+            if *dim == 0 {
+                continue;
+            }
+            if *stride < 0 {
+                return Err(Error::invalid_shape(
+                    "negative strides are not supported in bounds check",
+                ));
+            }
+            let extent = stride
+                .checked_mul((*dim as isize).saturating_sub(1))
+                .ok_or_else(|| Error::invalid_shape("stride*extent overflow"))?;
+            max_offset = max_offset
+                .checked_add(extent)
+                .ok_or_else(|| Error::invalid_shape("offset overflow"))?;
+        }
+        let max_bytes = max_offset
+            .checked_mul(elem_size as isize)
+            .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
+        let last_byte = max_bytes
+            .checked_add((elem_size as isize).saturating_sub(1))
+            .ok_or_else(|| Error::invalid_shape("byte offset overflow (last byte)"))?;
+        usize::try_from(last_byte)
+            .map_err(|_| Error::invalid_shape("byte offset exceeds addressable range"))
+    }
+
     fn new_unchecked(
         shape: ConcreteShape,
         strides: ArrayVec<[isize; MAX_RANK]>,

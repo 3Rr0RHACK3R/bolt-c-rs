@@ -43,18 +43,40 @@ impl fmt::Display for DType {
     }
 }
 
-pub trait NativeType: Copy + Pod + Send + Sync + 'static {
+pub trait NativeType: Copy + Pod + Send + Sync + 'static + fmt::Debug + Default {
     const DTYPE: DType;
+}
+
+pub trait ToF32 {
+    fn to_f32(self) -> f32;
 }
 
 impl NativeType for f32 {
     const DTYPE: DType = DType::F32;
 }
 
+impl ToF32 for f32 {
+    fn to_f32(self) -> f32 {
+        self
+    }
+}
+
 impl NativeType for f64 {
     const DTYPE: DType = DType::F64;
 }
 
+impl ToF32 for f64 {
+    fn to_f32(self) -> f32 {
+        self as f32
+    }
+}
+
 impl NativeType for i32 {
     const DTYPE: DType = DType::I32;
+}
+
+impl ToF32 for i32 {
+    fn to_f32(self) -> f32 {
+        self as f32
+    }
 }

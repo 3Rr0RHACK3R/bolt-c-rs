@@ -6,7 +6,6 @@ version = 4
 name = "bolt-core"
 version = "0.1.0"
 dependencies = [
- "bolt-cpu",
  "bytemuck",
  "thiserror",
  "tinyvec",
@@ -17,7 +16,6 @@ name = "bolt-cpu"
 version = "0.1.0"
 dependencies = [
  "bolt-core",
- "bytemuck",
 ]
 
 [[package]]

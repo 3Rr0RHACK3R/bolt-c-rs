@@ -1,6 +1,4 @@
-use std::fmt;
-
-use crate::{device::DeviceKind, dtype::DType, op::OpKind};
+use crate::{device::DeviceKind, dtype::DType};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -19,12 +17,25 @@ pub enum Error {
     #[error("device mismatch: {lhs:?} vs {rhs:?}")]
     DeviceMismatch { lhs: DeviceKind, rhs: DeviceKind },
 
+    #[error("backend already registered for {device:?}/{dtype:?}")]
+    BackendAlreadyRegistered { device: DeviceKind, dtype: DType },
+
+    #[error("backend not registered for {device:?}/{dtype:?}")]
+    BackendNotRegistered { device: DeviceKind, dtype: DType },
+
+    #[error("backend type mismatch for {device:?}/{dtype:?}")]
+    BackendTypeMismatch { device: DeviceKind, dtype: DType },
+
+    #[error("tensor type mismatch for {device:?}/{dtype:?}")]
+    TensorTypeMismatch { device: DeviceKind, dtype: DType },
+
     #[error("size mismatch: expected {expected}, got {actual}")]
     SizeMismatch { expected: usize, actual: usize },
 
     #[error("tensor too large: limit {limit} elements, requested {requested}")]
     TensorTooLarge { limit: usize, requested: usize },
 
+    /*
     #[error("op {op:?} is missing kernel for {device:?}/{dtype:?}")]
     KernelNotFound {
         op: OpKind,
@@ -38,7 +49,7 @@ pub enum Error {
         device: DeviceKind,
         dtype: DType,
     },
-
+    */
     #[error("dtype {dtype:?} is not supported for {op}")]
     UnsupportedDType { op: &'static str, dtype: DType },
 
@@ -57,19 +68,8 @@ pub enum Error {
         lock: &'static str,
     },
 
-    #[error("kernel output mismatch for {op:?}: expected {expected}, got {actual}")]
-    KernelOutputMismatch {
-        op: OpKind,
-        expected: ExpectedOutputs,
-        actual: usize,
-    },
-
-    #[error("op {op:?} expected attrs {expected}, got {actual}")]
-    OpAttrMismatch {
-        op: OpKind,
-        expected: &'static str,
-        actual: &'static str,
-    },
+    #[error("op error: {0}")]
+    OpError(String),
 }
 
 impl From<std::io::Error> for Error {
@@ -87,18 +87,5 @@ impl Error {
 
     pub fn is_device_poisoned(&self) -> bool {
         matches!(self, Self::DeviceLockPoisoned { .. })
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum ExpectedOutputs {
-    Exactly(usize),
-}
-
-impl fmt::Display for ExpectedOutputs {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ExpectedOutputs::Exactly(count) => write!(f, "exactly {count}"),
-        }
     }
 }

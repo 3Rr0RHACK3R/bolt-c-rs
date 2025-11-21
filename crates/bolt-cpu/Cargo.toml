@@ -5,10 +5,5 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-[features]
-default = []
-test-kernels = []
-
 [dependencies]
 bolt-core = { path = "../bolt-core" }
-bytemuck.workspace = true
