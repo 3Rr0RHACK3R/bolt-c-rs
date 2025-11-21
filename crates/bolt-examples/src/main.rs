@@ -14,14 +14,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 0.0, -1.0, 2.0, 1.0, 0.0], &[2, 3])?;
     let rhs =
         Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2])?;
-    let product = lhs.matmul(&rhs)?;
+    let product = lhs.matmul(&rhs)?; // shape: [2, 2]
     println!("matmul: {:?}", product.to_vec()?);
 
     let bias = Tensor::<CpuBackend, f32>::from_slice(&backend, &[0.5, -0.5], &[1, 2])?;
-    let activated = product.add(&bias)?.contiguous()?;
+    // broadcasted add followed by reshape [2, 2] -> [4]
+    let activated = product.add(&bias)?.reshape(&[4])?;
     println!("add(matmul, bias): {:?}", activated.to_vec()?);
 
-    let first = activated.slice(0, 0, 1, 1)?.slice(1, 0, 1, 1)?;
+    let first = activated.slice(0, 0, 1, 1)?;
+    println!("shape: {:?}", first.shape());
     println!("add(matmul, bias)[0,0]: {}", first.item()?);
 
     Ok(())
