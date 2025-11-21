@@ -1,38 +1,15 @@
-use std::marker::PhantomData;
-
 use crate::{
-    allocator::StorageAllocator, device::BackendDevice, dtype::NativeType, error::Result,
+    allocator::StorageAllocator,
+    device::{BackendDevice, DeviceKind},
+    dtype::NativeType,
+    error::Result,
     layout::Layout,
 };
 
-pub struct KernelContext<'a, B, D>
-where
-    B: Backend<D>,
-    D: NativeType,
-{
-    backend: &'a B,
-    _marker: PhantomData<D>,
-}
-
-impl<'a, B, D> KernelContext<'a, B, D>
-where
-    B: Backend<D>,
-    D: NativeType,
-{
-    pub fn new(backend: &'a B) -> Self {
-        Self {
-            backend,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn backend(&self) -> &'a B {
-        self.backend
-    }
-
-    pub fn allocator(&self) -> &'a B::Allocator {
-        self.backend.allocator()
-    }
+#[derive(Clone, Debug)]
+pub struct TensorParts<S> {
+    pub storage: S,
+    pub layout: Layout,
 }
 
 pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
@@ -41,11 +18,15 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
     type Allocator: StorageAllocator<D, Storage = Self::Storage>;
 
     fn device(&self) -> &Self::Device;
-    fn allocator(&self) -> &Self::Allocator;
+    fn allocator(&self) -> Self::Allocator;
+    fn device_kind(&self) -> DeviceKind {
+        self.device().kind()
+    }
+    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize;
 
     fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()>;
     fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()>;
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<(Self::Storage, Layout)>;
+    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>>;
 
     fn add(
         &self,
@@ -53,7 +34,7 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         rhs: &Self::Storage,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<(Self::Storage, Layout)>;
+    ) -> Result<TensorParts<Self::Storage>>;
 
     fn sub(
         &self,
@@ -61,7 +42,7 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         rhs: &Self::Storage,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<(Self::Storage, Layout)>;
+    ) -> Result<TensorParts<Self::Storage>>;
 
     fn matmul(
         &self,
@@ -69,17 +50,13 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         rhs: &Self::Storage,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<(Self::Storage, Layout)>;
-}
+    ) -> Result<TensorParts<Self::Storage>>;
 
-pub trait MeanOp<D, Out>: Backend<D> + Backend<Out>
-where
-    D: NativeType,
-    Out: NativeType,
-{
-    fn mean(
+    fn mean_f32(
         &self,
         storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
-    ) -> Result<(<Self as Backend<Out>>::Storage, Layout)>;
+    ) -> Result<TensorParts<<Self as Backend<f32>>::Storage>>
+    where
+        Self: Backend<f32>;
 }

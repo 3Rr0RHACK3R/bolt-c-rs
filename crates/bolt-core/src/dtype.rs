@@ -1,5 +1,4 @@
 use std::fmt;
-use std::ops::{Add, AddAssign, Mul, Sub};
 
 use bytemuck::Pod;
 
@@ -46,22 +45,36 @@ pub trait NativeType: Copy + Pod + Send + Sync + 'static + fmt::Debug + Default 
     const DTYPE: DType;
 }
 
-pub trait TensorNum:
-    NativeType + Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + AddAssign
-{
+pub trait ToF32 {
+    fn to_f32(self) -> f32;
 }
 
 impl NativeType for f32 {
     const DTYPE: DType = DType::F32;
 }
-impl TensorNum for f32 {}
+
+impl ToF32 for f32 {
+    fn to_f32(self) -> f32 {
+        self
+    }
+}
 
 impl NativeType for f64 {
     const DTYPE: DType = DType::F64;
 }
-impl TensorNum for f64 {}
+
+impl ToF32 for f64 {
+    fn to_f32(self) -> f32 {
+        self as f32
+    }
+}
 
 impl NativeType for i32 {
     const DTYPE: DType = DType::I32;
 }
-impl TensorNum for i32 {}
+
+impl ToF32 for i32 {
+    fn to_f32(self) -> f32 {
+        self as f32
+    }
+}

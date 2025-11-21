@@ -2,8 +2,8 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     allocator::StorageAllocator,
-    backend::{Backend, MeanOp},
-    dtype::NativeType,
+    backend::Backend,
+    dtype::{NativeType, ToF32},
     error::{Error, Result},
     layout::Layout,
     shape::ConcreteShape,
@@ -37,7 +37,9 @@ where
         let layout = Layout::contiguous(shape);
         let mut storage = backend.allocator().allocate(data.len())?;
         backend.write(&mut storage, &layout, data)?;
-        Ok(Self::from_parts(backend.clone(), storage, layout))
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
     }
 
     pub fn zeros(backend: &Arc<B>, shape: &[usize]) -> Result<Self> {
@@ -45,7 +47,9 @@ where
         let numel = shape.num_elements();
         let layout = Layout::contiguous(shape);
         let storage = backend.allocator().allocate_zeroed(numel)?;
-        Ok(Self::from_parts(backend.clone(), storage, layout))
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
     }
 
     pub fn backend(&self) -> Arc<B> {
@@ -88,21 +92,25 @@ where
     pub fn reshape(&self, shape: &[usize]) -> Result<Self> {
         let shape = ConcreteShape::from_slice(shape)?;
         let layout = self.layout.reshape(shape)?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
     }
 
     pub fn slice(&self, axis: usize, start: usize, end: usize, step: usize) -> Result<Self> {
         let layout = self.layout.slice(axis, start, end, step, D::DTYPE)?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
     }
 
     pub fn permute(&self, axes: &[usize]) -> Result<Self> {
         let layout = self.layout.permute(axes)?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
     }
 
     pub fn transpose(&self, axis_a: usize, axis_b: usize) -> Result<Self> {
         let layout = self.layout.transpose(axis_a, axis_b)?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
     }
 
@@ -110,39 +118,79 @@ where
         if self.layout.is_contiguous() && self.layout.offset_bytes() == 0 {
             return Ok(self.clone());
         }
-        let (storage, layout) = self.backend.copy(&self.storage, &self.layout)?;
-        Ok(Self::from_parts(self.backend.clone(), storage, layout))
+        let parts = self.backend.copy(&self.storage, &self.layout)?;
+        self.validate_layout_for_storage(&parts.storage, &parts.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
     pub fn add(&self, other: &Self) -> Result<Self> {
         self.ensure_same_backend(other)?;
-        let (storage, layout) =
-            self.backend
-                .add(&self.storage, &other.storage, &self.layout, &other.layout)?;
-        Ok(Self::from_parts(self.backend.clone(), storage, layout))
+        let parts = self
+            .backend
+            .add(&self.storage, &other.storage, &self.layout, &other.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
     pub fn sub(&self, other: &Self) -> Result<Self> {
         self.ensure_same_backend(other)?;
-        let (storage, layout) =
-            self.backend
-                .sub(&self.storage, &other.storage, &self.layout, &other.layout)?;
-        Ok(Self::from_parts(self.backend.clone(), storage, layout))
+        let parts = self
+            .backend
+            .sub(&self.storage, &other.storage, &self.layout, &other.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
     pub fn matmul(&self, other: &Self) -> Result<Self> {
         self.ensure_same_backend(other)?;
-        let (storage, layout) =
+        let parts =
             self.backend
                 .matmul(&self.storage, &other.storage, &self.layout, &other.layout)?;
-        Ok(Self::from_parts(self.backend.clone(), storage, layout))
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn mean_f32(&self) -> Result<Tensor<B, f32>>
+    where
+        B: Backend<f32>,
+        D: ToF32,
+    {
+        let parts = Backend::<D>::mean_f32(self.backend.as_ref(), &self.storage, &self.layout)?;
+        Ok(Tensor::<B, f32>::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
     fn ensure_same_backend(&self, other: &Self) -> Result<()> {
+        if self.backend.device_kind() != other.backend.device_kind() {
+            return Err(Error::Device("tensors belong to different devices".into()));
+        }
         if !Arc::ptr_eq(&self.backend, &other.backend) {
-            return Err(Error::Device("tensors belong to different backends".into()));
+            return Err(Error::Device(
+                "tensors belong to different backend instances".into(),
+            ));
         }
         Ok(())
+    }
+
+    fn validate_layout_for_storage(&self, storage: &B::Storage, layout: &Layout) -> Result<()> {
+        let len_bytes = self.backend.storage_len_bytes(storage);
+        layout.validate_bounds(D::DTYPE, len_bytes)
     }
 
     fn with_layout(&self, layout: Layout) -> Self {
@@ -165,20 +213,5 @@ where
 
     pub fn storage(&self) -> &B::Storage {
         &self.storage
-    }
-}
-
-impl<B, D> Tensor<B, D>
-where
-    B: MeanOp<D, f32>,
-    D: NativeType,
-{
-    pub fn mean_f32(&self) -> Result<Tensor<B, f32>> {
-        let (storage, layout) = self.backend.mean(&self.storage, &self.layout)?;
-        Ok(Tensor::<B, f32>::from_parts(
-            self.backend.clone(),
-            storage,
-            layout,
-        ))
     }
 }
