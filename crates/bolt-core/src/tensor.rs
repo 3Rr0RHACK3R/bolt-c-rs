@@ -3,11 +3,12 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     allocator::StorageAllocator,
     backend::Backend,
-    dtype::{NativeType, ToF32},
+    dtype::{DType, NativeType, ToF32},
     error::{Error, Result},
     layout::Layout,
     shape::ConcreteShape,
 };
+use bytemuck::cast;
 
 #[derive(Clone)]
 pub struct Tensor<B, D>
@@ -47,6 +48,55 @@ where
         let numel = shape.num_elements();
         let layout = Layout::contiguous(shape);
         let storage = backend.allocator().allocate_zeroed(numel)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn ones(backend: &Arc<B>, shape: &[usize]) -> Result<Self> {
+        Self::full(backend, shape, Self::one_value())
+    }
+
+    pub fn full(backend: &Arc<B>, shape: &[usize], value: D) -> Result<Self> {
+        let shape = ConcreteShape::from_slice(shape)?;
+        let layout = Layout::contiguous(shape);
+        let storage = backend.fill(&layout, value)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn ones_like(other: &Tensor<B, D>) -> Result<Self> {
+        let layout = Layout::with_strides(
+            other.layout.concrete_shape().clone(),
+            other.layout.strides(),
+            0,
+        )?;
+        let storage = other.backend.fill(&layout, Self::one_value())?;
+        let tensor = Self::from_parts(other.backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn full_like(other: &Tensor<B, D>, value: D) -> Result<Self> {
+        let layout = Layout::with_strides(
+            other.layout.concrete_shape().clone(),
+            other.layout.strides(),
+            0,
+        )?;
+        let storage = other.backend.fill(&layout, value)?;
+        let tensor = Self::from_parts(other.backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn arange(backend: &Arc<B>, start: D, end: D, step: D) -> Result<Self> {
+        let len = Self::compute_arange_len(start, end, step)?;
+        let shape = ConcreteShape::from_slice(&[len])?;
+        let layout = Layout::contiguous(shape);
+        let mut storage = backend.allocator().allocate(len)?;
+        let values = Self::build_arange_values(len, start, step)?;
+        backend.write(&mut storage, &layout, &values)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
@@ -224,5 +274,137 @@ where
 
     pub fn storage(&self) -> &B::Storage {
         &self.storage
+    }
+
+    fn one_value() -> D {
+        match D::DTYPE {
+            DType::F32 => cast(1.0f32),
+            DType::F64 => cast(1.0f64),
+            DType::I32 => cast(1i32),
+        }
+    }
+
+    fn compute_arange_len(start: D, end: D, step: D) -> Result<usize> {
+        match D::DTYPE {
+            DType::F32 => Self::float_arange_len(
+                cast::<D, f32>(start) as f64,
+                cast::<D, f32>(end) as f64,
+                cast::<D, f32>(step) as f64,
+            )
+            .and_then(|len| usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+                limit: isize::MAX as usize,
+                requested: usize::MAX,
+            })),
+            DType::F64 => Self::float_arange_len(
+                cast::<D, f64>(start),
+                cast::<D, f64>(end),
+                cast::<D, f64>(step),
+            )
+            .and_then(|len| usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+                limit: isize::MAX as usize,
+                requested: usize::MAX,
+            })),
+            DType::I32 => Self::int_arange_len(
+                cast::<D, i32>(start),
+                cast::<D, i32>(end),
+                cast::<D, i32>(step),
+            ),
+        }
+    }
+
+    fn float_arange_len(start: f64, end: f64, step: f64) -> Result<u128> {
+        if step == 0.0 || step.is_nan() {
+            return Err(Error::invalid_shape(
+                "arange step must be non-zero and not NaN",
+            ));
+        }
+        if start.is_nan() || end.is_nan() {
+            return Err(Error::invalid_shape("arange start/end must not be NaN"));
+        }
+        let span = end - start;
+        let len = (span / step).ceil();
+        if !len.is_finite() || len <= 0.0 {
+            return Err(Error::invalid_shape(
+                "arange would produce zero or infinite elements",
+            ));
+        }
+        if len > isize::MAX as f64 {
+            return Err(Error::TensorTooLarge {
+                limit: isize::MAX as usize,
+                requested: usize::MAX,
+            });
+        }
+        let len_int = len as i128;
+        if len_int <= 0 {
+            return Err(Error::invalid_shape("arange would produce zero elements"));
+        }
+        u128::try_from(len_int).map_err(|_| Error::TensorTooLarge {
+            limit: isize::MAX as usize,
+            requested: usize::MAX,
+        })
+    }
+
+    fn int_arange_len(start: i32, end: i32, step: i32) -> Result<usize> {
+        if step == 0 {
+            return Err(Error::invalid_shape("arange step must be non-zero"));
+        }
+        let delta = (end as i64) - (start as i64);
+        let step_i64 = step as i64;
+        if delta == 0 {
+            return Err(Error::invalid_shape("arange would produce zero elements"));
+        }
+        if (delta > 0 && step_i64 <= 0) || (delta < 0 && step_i64 >= 0) {
+            return Err(Error::invalid_shape(
+                "arange step does not progress toward end",
+            ));
+        }
+        let abs_delta = delta.abs() as i128;
+        let abs_step = step_i64.unsigned_abs() as i128;
+        let len = (abs_delta + (abs_step - 1)) / abs_step;
+        if len == 0 {
+            return Err(Error::invalid_shape("arange would produce zero elements"));
+        }
+        usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+            limit: isize::MAX as usize,
+            requested: usize::MAX,
+        })
+    }
+
+    fn build_arange_values(len: usize, start: D, step: D) -> Result<Vec<D>> {
+        match D::DTYPE {
+            DType::F32 => {
+                let start = cast::<D, f32>(start);
+                let step = cast::<D, f32>(step);
+                let mut values = Vec::with_capacity(len);
+                for idx in 0..len {
+                    values.push(cast(start + step * idx as f32));
+                }
+                Ok(values)
+            }
+            DType::F64 => {
+                let start = cast::<D, f64>(start);
+                let step = cast::<D, f64>(step);
+                let mut values = Vec::with_capacity(len);
+                for idx in 0..len {
+                    values.push(cast(start + step * idx as f64));
+                }
+                Ok(values)
+            }
+            DType::I32 => {
+                let start_i64 = cast::<D, i32>(start) as i64;
+                let step_i64 = cast::<D, i32>(step) as i64;
+                let mut current = start_i64;
+                let mut values = Vec::with_capacity(len);
+                for _ in 0..len {
+                    let value = i32::try_from(current)
+                        .map_err(|_| Error::invalid_shape("arange value overflows i32 range"))?;
+                    values.push(cast(value));
+                    current = current.checked_add(step_i64).ok_or_else(|| {
+                        Error::invalid_shape("arange value overflow during iteration")
+                    })?;
+                }
+                Ok(values)
+            }
+        }
     }
 }
