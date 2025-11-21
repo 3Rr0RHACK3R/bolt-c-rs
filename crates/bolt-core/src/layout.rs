@@ -195,7 +195,7 @@ impl Layout {
 
     pub fn max_offset_bytes(&self, dtype: DType) -> Result<usize> {
         let elem_size = dtype.size_in_bytes();
-        let mut max_offset = isize::try_from(self.offset_bytes)
+        let mut max_bytes = isize::try_from(self.offset_bytes)
             .map_err(|_| Error::invalid_shape("layout offset exceeds addressable isize range"))?;
         for (dim, stride) in self.shape.as_slice().iter().zip(self.strides.iter()) {
             if *dim == 0 {
@@ -209,13 +209,13 @@ impl Layout {
             let extent = stride
                 .checked_mul((*dim as isize).saturating_sub(1))
                 .ok_or_else(|| Error::invalid_shape("stride*extent overflow"))?;
-            max_offset = max_offset
-                .checked_add(extent)
-                .ok_or_else(|| Error::invalid_shape("offset overflow"))?;
+            let extent_bytes = extent
+                .checked_mul(elem_size as isize)
+                .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
+            max_bytes = max_bytes
+                .checked_add(extent_bytes)
+                .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
         }
-        let max_bytes = max_offset
-            .checked_mul(elem_size as isize)
-            .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
         let last_byte = max_bytes
             .checked_add((elem_size as isize).saturating_sub(1))
             .ok_or_else(|| Error::invalid_shape("byte offset overflow (last byte)"))?;

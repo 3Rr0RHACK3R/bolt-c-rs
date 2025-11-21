@@ -89,6 +89,17 @@ where
         Ok(values)
     }
 
+    pub fn item(&self) -> Result<D> {
+        if self.numel() != 1 {
+            return Err(Error::invalid_shape(
+                "item requires a tensor with exactly one element",
+            ));
+        }
+        let mut value = [D::default(); 1];
+        self.backend.read(&self.storage, &self.layout, &mut value)?;
+        Ok(value[0])
+    }
+
     pub fn reshape(&self, shape: &[usize]) -> Result<Self> {
         let shape = ConcreteShape::from_slice(shape)?;
         let layout = self.layout.reshape(shape)?;
