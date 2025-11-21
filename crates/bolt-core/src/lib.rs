@@ -9,11 +9,12 @@ pub mod layout;
 pub mod shape;
 pub mod storage;
 pub mod tensor;
+pub(crate) mod utils;
 
 pub use allocator::StorageAllocator;
 pub use backend::{Backend, TensorParts};
 pub use device::DeviceKind;
-pub use dtype::{DType, NativeType, ToF32};
+pub use dtype::{DType, NativeType, OneValue, ToF32};
 pub use error::{Error, Result};
 pub use layout::{Layout, LayoutKind};
 pub use storage::{BufferHandle, TensorView};

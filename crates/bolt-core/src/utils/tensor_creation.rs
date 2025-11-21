@@ -1,0 +1,147 @@
+use bytemuck::cast;
+
+use crate::{
+    dtype::{DType, NativeType, OneValue},
+    error::{Error, Result},
+};
+
+pub(crate) fn one_value<D>() -> D
+where
+    D: NativeType + OneValue,
+{
+    D::one()
+}
+
+pub(crate) fn compute_arange_len<D>(start: D, end: D, step: D) -> Result<usize>
+where
+    D: NativeType,
+{
+    match D::DTYPE {
+        DType::F32 => float_arange_len(
+            cast::<D, f32>(start) as f64,
+            cast::<D, f32>(end) as f64,
+            cast::<D, f32>(step) as f64,
+        )
+        .and_then(|len| {
+            usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+                limit: isize::MAX as usize,
+                requested: usize::MAX,
+            })
+        }),
+        DType::F64 => float_arange_len(
+            cast::<D, f64>(start),
+            cast::<D, f64>(end),
+            cast::<D, f64>(step),
+        )
+        .and_then(|len| {
+            usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+                limit: isize::MAX as usize,
+                requested: usize::MAX,
+            })
+        }),
+        DType::I32 => int_arange_len(
+            cast::<D, i32>(start),
+            cast::<D, i32>(end),
+            cast::<D, i32>(step),
+        ),
+    }
+}
+
+pub(crate) fn build_arange_values<D>(len: usize, start: D, step: D) -> Result<Vec<D>>
+where
+    D: NativeType,
+{
+    match D::DTYPE {
+        DType::F32 => {
+            let start = cast::<D, f32>(start);
+            let step = cast::<D, f32>(step);
+            let mut values = Vec::with_capacity(len);
+            for idx in 0..len {
+                values.push(cast(start + step * idx as f32));
+            }
+            Ok(values)
+        }
+        DType::F64 => {
+            let start = cast::<D, f64>(start);
+            let step = cast::<D, f64>(step);
+            let mut values = Vec::with_capacity(len);
+            for idx in 0..len {
+                values.push(cast(start + step * idx as f64));
+            }
+            Ok(values)
+        }
+        DType::I32 => {
+            let start_i64 = cast::<D, i32>(start) as i64;
+            let step_i64 = cast::<D, i32>(step) as i64;
+            let mut current = start_i64;
+            let mut values = Vec::with_capacity(len);
+            for _ in 0..len {
+                let value = i32::try_from(current)
+                    .map_err(|_| Error::invalid_shape("arange value overflows i32 range"))?;
+                values.push(cast(value));
+                current = current.checked_add(step_i64).ok_or_else(|| {
+                    Error::invalid_shape("arange value overflow during iteration")
+                })?;
+            }
+            Ok(values)
+        }
+    }
+}
+
+fn float_arange_len(start: f64, end: f64, step: f64) -> Result<u128> {
+    if step == 0.0 || step.is_nan() {
+        return Err(Error::invalid_shape(
+            "arange step must be non-zero and not NaN",
+        ));
+    }
+    if start.is_nan() || end.is_nan() {
+        return Err(Error::invalid_shape("arange start/end must not be NaN"));
+    }
+    let span = end - start;
+    let len = (span / step).ceil();
+    if !len.is_finite() || len <= 0.0 {
+        return Err(Error::invalid_shape(
+            "arange would produce zero or infinite elements",
+        ));
+    }
+    if len > isize::MAX as f64 {
+        return Err(Error::TensorTooLarge {
+            limit: isize::MAX as usize,
+            requested: usize::MAX,
+        });
+    }
+    let len_int = len as i128;
+    if len_int <= 0 {
+        return Err(Error::invalid_shape("arange would produce zero elements"));
+    }
+    u128::try_from(len_int).map_err(|_| Error::TensorTooLarge {
+        limit: isize::MAX as usize,
+        requested: usize::MAX,
+    })
+}
+
+fn int_arange_len(start: i32, end: i32, step: i32) -> Result<usize> {
+    if step == 0 {
+        return Err(Error::invalid_shape("arange step must be non-zero"));
+    }
+    let delta = (end as i64) - (start as i64);
+    let step_i64 = step as i64;
+    if delta == 0 {
+        return Err(Error::invalid_shape("arange would produce zero elements"));
+    }
+    if (delta > 0 && step_i64 <= 0) || (delta < 0 && step_i64 >= 0) {
+        return Err(Error::invalid_shape(
+            "arange step does not progress toward end",
+        ));
+    }
+    let abs_delta = delta.abs() as i128;
+    let abs_step = step_i64.unsigned_abs() as i128;
+    let len = (abs_delta + (abs_step - 1)) / abs_step;
+    if len == 0 {
+        return Err(Error::invalid_shape("arange would produce zero elements"));
+    }
+    usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+        limit: isize::MAX as usize,
+        requested: usize::MAX,
+    })
+}

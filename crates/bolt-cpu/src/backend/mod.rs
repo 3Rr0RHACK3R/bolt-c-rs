@@ -8,9 +8,10 @@ use std::sync::Arc;
 
 use bolt_core::{
     TensorParts, TensorView,
+    allocator::StorageAllocator,
     backend::Backend,
     device::{BackendDevice, DeviceKind},
-    error::Result,
+    error::{Error, Result},
     layout::Layout,
 };
 
@@ -19,7 +20,7 @@ pub use storage::CpuStorage;
 use allocator::CpuAllocator;
 use context::CpuContext;
 use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, SubKernel};
-use storage::{read_into_slice, write_from_slice};
+use storage::{fill_storage, read_into_slice, write_from_slice};
 
 #[derive(Clone)]
 pub struct CpuBackend {
@@ -81,6 +82,19 @@ where
 
     fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
         <D as CopyKernel>::copy_kernel(storage, layout, &self.allocator())
+    }
+
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
+        let len_bytes = layout
+            .max_offset_bytes(D::DTYPE)?
+            .checked_add(1)
+            .ok_or_else(|| Error::TensorTooLarge {
+                limit: isize::MAX as usize,
+                requested: usize::MAX,
+            })?;
+        let mut storage = self.allocator().allocate_bytes(len_bytes, D::DTYPE)?;
+        fill_storage(&mut storage, layout, value)?;
+        Ok(storage)
     }
 
     fn add(

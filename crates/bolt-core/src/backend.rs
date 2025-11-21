@@ -27,6 +27,7 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
     fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()>;
     fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()>;
     fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>>;
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage>;
 
     fn add(
         &self,

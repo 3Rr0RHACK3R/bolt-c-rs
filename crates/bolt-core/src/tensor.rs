@@ -3,10 +3,11 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     allocator::StorageAllocator,
     backend::Backend,
-    dtype::{NativeType, ToF32},
+    dtype::{NativeType, OneValue, ToF32},
     error::{Error, Result},
     layout::Layout,
     shape::ConcreteShape,
+    utils::tensor_creation,
 };
 
 #[derive(Clone)]
@@ -47,6 +48,63 @@ where
         let numel = shape.num_elements();
         let layout = Layout::contiguous(shape);
         let storage = backend.allocator().allocate_zeroed(numel)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn ones(backend: &Arc<B>, shape: &[usize]) -> Result<Self>
+    where
+        D: OneValue,
+    {
+        Self::full(backend, shape, tensor_creation::one_value::<D>())
+    }
+
+    pub fn full(backend: &Arc<B>, shape: &[usize], value: D) -> Result<Self> {
+        let shape = ConcreteShape::from_slice(shape)?;
+        let layout = Layout::contiguous(shape);
+        let storage = backend.fill(&layout, value)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn ones_like(other: &Tensor<B, D>) -> Result<Self>
+    where
+        D: OneValue,
+    {
+        let layout = Layout::with_strides(
+            other.layout.concrete_shape().clone(),
+            other.layout.strides(),
+            0,
+        )?;
+        let storage = other
+            .backend
+            .fill(&layout, tensor_creation::one_value::<D>())?;
+        let tensor = Self::from_parts(other.backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn full_like(other: &Tensor<B, D>, value: D) -> Result<Self> {
+        let layout = Layout::with_strides(
+            other.layout.concrete_shape().clone(),
+            other.layout.strides(),
+            0,
+        )?;
+        let storage = other.backend.fill(&layout, value)?;
+        let tensor = Self::from_parts(other.backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn arange(backend: &Arc<B>, start: D, end: D, step: D) -> Result<Self> {
+        let len = tensor_creation::compute_arange_len(start, end, step)?;
+        let shape = ConcreteShape::from_slice(&[len])?;
+        let layout = Layout::contiguous(shape);
+        let mut storage = backend.allocator().allocate(len)?;
+        let values = tensor_creation::build_arange_values(len, start, step)?;
+        backend.write(&mut storage, &layout, &values)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)

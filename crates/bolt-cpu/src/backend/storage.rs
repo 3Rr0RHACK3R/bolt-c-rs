@@ -141,6 +141,32 @@ pub fn write_from_slice<D: NativeType>(
     Ok(())
 }
 
+pub fn fill_storage<D: NativeType>(
+    storage: &mut CpuStorage<D>,
+    layout: &Layout,
+    value: D,
+) -> Result<()> {
+    storage.handle().validate_layout(layout)?;
+    let dst = storage.try_as_mut_slice()?;
+    if layout.is_contiguous() && layout.offset_bytes() == 0 {
+        let len = layout.num_elements();
+        for slot in dst.iter_mut().take(len) {
+            *slot = value;
+        }
+        return Ok(());
+    }
+    let shape = layout.shape();
+    let strides = expand_strides(layout, shape)?;
+    let offset = layout.offset_elements(D::DTYPE);
+    let mut coords = vec![0usize; shape.len()];
+    for idx in 0..layout.num_elements() {
+        linear_to_indices(idx, shape, &mut coords);
+        let dst_idx = offset + offset_from_strides(&coords, &strides);
+        dst[dst_idx as usize] = value;
+    }
+    Ok(())
+}
+
 pub fn make_cpu_handle<D: NativeType>(len: usize) -> Result<BufferHandle> {
     let bytes = len
         .checked_mul(D::DTYPE.size_in_bytes())
