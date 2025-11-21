@@ -21,5 +21,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let activated = product.add(&bias)?.contiguous()?;
     println!("add(matmul, bias): {:?}", activated.to_vec()?);
 
+    let first = activated.slice(0, 0, 1, 1)?.slice(1, 0, 1, 1)?;
+    println!("add(matmul, bias)[0,0]: {}", first.item()?);
+
     Ok(())
 }
