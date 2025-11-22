@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{mem::MaybeUninit, sync::Arc};
 
 use bolt_core::{
     DType, DeviceKind,
@@ -12,13 +12,13 @@ use super::layout_utils::{expand_strides, linear_to_indices, offset_from_strides
 
 #[derive(Debug)]
 pub struct StorageBlock<D: NativeType> {
-    data: Vec<D>,
+    data: Vec<MaybeUninit<D>>,
 }
 
 impl<D: NativeType> StorageBlock<D> {
     pub fn new(len: usize, zeroed: bool) -> Self {
         let mut data = if zeroed {
-            vec![D::default(); len]
+            vec![MaybeUninit::new(D::default()); len]
         } else {
             let mut vec = Vec::with_capacity(len);
             unsafe { vec.set_len(len) };
@@ -34,12 +34,24 @@ impl<D: NativeType> StorageBlock<D> {
         self.data.len()
     }
 
-    pub fn as_slice(&self) -> &[D] {
+    pub fn as_uninit_slice(&self) -> &[MaybeUninit<D>] {
         &self.data
     }
 
-    pub fn as_mut_slice(&mut self) -> &mut [D] {
+    pub fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<D>] {
         &mut self.data
+    }
+
+    pub fn assume_init_slice(&self) -> &[D] {
+        unsafe {
+            std::slice::from_raw_parts(self.data.as_ptr() as *const D, self.data.len())
+        }
+    }
+
+    pub fn assume_init_slice_mut(&mut self) -> &mut [D] {
+        unsafe {
+            std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len())
+        }
     }
 }
 
@@ -66,15 +78,26 @@ impl<D: NativeType> CpuStorage<D> {
         self.handle.len_bytes()
     }
 
+    pub fn as_uninit_slice(&self) -> &[MaybeUninit<D>] {
+        self.block.as_uninit_slice()
+    }
+
     pub fn as_slice(&self) -> &[D] {
-        self.block.as_slice()
+        self.block.assume_init_slice()
     }
 
     pub fn try_as_mut_slice(&mut self) -> Result<&mut [D]> {
         let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
             Error::OpError("cannot write to shared tensor storage; clone before mutating".into())
         })?;
-        Ok(block.as_mut_slice())
+        Ok(block.assume_init_slice_mut())
+    }
+
+    pub fn try_as_uninit_slice_mut(&mut self) -> Result<&mut [MaybeUninit<D>]> {
+        let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
+            Error::OpError("cannot write to shared tensor storage; clone before mutating".into())
+        })?;
+        Ok(block.as_uninit_slice_mut())
     }
 
     pub fn dtype(&self) -> DType {
@@ -93,21 +116,42 @@ pub fn read_into_slice<D: NativeType>(
             actual: dst.len(),
         });
     }
+    // Safety: casting an initialized slice to MaybeUninit preserves layout;
+    // we immediately write all elements through the MaybeUninit view.
+    let uninit_dst: &mut [MaybeUninit<D>] = unsafe { std::mem::transmute(dst) };
+    read_into_uninit_slice(storage, layout, uninit_dst)
+}
+
+pub fn read_into_uninit_slice<D: NativeType>(
+    storage: &CpuStorage<D>,
+    layout: &Layout,
+    dst: &mut [MaybeUninit<D>],
+) -> Result<()> {
+    if layout.num_elements() != dst.len() {
+        return Err(Error::SizeMismatch {
+            expected: layout.num_elements(),
+            actual: dst.len(),
+        });
+    }
     storage.handle().validate_layout(layout)?;
+    let data = storage.block.as_uninit_slice();
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
-        let slice = storage.as_slice();
-        dst.copy_from_slice(&slice[..dst.len()]);
+        let len = dst.len();
+        let init = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const D, len) };
+        for (slot, value) in dst.iter_mut().take(len).zip(init.iter().copied()) {
+            slot.write(value);
+        }
         return Ok(());
     }
     let shape = layout.shape();
     let strides = expand_strides(layout, shape)?;
     let offset = layout.offset_elements(D::DTYPE);
-    let data = storage.as_slice();
     let mut coords = vec![0usize; shape.len()];
     for idx in 0..layout.num_elements() {
         linear_to_indices(idx, shape, &mut coords);
         let src = offset + offset_from_strides(&coords, &strides);
-        dst[idx] = data[src as usize];
+        let value = unsafe { data[src as usize].assume_init() };
+        dst[idx].write(value);
     }
     Ok(())
 }
@@ -124,34 +168,10 @@ pub fn write_from_slice<D: NativeType>(
         });
     }
     storage.handle().validate_layout(layout)?;
-    let dst = storage.try_as_mut_slice()?;
+    let dst = storage.try_as_uninit_slice_mut()?;
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
-        dst.copy_from_slice(src);
-        return Ok(());
-    }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let dst_idx = offset + offset_from_strides(&coords, &strides);
-        dst[dst_idx as usize] = src[idx];
-    }
-    Ok(())
-}
-
-pub fn fill_storage<D: NativeType>(
-    storage: &mut CpuStorage<D>,
-    layout: &Layout,
-    value: D,
-) -> Result<()> {
-    storage.handle().validate_layout(layout)?;
-    let dst = storage.try_as_mut_slice()?;
-    if layout.is_contiguous() && layout.offset_bytes() == 0 {
-        let len = layout.num_elements();
-        for slot in dst.iter_mut().take(len) {
-            *slot = value;
+        for (slot, value) in dst.iter_mut().take(src.len()).zip(src.iter().copied()) {
+            slot.write(value);
         }
         return Ok(());
     }
@@ -162,7 +182,33 @@ pub fn fill_storage<D: NativeType>(
     for idx in 0..layout.num_elements() {
         linear_to_indices(idx, shape, &mut coords);
         let dst_idx = offset + offset_from_strides(&coords, &strides);
-        dst[dst_idx as usize] = value;
+        dst[dst_idx as usize].write(src[idx]);
+    }
+    Ok(())
+}
+
+pub fn fill_storage<D: NativeType>(
+    storage: &mut CpuStorage<D>,
+    layout: &Layout,
+    value: D,
+) -> Result<()> {
+    storage.handle().validate_layout(layout)?;
+    let dst = storage.try_as_uninit_slice_mut()?;
+    if layout.is_contiguous() && layout.offset_bytes() == 0 {
+        let len = layout.num_elements();
+        for slot in dst.iter_mut().take(len) {
+            slot.write(value);
+        }
+        return Ok(());
+    }
+    let shape = layout.shape();
+    let strides = expand_strides(layout, shape)?;
+    let offset = layout.offset_elements(D::DTYPE);
+    let mut coords = vec![0usize; shape.len()];
+    for idx in 0..layout.num_elements() {
+        linear_to_indices(idx, shape, &mut coords);
+        let dst_idx = offset + offset_from_strides(&coords, &strides);
+        dst[dst_idx as usize].write(value);
     }
     Ok(())
 }

@@ -46,8 +46,8 @@ where
         });
     }
     let n = rhs_shape[1];
-    let lhs_data = lhs.storage.as_slice();
-    let rhs_data = rhs.storage.as_slice();
+    let lhs_data = lhs.storage.as_uninit_slice();
+    let rhs_data = rhs.storage.as_uninit_slice();
     let lhs_s0 = lhs.layout.strides()[0];
     let lhs_s1 = lhs.layout.strides()[1];
     let rhs_s0 = rhs.layout.strides()[0];
@@ -56,7 +56,7 @@ where
     let rhs_off = rhs.layout.offset_elements(D::DTYPE);
 
     let mut out_storage: CpuStorage<D> = allocator.allocate(m * n)?;
-    let out_slice = out_storage.try_as_mut_slice()?;
+    let out_slice = out_storage.try_as_uninit_slice_mut()?;
 
     for i in 0..m {
         for j in 0..n {
@@ -64,9 +64,11 @@ where
             for p in 0..k {
                 let lhs_idx = lhs_off + (i as isize * lhs_s0) + (p as isize * lhs_s1);
                 let rhs_idx = rhs_off + (p as isize * rhs_s0) + (j as isize * rhs_s1);
-                sum = sum + lhs_data[lhs_idx as usize] * rhs_data[rhs_idx as usize];
+                let lhs_val = unsafe { lhs_data[lhs_idx as usize].assume_init() };
+                let rhs_val = unsafe { rhs_data[rhs_idx as usize].assume_init() };
+                sum = sum + lhs_val * rhs_val;
             }
-            out_slice[i * n + j] = sum;
+            out_slice[i * n + j].write(sum);
         }
     }
 
