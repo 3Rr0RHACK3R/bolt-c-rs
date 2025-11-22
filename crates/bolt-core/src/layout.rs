@@ -223,6 +223,35 @@ impl Layout {
             .map_err(|_| Error::invalid_shape("byte offset exceeds addressable range"))
     }
 
+    pub fn offset_bytes_for_indices(&self, indices: &[usize], dtype: DType) -> Result<usize> {
+        if indices.len() != self.shape.rank() {
+            return Err(Error::invalid_shape("index rank must match tensor rank"));
+        }
+        let elem_size = dtype.size_in_bytes() as isize;
+        let mut offset = isize::try_from(self.offset_bytes)
+            .map_err(|_| Error::invalid_shape("layout offset exceeds addressable isize range"))?;
+        for ((&idx, &dim), &stride) in indices
+            .iter()
+            .zip(self.shape.as_slice().iter())
+            .zip(self.strides.iter())
+        {
+            if idx >= dim {
+                return Err(Error::invalid_shape("index out of bounds"));
+            }
+            let delta = stride
+                .checked_mul(idx as isize)
+                .ok_or_else(|| Error::invalid_shape("index stride multiplication overflow"))?;
+            let bytes = delta
+                .checked_mul(elem_size)
+                .ok_or_else(|| Error::invalid_shape("index byte offset overflow"))?;
+            offset = offset
+                .checked_add(bytes)
+                .ok_or_else(|| Error::invalid_shape("index byte offset overflow (accumulated)"))?;
+        }
+        usize::try_from(offset)
+            .map_err(|_| Error::invalid_shape("index offset exceeds addressable range"))
+    }
+
     fn new_unchecked(
         shape: ConcreteShape,
         strides: ArrayVec<[isize; MAX_RANK]>,

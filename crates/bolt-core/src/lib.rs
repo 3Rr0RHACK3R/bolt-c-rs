@@ -3,6 +3,7 @@
 pub mod allocator;
 pub mod backend;
 pub mod device;
+mod display;
 pub mod dtype;
 pub mod error;
 pub mod layout;
