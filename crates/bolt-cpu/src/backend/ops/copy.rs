@@ -15,7 +15,7 @@ pub trait CopyKernel: NativeType {
         let mut dst: CpuStorage<Self> = allocator.allocate(numel)?;
         {
             let slice = dst.try_as_uninit_slice_mut()?;
-            read_into_uninit_slice(storage, layout, slice)?;
+            unsafe { read_into_uninit_slice(storage, layout, slice)? };
         }
         let layout = Layout::contiguous(shape);
         Ok(TensorParts {

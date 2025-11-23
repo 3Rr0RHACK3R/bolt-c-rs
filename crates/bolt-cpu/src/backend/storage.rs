@@ -42,11 +42,17 @@ impl<D: NativeType> StorageBlock<D> {
         &mut self.data
     }
 
-    pub fn assume_init_slice(&self) -> &[D] {
+    /// Returns a slice over the storage.
+    /// # Safety
+    /// The caller must ensure that the entire buffer is fully initialized.
+    pub unsafe fn assume_init_slice(&self) -> &[D] {
         unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const D, self.data.len()) }
     }
 
-    pub fn assume_init_slice_mut(&mut self) -> &mut [D] {
+    /// Returns a mutable slice over the storage.
+    /// # Safety
+    /// The caller must ensure that the entire buffer is fully initialized.
+    pub unsafe fn assume_init_slice_mut(&mut self) -> &mut [D] {
         unsafe { std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len()) }
     }
 }
@@ -85,7 +91,7 @@ impl<D: NativeType> CpuStorage<D> {
     /// Precondition: the entire buffer must be fully initialized. Prefer
     /// `as_uninit_slice` when initialization is partial or unknown.
     pub fn as_slice(&self) -> &[D] {
-        self.block.assume_init_slice()
+        unsafe { self.block.assume_init_slice() }
     }
 
     /// Returns a mutable typed slice over the storage.
@@ -95,7 +101,7 @@ impl<D: NativeType> CpuStorage<D> {
         let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
             Error::OpError("cannot write to shared tensor storage; clone before mutating".into())
         })?;
-        Ok(block.assume_init_slice_mut())
+        Ok(unsafe { block.assume_init_slice_mut() })
     }
 
     pub fn try_as_uninit_slice_mut(&mut self) -> Result<&mut [MaybeUninit<D>]> {
@@ -110,7 +116,10 @@ impl<D: NativeType> CpuStorage<D> {
     }
 }
 
-pub fn read_into_slice<D: NativeType>(
+/// # Safety
+/// The caller must ensure that the portion of the storage being read from is fully initialized.
+/// Reading from uninitialized memory is undefined behavior.
+pub unsafe fn read_into_slice<D: NativeType>(
     storage: &CpuStorage<D>,
     layout: &Layout,
     dst: &mut [D],
@@ -121,13 +130,15 @@ pub fn read_into_slice<D: NativeType>(
             actual: dst.len(),
         });
     }
-    // Safety: casting an initialized slice to MaybeUninit preserves layout;
-    // we immediately write all elements through the MaybeUninit view.
-    let uninit_dst: &mut [MaybeUninit<D>] = unsafe { std::mem::transmute(dst) };
-    read_into_uninit_slice(storage, layout, uninit_dst)
+    let uninit_dst: &mut [MaybeUninit<D>] =
+        unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut MaybeUninit<D>, dst.len()) };
+    unsafe { read_into_uninit_slice(storage, layout, uninit_dst) }
 }
 
-pub fn read_into_uninit_slice<D: NativeType>(
+/// # Safety
+/// The caller must ensure that the portion of the storage being read from is fully initialized.
+/// Reading from uninitialized memory is undefined behavior.
+pub unsafe fn read_into_uninit_slice<D: NativeType>(
     storage: &CpuStorage<D>,
     layout: &Layout,
     dst: &mut [MaybeUninit<D>],
@@ -229,3 +240,4 @@ pub fn make_cpu_handle<D: NativeType>(len: usize) -> Result<BufferHandle> {
 }
 
 pub type CpuTensorView<'a, D> = TensorView<'a, CpuStorage<D>>;
+

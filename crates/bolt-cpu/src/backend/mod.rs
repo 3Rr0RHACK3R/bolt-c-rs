@@ -73,7 +73,7 @@ where
     }
 
     fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()> {
-        read_into_slice(storage, layout, dst)
+        unsafe { read_into_slice(storage, layout, dst) }
     }
 
     fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()> {
