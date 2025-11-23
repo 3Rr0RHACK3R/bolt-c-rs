@@ -89,16 +89,20 @@ impl<D: NativeType> CpuStorage<D> {
     }
 
     /// Returns a typed slice over the storage.
-    /// Precondition: the entire buffer must be fully initialized. Prefer
+    ///
+    /// # Safety
+    /// The caller must ensure the entire buffer is initialized. Prefer
     /// `as_uninit_slice` when initialization is partial or unknown.
-    pub fn as_slice(&self) -> &[D] {
+    pub unsafe fn as_slice(&self) -> &[D] {
         unsafe { self.block.assume_init_slice() }
     }
 
     /// Returns a mutable typed slice over the storage.
-    /// Precondition: the entire buffer must be fully initialized. Prefer
+    ///
+    /// # Safety
+    /// The caller must ensure the entire buffer is initialized. Prefer
     /// `try_as_uninit_slice_mut` when initialization is partial or unknown.
-    pub fn try_as_mut_slice(&mut self) -> Result<&mut [D]> {
+    pub unsafe fn try_as_mut_slice(&mut self) -> Result<&mut [D]> {
         let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
             Error::OpError("cannot write to shared tensor storage; clone before mutating".into())
         })?;
