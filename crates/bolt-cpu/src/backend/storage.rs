@@ -35,24 +35,28 @@ impl<D: NativeType> StorageBlock<D> {
         self.data.len()
     }
 
+    /// Returns the raw backing slice as `MaybeUninit`, with no initialization guarantee.
     pub fn as_uninit_slice(&self) -> &[MaybeUninit<D>] {
         &self.data
     }
 
+    /// Returns the raw mutable backing slice as `MaybeUninit`, with no initialization guarantee.
     pub fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<D>] {
         &mut self.data
     }
 
-    /// Returns a slice over the storage.
+    /// Returns an initialized typed slice over the entire buffer.
+    ///
     /// # Safety
-    /// The caller must ensure that the entire buffer is fully initialized.
+    /// Caller must ensure every element is initialized.
     pub unsafe fn assume_init_slice(&self) -> &[D] {
         unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const D, self.data.len()) }
     }
 
-    /// Returns a mutable slice over the storage.
+    /// Returns an initialized mutable typed slice over the entire buffer.
+    ///
     /// # Safety
-    /// The caller must ensure that the entire buffer is fully initialized.
+    /// Caller must ensure every element is initialized.
     pub unsafe fn assume_init_slice_mut(&mut self) -> &mut [D] {
         unsafe { std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len()) }
     }
@@ -88,7 +92,7 @@ impl<D: NativeType> CpuStorage<D> {
         self.block.as_uninit_slice()
     }
 
-    /// Returns a typed slice over the storage.
+    /// Returns an initialized typed slice over the storage.
     ///
     /// # Safety
     /// The caller must ensure the entire buffer is initialized. Prefer
@@ -97,7 +101,7 @@ impl<D: NativeType> CpuStorage<D> {
         unsafe { self.block.assume_init_slice() }
     }
 
-    /// Returns a mutable typed slice over the storage.
+    /// Returns an initialized mutable typed slice over the storage.
     ///
     /// # Safety
     /// The caller must ensure the entire buffer is initialized. Prefer
@@ -135,8 +139,9 @@ pub unsafe fn read_into_slice<D: NativeType>(
             actual: dst.len(),
         });
     }
-    let uninit_dst: &mut [MaybeUninit<D>] =
-        unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut MaybeUninit<D>, dst.len()) };
+    let uninit_dst: &mut [MaybeUninit<D>] = unsafe {
+        std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut MaybeUninit<D>, dst.len())
+    };
     unsafe { read_into_uninit_slice(storage, layout, uninit_dst) }
 }
 
