@@ -43,15 +43,11 @@ impl<D: NativeType> StorageBlock<D> {
     }
 
     pub fn assume_init_slice(&self) -> &[D] {
-        unsafe {
-            std::slice::from_raw_parts(self.data.as_ptr() as *const D, self.data.len())
-        }
+        unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const D, self.data.len()) }
     }
 
     pub fn assume_init_slice_mut(&mut self) -> &mut [D] {
-        unsafe {
-            std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len())
-        }
+        unsafe { std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len()) }
     }
 }
 
@@ -78,14 +74,23 @@ impl<D: NativeType> CpuStorage<D> {
         self.handle.len_bytes()
     }
 
+    /// Returns a typed slice over the storage.
+    /// Precondition: the entire buffer must be fully initialized. Prefer
+    /// `as_uninit_slice` when initialization is partial or unknown.
     pub fn as_uninit_slice(&self) -> &[MaybeUninit<D>] {
         self.block.as_uninit_slice()
     }
 
+    /// Returns a typed slice over the storage.
+    /// Precondition: the entire buffer must be fully initialized. Prefer
+    /// `as_uninit_slice` when initialization is partial or unknown.
     pub fn as_slice(&self) -> &[D] {
         self.block.assume_init_slice()
     }
 
+    /// Returns a mutable typed slice over the storage.
+    /// Precondition: the entire buffer must be fully initialized. Prefer
+    /// `try_as_uninit_slice_mut` when initialization is partial or unknown.
     pub fn try_as_mut_slice(&mut self) -> Result<&mut [D]> {
         let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
             Error::OpError("cannot write to shared tensor storage; clone before mutating".into())
