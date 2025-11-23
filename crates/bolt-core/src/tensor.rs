@@ -126,6 +126,10 @@ where
         self.layout.strides()
     }
 
+    pub fn rank(&self) -> usize {
+        self.layout.shape().len()
+    }
+
     pub fn layout(&self) -> &Layout {
         &self.layout
     }
