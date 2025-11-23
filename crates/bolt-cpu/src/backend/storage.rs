@@ -20,6 +20,7 @@ impl<D: NativeType> StorageBlock<D> {
         let mut data = if zeroed {
             vec![MaybeUninit::new(D::default()); len]
         } else {
+            // Safe: MaybeUninit<D> does not require initialization.
             let mut vec = Vec::with_capacity(len);
             unsafe { vec.set_len(len) };
             vec
@@ -240,4 +241,3 @@ pub fn make_cpu_handle<D: NativeType>(len: usize) -> Result<BufferHandle> {
 }
 
 pub type CpuTensorView<'a, D> = TensorView<'a, CpuStorage<D>>;
-
