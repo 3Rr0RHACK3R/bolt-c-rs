@@ -31,7 +31,7 @@ where
     }
 
     let strides = input.layout.strides();
-    let data = input.storage.as_slice();
+    let data = input.storage.as_uninit_slice();
     let offset = input.layout.offset_elements(D::DTYPE);
 
     let mut sum: f32 = 0.0;
@@ -41,22 +41,22 @@ where
         if data.len() < numel {
             return Err(Error::OpError("storage smaller than shape requires".into()));
         }
-        for x in data.iter().take(numel) {
-            sum += x.to_f32();
+        for slot in data.iter().take(numel) {
+            sum += unsafe { slot.assume_init() }.to_f32();
         }
     } else {
         let mut coords = vec![0usize; shape.len()];
         for i in 0..numel {
             linear_to_indices(i, shape, &mut coords);
             let idx = offset + offset_from_strides(&coords, strides);
-            sum += data[idx as usize].to_f32();
+            sum += unsafe { data[idx as usize].assume_init() }.to_f32();
         }
     }
 
     let mean = sum / (numel as f32);
 
     let mut out_storage = alloc_f32.allocate(1)?;
-    out_storage.try_as_mut_slice()?[0] = mean;
+    out_storage.try_as_uninit_slice_mut()?[0].write(mean);
 
     let out_layout = Layout::contiguous(ConcreteShape::from_slice(&[1])?);
 
