@@ -4,7 +4,7 @@ use tinyvec::ArrayVec;
 pub const MAX_RANK: usize = 12;
 pub const MAX_ELEMENTS: usize = isize::MAX as usize;
 
-/// Runtime-validated shape metadata (rank >= 1, every dimension > 0).
+/// Runtime-validated shape metadata (every dimension > 0).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConcreteShape {
     dims: ArrayVec<[usize; MAX_RANK]>,
