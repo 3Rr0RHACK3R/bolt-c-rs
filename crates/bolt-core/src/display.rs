@@ -45,6 +45,11 @@ where
     }
 
     fn format(&mut self) -> Result<String> {
+        if self.tensor.shape().is_empty() {
+            let value = self.read_value(&[])?;
+            return Ok(self.format_value(value));
+        }
+
         let truncated = self.tensor.numel() > DISPLAY_TOTAL_ELEMENT_THRESHOLD;
         let mut out = String::new();
         let mut indices = Vec::with_capacity(self.tensor.shape().len());
