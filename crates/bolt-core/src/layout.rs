@@ -202,6 +202,12 @@ impl Layout {
         step: usize,
         dtype: DType,
     ) -> Result<Self> {
+        if axis >= self.shape.rank() {
+            return Err(Error::InvalidAxes(format!(
+                "axis {axis} out of bounds for rank {}",
+                self.shape.rank()
+            )));
+        }
         let mut indexers = Vec::with_capacity(self.shape.rank());
         for i in 0..self.shape.rank() {
             if i == axis {
