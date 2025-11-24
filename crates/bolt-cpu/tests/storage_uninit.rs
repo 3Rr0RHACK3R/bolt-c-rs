@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_core::{
-    backend::Backend,
+    backend::{Backend, FillOp},
     layout::Layout,
     NativeType,
     shape::ConcreteShape,

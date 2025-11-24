@@ -26,9 +26,17 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
 
     fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()>;
     fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()>;
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>>;
-    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage>;
+}
 
+pub trait CopyOp<D: NativeType>: Backend<D> {
+    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait FillOp<D: NativeType>: Backend<D> {
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage>;
+}
+
+pub trait AddOp<D: NativeType>: Backend<D> {
     fn add(
         &self,
         lhs: &Self::Storage,
@@ -36,7 +44,9 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>>;
+}
 
+pub trait SubOp<D: NativeType>: Backend<D> {
     fn sub(
         &self,
         lhs: &Self::Storage,
@@ -44,7 +54,9 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>>;
+}
 
+pub trait MatmulOp<D: NativeType>: Backend<D> {
     fn matmul(
         &self,
         lhs: &Self::Storage,
@@ -52,7 +64,9 @@ pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>>;
+}
 
+pub trait MeanOp<D: NativeType>: Backend<D> {
     fn mean_f32(
         &self,
         storage: &<Self as Backend<D>>::Storage,

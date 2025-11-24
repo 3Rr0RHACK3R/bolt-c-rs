@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     allocator::StorageAllocator,
-    backend::Backend,
+    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp},
     dtype::{NativeType, OneValue, ToF32},
     error::{Error, Result},
     index::TensorIndex,
@@ -44,7 +44,10 @@ where
         Ok(tensor)
     }
 
-    pub fn zeros(backend: &Arc<B>, shape: &[usize]) -> Result<Self> {
+    pub fn zeros(backend: &Arc<B>, shape: &[usize]) -> Result<Self>
+    where
+        B: FillOp<D>,
+    {
         let shape = ConcreteShape::from_slice(shape)?;
         let numel = shape.num_elements();
         let layout = Layout::contiguous(shape);
@@ -57,11 +60,15 @@ where
     pub fn ones(backend: &Arc<B>, shape: &[usize]) -> Result<Self>
     where
         D: OneValue,
+        B: FillOp<D>,
     {
         Self::full(backend, shape, tensor_creation::one_value::<D>())
     }
 
-    pub fn full(backend: &Arc<B>, shape: &[usize], value: D) -> Result<Self> {
+    pub fn full(backend: &Arc<B>, shape: &[usize], value: D) -> Result<Self>
+    where
+        B: FillOp<D>,
+    {
         let shape = ConcreteShape::from_slice(shape)?;
         let layout = Layout::contiguous(shape);
         let storage = backend.fill(&layout, value)?;
@@ -73,6 +80,7 @@ where
     pub fn ones_like(other: &Tensor<B, D>) -> Result<Self>
     where
         D: OneValue,
+        B: FillOp<D>,
     {
         let layout = Layout::with_strides(
             other.layout.concrete_shape().clone(),
@@ -87,7 +95,10 @@ where
         Ok(tensor)
     }
 
-    pub fn full_like(other: &Tensor<B, D>, value: D) -> Result<Self> {
+    pub fn full_like(other: &Tensor<B, D>, value: D) -> Result<Self>
+    where
+        B: FillOp<D>,
+    {
         let layout = Layout::with_strides(
             other.layout.concrete_shape().clone(),
             other.layout.strides(),
@@ -139,7 +150,10 @@ where
         self.layout.num_elements()
     }
 
-    pub fn to_vec(&self) -> Result<Vec<D>> {
+    pub fn to_vec(&self) -> Result<Vec<D>>
+    where
+        B: CopyOp<D>,
+    {
         let tensor = if self.layout.is_contiguous() && self.layout.offset_bytes() == 0 {
             self.clone()
         } else {
@@ -195,7 +209,10 @@ where
         Ok(self.with_layout(layout))
     }
 
-    pub fn contiguous(&self) -> Result<Self> {
+    pub fn contiguous(&self) -> Result<Self>
+    where
+        B: CopyOp<D>,
+    {
         if self.layout.is_contiguous() && self.layout.offset_bytes() == 0 {
             return Ok(self.clone());
         }
@@ -208,7 +225,10 @@ where
         ))
     }
 
-    pub fn add(&self, other: &Self) -> Result<Self> {
+    pub fn add(&self, other: &Self) -> Result<Self>
+    where
+        B: AddOp<D>,
+    {
         self.ensure_same_backend(other)?;
         let parts = self
             .backend
@@ -220,7 +240,10 @@ where
         ))
     }
 
-    pub fn sub(&self, other: &Self) -> Result<Self> {
+    pub fn sub(&self, other: &Self) -> Result<Self>
+    where
+        B: SubOp<D>,
+    {
         self.ensure_same_backend(other)?;
         let parts = self
             .backend
@@ -232,7 +255,10 @@ where
         ))
     }
 
-    pub fn matmul(&self, other: &Self) -> Result<Self> {
+    pub fn matmul(&self, other: &Self) -> Result<Self>
+    where
+        B: MatmulOp<D>,
+    {
         self.ensure_same_backend(other)?;
         let parts =
             self.backend
@@ -246,10 +272,10 @@ where
 
     pub fn mean_f32(&self) -> Result<Tensor<B, f32>>
     where
-        B: Backend<f32>,
+        B: Backend<f32> + MeanOp<D>,
         D: ToF32,
     {
-        let parts = Backend::<D>::mean_f32(self.backend.as_ref(), &self.storage, &self.layout)?;
+        let parts = MeanOp::<D>::mean_f32(self.backend.as_ref(), &self.storage, &self.layout)?;
         Ok(Tensor::<B, f32>::from_parts(
             self.backend.clone(),
             parts.storage,
