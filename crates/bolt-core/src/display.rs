@@ -45,6 +45,11 @@ where
     }
 
     fn format(&mut self) -> Result<String> {
+        if self.tensor.shape().is_empty() {
+            let value = self.read_value(&[])?;
+            return Ok(self.format_value(value));
+        }
+
         let truncated = self.tensor.numel() > DISPLAY_TOTAL_ELEMENT_THRESHOLD;
         let mut out = String::new();
         let mut indices = Vec::with_capacity(self.tensor.shape().len());
@@ -219,7 +224,7 @@ fn format_float(value: f64) -> String {
         };
     }
     let abs = value.abs();
-    let use_sci = abs != 0.0 && (abs < 1e-4 || abs >= 1e4);
+    let use_sci = abs != 0.0 && !(1e-4..1e4).contains(&abs);
     let mut repr = if use_sci {
         format!("{value:.6e}")
     } else {
