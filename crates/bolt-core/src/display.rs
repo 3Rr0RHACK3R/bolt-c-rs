@@ -224,7 +224,7 @@ fn format_float(value: f64) -> String {
         };
     }
     let abs = value.abs();
-    let use_sci = abs != 0.0 && (abs < 1e-4 || abs >= 1e4);
+    let use_sci = abs != 0.0 && !(1e-4..1e4).contains(&abs);
     let mut repr = if use_sci {
         format!("{value:.6e}")
     } else {
