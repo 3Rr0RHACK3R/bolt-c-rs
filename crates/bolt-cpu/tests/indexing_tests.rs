@@ -147,24 +147,12 @@ fn test_bounds_errors() -> Result<()> {
 
 #[test]
 fn test_range_full_in_tuple() -> Result<()> {
-     let backend = Arc::new(CpuBackend::new());
+    let backend = Arc::new(CpuBackend::new());
     let data = (0..8).map(|x| x as f32).collect::<Vec<_>>();
     // Shape [2, 2, 2]
     let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 2, 2])?;
 
-    // x.i((.., 1)) -> implicit (.., 1, ..)?
-    // Wait, my implementation of tuple assumes sequential mapping.
-    // (A, B) maps A to dim 0, B to dim 1.
-    // RangeFull (..) maps to "Slice(0..dim)".
-    // So (.., 1) means: dim 0 is full slice, dim 1 is selected index 1.
-    // Remaining dims (dim 2) are full slices.
-    // result: x[:, 1, :]
-
-    // dim 0 idx 0: [[0,1], [2,3]] -> row 1 is [2,3]
-    // dim 0 idx 1: [[4,5], [6,7]] -> row 1 is [6,7]
-    // result shape: [2, 2] (dim 0 kept, dim 1 dropped, dim 2 kept)
-    // result data: [2, 3, 6, 7]
-
+    // x.i((.., 1)) corresponds to x[:, 1, :] (implicit full slice for trailing dim)
     let slice = tensor.i((.., 1))?;
     assert_eq!(slice.shape(), &[2, 2]);
     assert_eq!(slice.to_vec()?, vec![2.0, 3.0, 6.0, 7.0]);

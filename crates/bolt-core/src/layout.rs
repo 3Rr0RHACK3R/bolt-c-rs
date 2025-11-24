@@ -141,25 +141,9 @@ impl Layout {
                             "slice range [{start}, {end}) out of bounds for dim {i} (size {dim})"
                         )));
                     }
-                    // Clip end to dim if necessary? No, strict check as per numpy usually.
-                    // But standard slicing x[0:100] where x is len 10 is usually OK in python?
-                    // User said: "Shape/axis out-of-bounds should be clear (axis, len, idx/range)."
-                    // "If tuple len > rank, error."
-                    // "Tuple shorter than rank ⇒ pad with full slices"
-                    // "Select(usize) drops that axis"
-                    // "Range keeps the axis"
-                    // Let's assume strict bounds for explicit ranges for now to be safe, or clamp?
-                    // Python slices clamp. Rust slices panic if out of bounds.
-                    // User said: "Errors include shape + bad index; no panics."
-                    // Let's enforce start <= end.
                     if start > end {
-                        // Empty slice? Or error?
-                        // Python returns empty array.
-                         // Let's allow empty slice if start <= dim.
+                        // Empty slice is allowed if start <= dim (checked above)
                     }
-
-                    // For now, let's treat explicit out of bounds as error, unless it's implicit full slice.
-                    // Wait, user said "Normalize all standard ranges into (start,end) half-open".
 
                     let actual_start = start;
                     let actual_end = end;

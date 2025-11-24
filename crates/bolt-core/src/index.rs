@@ -42,14 +42,9 @@ impl TensorIndex for RangeInclusive<usize> {
 impl TensorIndex for RangeFrom<usize> {
     fn to_indexers(&self, shape: &[usize]) -> Result<Vec<TensorIndexer>> {
         if shape.is_empty() {
-             return Err(Error::invalid_shape("RangeFrom on 0-rank tensor or indexer mismatch"));
-             // Wait, RangeFrom applies to a dimension.
-             // If we are just returning the indexer, we assume it corresponds to the *first* available dimension
-             // in the context of a single item impl, but `to_indexers` is conceptually "convert this object to a list of indexers for the tensor".
-             // If I implement TensorIndex for a single RangeFrom, it implies it's indexing the first dimension (and only the first).
-             // But I need the size of THAT dimension.
-             // The `shape` argument is the Full tensor shape.
-             // So for a single indexer, it consumes shape[0].
+            return Err(Error::invalid_shape(
+                "RangeFrom on 0-rank tensor or indexer mismatch",
+            ));
         }
         let dim = shape[0];
         Ok(vec![TensorIndexer::Slice {
