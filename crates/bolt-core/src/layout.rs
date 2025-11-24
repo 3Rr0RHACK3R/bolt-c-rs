@@ -29,6 +29,50 @@ pub enum TensorIndexer {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IterMode {
+    Read,
+    Write,
+}
+
+#[derive(Clone, Debug)]
+pub struct LayoutIter {
+    shape: Vec<usize>,
+    indices: Vec<usize>,
+    byte_strides: Vec<isize>,
+    rewinds: Vec<isize>,
+    current_offset: isize,
+    remaining_elements: usize,
+}
+
+impl Iterator for LayoutIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining_elements == 0 {
+            return None;
+        }
+
+        let offset = self.current_offset as usize;
+        self.remaining_elements -= 1;
+
+        if self.remaining_elements > 0 {
+            for i in (0..self.shape.len()).rev() {
+                if self.indices[i] + 1 < self.shape[i] {
+                    self.indices[i] += 1;
+                    self.current_offset += self.byte_strides[i];
+                    break;
+                } else {
+                    self.indices[i] = 0;
+                    self.current_offset -= self.rewinds[i];
+                }
+            }
+        }
+
+        Some(offset)
+    }
+}
+
 impl Layout {
     pub fn contiguous(shape: ConcreteShape) -> Self {
         let strides = shape.contiguous_strides();
@@ -295,18 +339,50 @@ impl Layout {
         Ok((lhs, rhs))
     }
 
-    pub fn iter_offsets(&self, dtype: DType) -> Box<dyn Iterator<Item = usize> + '_> {
-        if self.is_contiguous() {
-            let elem_size = dtype.size_in_bytes();
-            Box::new((0..self.num_elements()).map(move |i| self.offset_bytes + i * elem_size))
-        } else {
-            Box::new(general_iter_offsets(
-                self.shape().to_vec(),
-                self.strides().to_vec(),
-                self.offset_bytes,
-                dtype.size_in_bytes(),
-            ))
+    pub fn iter_offsets(&self, dtype: DType) -> Result<LayoutIter> {
+        self.iter_offsets_for(IterMode::Read, dtype)
+    }
+
+    pub fn iter_offsets_for(&self, mode: IterMode, dtype: DType) -> Result<LayoutIter> {
+        let elem_size = dtype.size_in_bytes() as isize;
+        let shape = self.shape().to_vec();
+        let mut byte_strides = Vec::with_capacity(shape.len());
+        let mut rewinds = Vec::with_capacity(shape.len());
+
+        for (i, (&dim, &stride)) in shape.iter().zip(self.strides.iter()).enumerate() {
+            if mode == IterMode::Write && dim > 1 && stride == 0 {
+                return Err(Error::invalid_shape(format!(
+                    "write mode requires non-zero strides for dims > 1 (dim {} is broadcasted)",
+                    i
+                )));
+            }
+
+            let byte_stride = stride
+                .checked_mul(elem_size)
+                .ok_or_else(|| Error::invalid_shape("stride overflow"))?;
+            byte_strides.push(byte_stride);
+
+            if dim > 0 {
+                let rewind = byte_stride
+                    .checked_mul((dim - 1) as isize)
+                    .ok_or_else(|| Error::invalid_shape("rewind overflow"))?;
+                rewinds.push(rewind);
+            } else {
+                rewinds.push(0);
+            }
         }
+
+        let current_offset = isize::try_from(self.offset_bytes)
+            .map_err(|_| Error::invalid_shape("offset_bytes too large for isize"))?;
+
+        Ok(LayoutIter {
+            shape,
+            indices: vec![0; self.shape.rank()],
+            byte_strides,
+            rewinds,
+            current_offset,
+            remaining_elements: self.num_elements(),
+        })
     }
 
     pub fn offset_elements(&self, dtype: DType) -> isize {
@@ -409,38 +485,6 @@ fn compute_kind(shape: &[usize], strides: &[isize]) -> LayoutKind {
     LayoutKind::Contiguous
 }
 
-fn general_iter_offsets(
-    shape: Vec<usize>,
-    strides: Vec<isize>,
-    offset_bytes: usize,
-    elem_size: usize,
-) -> impl Iterator<Item = usize> {
-    let mut current_indices = vec![0; shape.len()];
-    let mut current_offset = offset_bytes;
-    let num_elements: usize = shape.iter().product();
-    let mut finished = num_elements == 0;
-
-    std::iter::from_fn(move || {
-        if finished {
-            return None;
-        }
-
-        let offset = current_offset;
-
-        for i in (0..shape.len()).rev() {
-            current_indices[i] += 1;
-            if current_indices[i] < shape[i] {
-                current_offset = (current_offset as isize + strides[i] * elem_size as isize) as usize;
-                return Some(offset);
-            }
-            current_indices[i] = 0;
-            let num_strides = (shape[i] - 1) as isize;
-            current_offset = (current_offset as isize - num_strides * strides[i] * elem_size as isize) as usize;
-        }
-        finished = true;
-        Some(offset)
-    })
-}
 
 #[cfg(test)]
 mod tests {
@@ -493,18 +537,86 @@ mod tests {
     fn test_iter_offsets_contiguous() {
         let shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
         let layout = Layout::contiguous(shape);
-        let offsets: Vec<usize> = layout.iter_offsets(DType::F32).collect();
+        let offsets: Vec<usize> = layout.iter_offsets(DType::F32).unwrap().collect();
         assert_eq!(offsets, vec![0, 4, 8, 12, 16, 20]);
     }
 
     #[test]
-    fn test_iter_offsets_broadcasted() {
+    fn test_iter_offsets_broadcasted_read() {
         let shape = ConcreteShape::from_slice(&[2, 1]).unwrap();
         let layout = Layout::contiguous(shape);
         let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
         let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        let offsets: Vec<usize> = new_layout.iter_offsets(DType::F32).collect();
+        let offsets: Vec<usize> = new_layout.iter_offsets(DType::F32).unwrap().collect();
         assert_eq!(offsets, vec![0, 0, 0, 4, 4, 4]);
+    }
+
+    #[test]
+    fn test_iter_offsets_broadcasted_write() {
+        let shape = ConcreteShape::from_slice(&[2, 1]).unwrap();
+        let layout = Layout::contiguous(shape);
+        let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
+        let new_layout = layout.broadcast_to(&new_shape).unwrap();
+        assert!(new_layout
+            .iter_offsets_for(IterMode::Write, DType::F32)
+            .is_err());
+    }
+
+    #[test]
+    fn test_iter_offsets_transpose() {
+        let shape = ConcreteShape::from_slice(&[2, 2]).unwrap();
+        let layout = Layout::contiguous(shape);
+        // Transpose -> shape [2, 2], strides [4, 8] (since original strides were [8, 4] bytes for F32?)
+        // Contiguous F32 2x2: strides [2, 1] elems -> [8, 4] bytes.
+        // Transpose: shape [2, 2], strides [1, 2] elems -> [4, 8] bytes.
+        let new_layout = layout.transpose(0, 1).unwrap();
+        let offsets: Vec<usize> = new_layout.iter_offsets(DType::F32).unwrap().collect();
+        // Logical iteration: (0,0), (0,1), (1,0), (1,1)
+        // Offset = 0*4 + 0*8 = 0
+        // Offset = 0*4 + 1*8 = 8
+        // Offset = 1*4 + 0*8 = 4
+        // Offset = 1*4 + 1*8 = 12
+        assert_eq!(offsets, vec![0, 8, 4, 12]);
+    }
+
+    #[test]
+    fn test_iter_offsets_negative_stride() {
+        // [0, 1, 2, 3, 4] -> slice step -1 -> [4, 3, 2, 1, 0]
+        // Currently `Layout::slice` only accepts usize steps, so we manually construct
+        // a negative stride layout to verify the iterator handles it correctly.
+
+        let shape = ConcreteShape::from_slice(&[5]).unwrap();
+        // Base offset at element 4 -> 4 * 4 = 16 bytes.
+        // Stride = -1 elem -> -4 bytes.
+        let layout = Layout::with_strides(shape, &[-1], 16).unwrap();
+        let offsets: Vec<usize> = layout.iter_offsets(DType::F32).unwrap().collect();
+        assert_eq!(offsets, vec![16, 12, 8, 4, 0]);
+    }
+
+    #[test]
+    fn test_kernel_simulation_usage() {
+        // Simulate a kernel that chooses path based on contiguity
+        let run_kernel = |layout: &Layout| -> Vec<usize> {
+            if layout.is_contiguous() {
+                // Fast path: direct slice logic (simulated)
+                let start = layout.offset_bytes();
+                let end = start + layout.num_elements() * 4; // F32
+                (start..end).step_by(4).collect()
+            } else {
+                // Slow path: iterator
+                layout.iter_offsets(DType::F32).unwrap().collect()
+            }
+        };
+
+        // Case 1: Contiguous
+        let shape = ConcreteShape::from_slice(&[2, 2]).unwrap();
+        let layout = Layout::contiguous(shape.clone());
+        assert_eq!(run_kernel(&layout), vec![0, 4, 8, 12]);
+
+        // Case 2: Strided (Transpose)
+        let layout_t = layout.transpose(0, 1).unwrap();
+        assert!(!layout_t.is_contiguous());
+        assert_eq!(run_kernel(&layout_t), vec![0, 8, 4, 12]);
     }
 
     #[test]
