@@ -109,14 +109,9 @@ pub trait TensorIndex {
 impl<T: TensorIndexElem> TensorIndex for T {
     fn to_indexers(&self, shape: &[usize]) -> Result<Vec<TensorIndexer>> {
         if shape.is_empty() {
-            // Scalar tensor indexing? Or 1D tensor indexed by scalar?
-            // If T is usize, it expects a dimension.
-            // If tensor is scalar (rank 0), shape is empty.
-            // Can we index a scalar? `x.i(0)`? No, 0 is OOB for dim size 0?
-            // Actually `collect_dims` now allows empty shape.
-            // But `to_indexer` takes `dim`. `shape[0]` will panic if empty.
-            // So we must check.
-            return Err(Error::invalid_shape("cannot index into scalar (rank 0) tensor with an element"));
+            return Err(Error::invalid_shape(
+                "cannot index into scalar (rank 0) tensor with an element",
+            ));
         }
         Ok(vec![self.to_indexer(shape[0])?])
     }
