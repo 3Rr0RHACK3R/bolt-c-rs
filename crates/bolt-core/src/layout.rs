@@ -142,7 +142,11 @@ impl Layout {
                     let delta = stride
                         .checked_mul(start as isize)
                         .ok_or_else(|| Error::invalid_shape("slice offset overflow"))?;
-                    let new_stride = stride * (step as isize);
+                    let step_isize = isize::try_from(step)
+                        .map_err(|_| Error::invalid_shape("slice step exceeds isize range"))?;
+                    let new_stride = stride
+                        .checked_mul(step_isize)
+                        .ok_or_else(|| Error::invalid_shape("slice stride overflow"))?;
                     (delta, Some((len, new_stride)))
                 }
             };
