@@ -81,6 +81,9 @@ impl TensorIndex for RangeFull {
 }
 
 
+/// Implements `TensorIndex` for tuples of various sizes (up to arity 6).
+/// This macro handles recursive indexing where each tuple element consumes
+/// one or more dimensions of the tensor shape.
 macro_rules! impl_tuple_index {
     ($($T:ident),+) => {
         impl<$($T),+> TensorIndex for ($($T,)+)
@@ -108,7 +111,7 @@ macro_rules! impl_tuple_index {
                         current_dim += count;
                     }
                 )+
-                // Suppress unused warning for the last assignment
+                // Suppress "unused assignment" warning for the last iteration
                 let _ = current_dim;
                 Ok(indexers)
             }

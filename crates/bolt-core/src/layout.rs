@@ -112,65 +112,57 @@ impl Layout {
                 step: 1,
             });
 
-            match indexer {
+            // Calculate the offset adjustment and new dimension (if any)
+            let (offset_delta, new_dim_info) = match indexer {
                 TensorIndexer::Select(idx) => {
                     if idx >= dim {
                         return Err(Error::invalid_shape(format!(
                             "index {idx} out of bounds for dim {i} (size {dim})"
                         )));
                     }
-                    let offset_delta = stride
+                    let delta = stride
                         .checked_mul(idx as isize)
-                        .ok_or_else(|| Error::invalid_shape("indexer offset overflow"))?
-                        .checked_mul(elem_size)
-                        .ok_or_else(|| Error::invalid_shape("indexer byte offset overflow"))?;
-
-                    current_offset_bytes = isize::try_from(current_offset_bytes)
-                        .map_err(|_| Error::invalid_shape("base offset exceeds isize range"))?
-                        .checked_add(offset_delta)
-                        .ok_or_else(|| Error::invalid_shape("total offset overflow"))?
-                        .try_into()
-                        .map_err(|_| Error::invalid_shape("total offset negative"))?;
+                        .ok_or_else(|| Error::invalid_shape("indexer offset overflow"))?;
+                    (delta, None)
                 }
                 TensorIndexer::Slice { start, end, step } => {
                     if step == 0 {
                         return Err(Error::invalid_shape("slice step cannot be zero"));
                     }
                     if start > dim || end > dim {
-                         return Err(Error::invalid_shape(format!(
+                        return Err(Error::invalid_shape(format!(
                             "slice range [{start}, {end}) out of bounds for dim {i} (size {dim})"
                         )));
                     }
-                    if start > end {
-                        // Empty slice is allowed if start <= dim (checked above)
-                    }
-
-                    let actual_start = start;
-                    let actual_end = end;
-
-                    // Compute new length
-                    let len = if actual_start >= actual_end {
+                    let len = if start >= end {
                         0
                     } else {
-                        (actual_end - actual_start).div_ceil(step)
+                        (end - start).div_ceil(step)
                     };
-
-                    new_shape.push(len);
-                    new_strides.push(stride * (step as isize));
-
-                    let offset_delta = stride
-                        .checked_mul(actual_start as isize)
-                        .ok_or_else(|| Error::invalid_shape("slice offset overflow"))?
-                        .checked_mul(elem_size)
-                        .ok_or_else(|| Error::invalid_shape("slice byte offset overflow"))?;
-
-                    current_offset_bytes = isize::try_from(current_offset_bytes)
-                        .map_err(|_| Error::invalid_shape("base offset exceeds isize range"))?
-                        .checked_add(offset_delta)
-                        .ok_or_else(|| Error::invalid_shape("total offset overflow"))?
-                        .try_into()
-                        .map_err(|_| Error::invalid_shape("total offset negative"))?;
+                    let delta = stride
+                        .checked_mul(start as isize)
+                        .ok_or_else(|| Error::invalid_shape("slice offset overflow"))?;
+                    let new_stride = stride * (step as isize);
+                    (delta, Some((len, new_stride)))
                 }
+            };
+
+            // Apply byte offset delta
+            let byte_delta = offset_delta
+                .checked_mul(elem_size)
+                .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
+
+            current_offset_bytes = isize::try_from(current_offset_bytes)
+                .map_err(|_| Error::invalid_shape("base offset exceeds isize range"))?
+                .checked_add(byte_delta)
+                .ok_or_else(|| Error::invalid_shape("total offset overflow"))?
+                .try_into()
+                .map_err(|_| Error::invalid_shape("total offset negative"))?;
+
+            // Push new dimension info if slicing
+            if let Some((len, new_stride)) = new_dim_info {
+                new_shape.push(len);
+                new_strides.push(new_stride);
             }
         }
 
