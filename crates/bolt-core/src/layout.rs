@@ -19,6 +19,16 @@ pub struct Layout {
     kind: LayoutKind,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TensorIndexer {
+    Select(usize),
+    Slice {
+        start: usize,
+        end: usize,
+        step: usize,
+    },
+}
+
 impl Layout {
     pub fn contiguous(shape: ConcreteShape) -> Self {
         let strides = shape.contiguous_strides();
@@ -73,6 +83,97 @@ impl Layout {
         self.kind == LayoutKind::Contiguous
     }
 
+    pub fn perform_indexing(&self, indexers: &[TensorIndexer], dtype: DType) -> Result<Self> {
+        if indexers.len() > self.shape.rank() {
+            return Err(Error::invalid_shape(format!(
+                "too many indices: expected {}, got {}",
+                self.shape.rank(),
+                indexers.len()
+            )));
+        }
+
+        let mut new_shape = Vec::new();
+        let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
+        let mut current_offset_bytes = self.offset_bytes;
+        let elem_size = dtype.size_in_bytes() as isize;
+
+        // Iterate over the layout's dimensions.
+        // If an indexer is provided for a dimension, apply it.
+        // Otherwise, treat it as a full slice (keep the dimension as-is).
+        for (i, (&dim, &stride)) in self
+            .shape()
+            .iter()
+            .zip(self.strides.iter())
+            .enumerate()
+        {
+            let indexer = indexers.get(i).copied().unwrap_or(TensorIndexer::Slice {
+                start: 0,
+                end: dim,
+                step: 1,
+            });
+
+            // Calculate the offset adjustment and new dimension (if any)
+            let (offset_delta, new_dim_info) = match indexer {
+                TensorIndexer::Select(idx) => {
+                    if idx >= dim {
+                        return Err(Error::invalid_shape(format!(
+                            "index {idx} out of bounds for dim {i} (size {dim})"
+                        )));
+                    }
+                    let delta = stride
+                        .checked_mul(idx as isize)
+                        .ok_or_else(|| Error::invalid_shape("indexer offset overflow"))?;
+                    (delta, None)
+                }
+                TensorIndexer::Slice { start, end, step } => {
+                    if step == 0 {
+                        return Err(Error::invalid_shape("slice step cannot be zero"));
+                    }
+                    if start > dim || end > dim {
+                        return Err(Error::invalid_shape(format!(
+                            "slice range [{start}, {end}) out of bounds for dim {i} (size {dim})"
+                        )));
+                    }
+                    let len = if start >= end {
+                        0
+                    } else {
+                        (end - start).div_ceil(step)
+                    };
+                    let delta = stride
+                        .checked_mul(start as isize)
+                        .ok_or_else(|| Error::invalid_shape("slice offset overflow"))?;
+                    let step_isize = isize::try_from(step)
+                        .map_err(|_| Error::invalid_shape("slice step exceeds isize range"))?;
+                    let new_stride = stride
+                        .checked_mul(step_isize)
+                        .ok_or_else(|| Error::invalid_shape("slice stride overflow"))?;
+                    (delta, Some((len, new_stride)))
+                }
+            };
+
+            // Apply byte offset delta
+            let byte_delta = offset_delta
+                .checked_mul(elem_size)
+                .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
+
+            current_offset_bytes = isize::try_from(current_offset_bytes)
+                .map_err(|_| Error::invalid_shape("base offset exceeds isize range"))?
+                .checked_add(byte_delta)
+                .ok_or_else(|| Error::invalid_shape("total offset overflow"))?
+                .try_into()
+                .map_err(|_| Error::invalid_shape("total offset negative"))?;
+
+            // Push new dimension info if slicing
+            if let Some((len, new_stride)) = new_dim_info {
+                new_shape.push(len);
+                new_strides.push(new_stride);
+            }
+        }
+
+        let shape = ConcreteShape::from_slice(&new_shape)?;
+        Layout::with_strides(shape, new_strides.as_slice(), current_offset_bytes)
+    }
+
     pub fn slice(
         &self,
         axis: usize,
@@ -82,49 +183,24 @@ impl Layout {
         dtype: DType,
     ) -> Result<Self> {
         if axis >= self.shape.rank() {
-            return Err(Error::invalid_shape(format!(
+            return Err(Error::InvalidAxes(format!(
                 "axis {axis} out of bounds for rank {}",
                 self.shape.rank()
             )));
         }
-        if step == 0 {
-            return Err(Error::invalid_shape("slice step must be > 0"));
+        let mut indexers = Vec::with_capacity(self.shape.rank());
+        for i in 0..self.shape.rank() {
+            if i == axis {
+                indexers.push(TensorIndexer::Slice { start, end, step });
+            } else {
+                indexers.push(TensorIndexer::Slice {
+                    start: 0,
+                    end: self.shape()[i],
+                    step: 1,
+                });
+            }
         }
-        let dim = self.shape()[axis];
-        if start >= end || end > dim {
-            return Err(Error::invalid_shape(format!(
-                "invalid slice range [{start}, {end}) for dim {dim}"
-            )));
-        }
-        let new_len = (end - start).div_ceil(step);
-        let mut new_shape = self.shape().to_vec();
-        new_shape[axis] = new_len;
-        let mut new_strides = self.strides;
-        new_strides[axis] *= step as isize;
-        let stride = self.strides()[axis];
-        let offset_bytes =
-            Self::validate_slice_offset_bytes(stride, start, dtype, self.offset_bytes())?;
-        let shape = ConcreteShape::from_slice(&new_shape)?;
-        Layout::with_strides(shape, new_strides.as_slice(), offset_bytes)
-    }
-
-    fn validate_slice_offset_bytes(
-        stride: isize,
-        start: usize,
-        dtype: DType,
-        base_offset: usize,
-    ) -> Result<usize> {
-        let start_isize = isize::try_from(start)
-            .map_err(|_| Error::invalid_shape("slice start exceeds addressable range"))?;
-        let elem_offset = stride
-            .checked_mul(start_isize)
-            .ok_or_else(|| Error::invalid_shape("slice offset overflow (stride*start)"))?;
-        let byte_delta = elem_offset
-            .checked_mul(dtype.size_in_bytes() as isize)
-            .ok_or_else(|| Error::invalid_shape("slice offset overflow (bytes)"))?;
-        base_offset
-            .checked_add_signed(byte_delta)
-            .ok_or_else(|| Error::invalid_shape("slice offset overflow (base+delta)"))
+        self.perform_indexing(&indexers, dtype)
     }
 
     pub fn permute(&self, axes: &[usize]) -> Result<Self> {

@@ -167,7 +167,7 @@ pub fn canonical_axes(axes: &[usize], rank: usize) -> Result<Vec<usize>> {
 
 pub fn reduced_shape(shape: &[usize], axes: &[usize]) -> Result<Vec<usize>> {
     let canonical = canonical_axes(axes, shape.len())?;
-    let mut result = Vec::with_capacity(shape.len().saturating_sub(canonical.len()).max(1));
+    let mut result = Vec::with_capacity(shape.len().saturating_sub(canonical.len()));
     for (idx, dim) in shape.iter().enumerate() {
         if canonical.binary_search(&idx).is_err() {
             result.push(*dim);
