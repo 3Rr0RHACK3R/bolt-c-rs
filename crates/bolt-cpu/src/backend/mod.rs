@@ -9,7 +9,7 @@ use std::sync::Arc;
 use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
-    backend::Backend,
+    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp},
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
     layout::Layout,
@@ -79,11 +79,21 @@ where
     fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()> {
         write_from_slice(storage, layout, src)
     }
+}
 
+impl<D> CopyOp<D> for CpuBackend
+where
+    D: CpuScalar + CopyKernel,
+{
     fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
         <D as CopyKernel>::copy_kernel(storage, layout, &self.allocator())
     }
+}
 
+impl<D> FillOp<D> for CpuBackend
+where
+    D: CpuScalar,
+{
     fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
         let len_bytes = layout
             .max_offset_bytes(D::DTYPE)?
@@ -96,7 +106,12 @@ where
         fill_storage(&mut storage, layout, value)?;
         Ok(storage)
     }
+}
 
+impl<D> AddOp<D> for CpuBackend
+where
+    D: CpuScalar + AddKernel,
+{
     fn add(
         &self,
         lhs: &Self::Storage,
@@ -110,7 +125,12 @@ where
             &self.allocator(),
         )
     }
+}
 
+impl<D> SubOp<D> for CpuBackend
+where
+    D: CpuScalar + SubKernel,
+{
     fn sub(
         &self,
         lhs: &Self::Storage,
@@ -124,7 +144,12 @@ where
             &self.allocator(),
         )
     }
+}
 
+impl<D> MatmulOp<D> for CpuBackend
+where
+    D: CpuScalar + MatmulKernel,
+{
     fn matmul(
         &self,
         lhs: &Self::Storage,
@@ -138,7 +163,12 @@ where
             &self.allocator(),
         )
     }
+}
 
+impl<D> MeanOp<D> for CpuBackend
+where
+    D: CpuScalar + MeanKernel,
+{
     fn mean_f32(
         &self,
         storage: &<Self as Backend<D>>::Storage,
