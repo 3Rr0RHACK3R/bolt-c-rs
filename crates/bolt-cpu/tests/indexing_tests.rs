@@ -159,3 +159,20 @@ fn test_range_full_in_tuple() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_vec_indexer() -> Result<()> {
+    use bolt_core::layout::TensorIndexer;
+
+    let backend = Arc::new(CpuBackend::new());
+    let data = vec![1.0, 2.0, 3.0, 4.0];
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 2])?;
+
+    // Manual index construction: select row 1
+    let indexers = vec![TensorIndexer::Select(1)];
+    let row = tensor.i(indexers)?;
+    assert_eq!(row.shape(), &[2]);
+    assert_eq!(row.to_vec()?, vec![3.0, 4.0]);
+
+    Ok(())
+}
