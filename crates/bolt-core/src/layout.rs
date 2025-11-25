@@ -37,10 +37,10 @@ pub enum IterMode {
 
 #[derive(Clone, Debug)]
 pub struct LayoutIter {
-    shape: Vec<usize>,
-    indices: Vec<usize>,
-    byte_strides: Vec<isize>,
-    rewinds: Vec<isize>,
+    shape: ArrayVec<[usize; MAX_RANK]>,
+    indices: ArrayVec<[usize; MAX_RANK]>,
+    byte_strides: ArrayVec<[isize; MAX_RANK]>,
+    rewinds: ArrayVec<[isize; MAX_RANK]>,
     current_offset: isize,
     remaining_elements: usize,
 }
@@ -53,7 +53,7 @@ impl Iterator for LayoutIter {
             return None;
         }
 
-        let offset = self.current_offset as usize;
+        let offset = usize::try_from(self.current_offset).expect("offset became negative");
         self.remaining_elements -= 1;
 
         if self.remaining_elements > 0 {
@@ -345,11 +345,19 @@ impl Layout {
 
     pub fn iter_offsets_for(&self, mode: IterMode, dtype: DType) -> Result<LayoutIter> {
         let elem_size = dtype.size_in_bytes() as isize;
-        let shape = self.shape().to_vec();
-        let mut byte_strides = Vec::with_capacity(shape.len());
-        let mut rewinds = Vec::with_capacity(shape.len());
+        let mut shape = ArrayVec::<[usize; MAX_RANK]>::new();
+        let mut indices = ArrayVec::<[usize; MAX_RANK]>::new();
+        let mut byte_strides = ArrayVec::<[isize; MAX_RANK]>::new();
+        let mut rewinds = ArrayVec::<[isize; MAX_RANK]>::new();
 
-        for (i, (&dim, &stride)) in shape.iter().zip(self.strides.iter()).enumerate() {
+        let base_offset = isize::try_from(self.offset_bytes)
+            .map_err(|_| Error::invalid_shape("offset_bytes too large for isize"))?;
+        let mut min_offset = base_offset;
+
+        for (i, (&dim, &stride)) in self.shape.as_slice().iter().zip(self.strides.iter()).enumerate() {
+            shape.push(dim);
+            indices.push(0);
+
             if mode == IterMode::Write && dim > 1 && stride == 0 {
                 return Err(Error::invalid_shape(format!(
                     "write mode requires non-zero strides for dims > 1 (dim {} is broadcasted)",
@@ -362,6 +370,16 @@ impl Layout {
                 .ok_or_else(|| Error::invalid_shape("stride overflow"))?;
             byte_strides.push(byte_stride);
 
+            if byte_stride < 0 {
+                let max_idx = (dim as isize).saturating_sub(1);
+                let drop = byte_stride
+                    .checked_mul(max_idx)
+                    .ok_or_else(|| Error::invalid_shape("min offset calc overflow"))?;
+                min_offset = min_offset
+                    .checked_add(drop)
+                    .ok_or_else(|| Error::invalid_shape("min offset calc overflow"))?;
+            }
+
             if dim > 0 {
                 let rewind = byte_stride
                     .checked_mul((dim - 1) as isize)
@@ -372,15 +390,19 @@ impl Layout {
             }
         }
 
-        let current_offset = isize::try_from(self.offset_bytes)
-            .map_err(|_| Error::invalid_shape("offset_bytes too large for isize"))?;
+        if min_offset < 0 {
+            return Err(Error::invalid_shape(format!(
+                "layout requires accessing negative memory addresses (min_offset={})",
+                min_offset
+            )));
+        }
 
         Ok(LayoutIter {
             shape,
-            indices: vec![0; self.shape.rank()],
+            indices,
             byte_strides,
             rewinds,
-            current_offset,
+            current_offset: base_offset,
             remaining_elements: self.num_elements(),
         })
     }
@@ -617,6 +639,28 @@ mod tests {
         let layout_t = layout.transpose(0, 1).unwrap();
         assert!(!layout_t.is_contiguous());
         assert_eq!(run_kernel(&layout_t), vec![0, 8, 4, 12]);
+    }
+
+    #[test]
+    fn test_iter_offsets_out_of_bounds_negative() {
+        // Construct a layout where negative strides would push the offset below zero.
+        // Base offset = 0.
+        // Shape = [5], Stride = -1 (elem) -> -4 bytes.
+        // 1st element: offset 0
+        // 2nd element: offset -4 (Invalid)
+
+        let shape = ConcreteShape::from_slice(&[5]).unwrap();
+        // Manually construct with stride -1 and offset 0 (which is too small)
+        let layout = Layout::with_strides(shape, &[-1], 0).unwrap();
+
+        let result = layout.iter_offsets(DType::F32);
+        assert!(result.is_err());
+        match result {
+            Err(Error::InvalidShape { message }) => {
+                assert!(message.contains("negative memory addresses"));
+            }
+            _ => panic!("Expected InvalidShape error"),
+        }
     }
 
     #[test]
