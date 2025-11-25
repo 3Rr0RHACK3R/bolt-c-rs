@@ -1,10 +1,12 @@
 pub mod allocator;
+pub mod backend;
 pub mod os_stats;
 pub mod report;
 
 use std::time::Instant;
 
 pub use allocator::{AllocatorStats, TrackingAllocator};
+pub use backend::ProfiledBackend;
 pub use os_stats::{get_os_stats, OsStats};
 pub use report::{CpuStats, MemoryStats, ProfileReport};
 

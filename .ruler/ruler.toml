@@ -9,9 +9,6 @@ default_agents = ["codex", "gemini-cli", "claude", "jules"]
 # When enabled, ruler will search for and process .ruler directories throughout the project hierarchy
 # nested = false
 
-[gitignore]
-enabled = true
-
 # --- Agent Specific Configurations ---
 # You can enable/disable agents and override their default output paths here.
 # Use lowercase agent identifiers: amp, copilot, claude, codex, cursor, windsurf, cline, aider, kilocode
@@ -25,8 +22,8 @@ enabled = true
 # output_path_instructions = "AGENTS.md"
 # output_path_config = ".aider.conf.yml"
 
-# [agents.gemini-cli]
-# enabled = true
+[agents.gemini-cli]
+enabled = true
 
 # --- MCP Servers ---
 # Define Model Context Protocol servers here. Two examples:

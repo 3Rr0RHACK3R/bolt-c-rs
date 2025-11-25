@@ -1,5 +1,7 @@
 target/
 .claude/
+.codex/
+.gemini/
 .serena/
 devlog/
 

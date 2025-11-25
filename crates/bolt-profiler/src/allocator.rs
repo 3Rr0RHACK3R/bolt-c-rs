@@ -1,6 +1,7 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[derive(Debug)]
 pub struct TrackingAllocator {
     alloc_count: AtomicUsize,
     dealloc_count: AtomicUsize,
