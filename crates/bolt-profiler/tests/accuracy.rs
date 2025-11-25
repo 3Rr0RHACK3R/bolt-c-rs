@@ -67,3 +67,34 @@ fn test_leak_behavior() {
 
     assert_eq!(report.memory_stats.net_allocated_bytes, 500);
 }
+
+#[test]
+fn test_scope_peak_tracking() {
+    let (_, report) = profile(Some(&GLOBAL), || {
+        // Allocate 1MB, then free, then allocate 512KB
+        let layout_1mb = Layout::from_size_align(1024 * 1024, 1).unwrap();
+        let layout_512kb = Layout::from_size_align(512 * 1024, 1).unwrap();
+
+        unsafe {
+            let ptr1 = GLOBAL.alloc(layout_1mb);
+            assert!(!ptr1.is_null());
+            std::ptr::write_volatile(ptr1, 0xFF);
+
+            GLOBAL.dealloc(ptr1, layout_1mb);
+
+            let ptr2 = GLOBAL.alloc(layout_512kb);
+            assert!(!ptr2.is_null());
+            std::ptr::write_volatile(ptr2, 0xAA);
+
+            GLOBAL.dealloc(ptr2, layout_512kb);
+        }
+    });
+
+    // Peak during scope should be ~1MB (the first allocation)
+    assert!(
+        report.memory_stats.scope_peak_bytes >= 1024 * 1024,
+        "Scope peak should capture the 1MB allocation: got {}",
+        report.memory_stats.scope_peak_bytes
+    );
+    assert_eq!(report.memory_stats.net_allocated_bytes, 0);
+}

@@ -1,53 +1,163 @@
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use bolt_core::backend::{Backend, TensorParts, AddOp, SubOp, MatmulOp, MeanOp, CopyOp, FillOp};
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::Duration;
+
+use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp, TensorParts};
 use bolt_core::dtype::NativeType;
 use bolt_core::error::Result;
 use bolt_core::layout::Layout;
+use parking_lot::Mutex;
 
+use crate::allocator::TrackingAllocator;
 use crate::profile;
 use crate::report::ProfileReport;
-use crate::allocator::TrackingAllocator;
 
-/// A registry to store aggregated profiling stats per operation name.
+#[derive(Debug, Clone, Default)]
+pub struct OpStats {
+    pub count: usize,
+    pub total_time_us: u128,
+    pub min_time_us: u128,
+    pub max_time_us: u128,
+    pub sum_sq_time_us: u128,
+    pub total_net_bytes: isize,
+    pub total_alloc_bytes: usize,
+    pub max_scope_peak_bytes: usize,
+}
+
+impl OpStats {
+    pub fn record(&mut self, report: &ProfileReport) {
+        let time_us = report.wall_time.as_micros();
+        self.count += 1;
+        self.total_time_us += time_us;
+        self.min_time_us = if self.count == 1 {
+            time_us
+        } else {
+            self.min_time_us.min(time_us)
+        };
+        self.max_time_us = self.max_time_us.max(time_us);
+        self.sum_sq_time_us += time_us * time_us;
+        self.total_net_bytes += report.memory_stats.net_allocated_bytes;
+        self.total_alloc_bytes += report.memory_stats.total_allocated_bytes;
+        self.max_scope_peak_bytes = self
+            .max_scope_peak_bytes
+            .max(report.memory_stats.scope_peak_bytes);
+    }
+
+    pub fn avg_time_us(&self) -> u128 {
+        if self.count == 0 {
+            0
+        } else {
+            self.total_time_us / self.count as u128
+        }
+    }
+
+    pub fn stddev_time_us(&self) -> f64 {
+        if self.count < 2 {
+            return 0.0;
+        }
+        let n = self.count as f64;
+        let mean = self.total_time_us as f64 / n;
+        let variance = (self.sum_sq_time_us as f64 / n) - (mean * mean);
+        variance.max(0.0).sqrt()
+    }
+
+    pub fn avg_net_bytes(&self) -> isize {
+        if self.count == 0 {
+            0
+        } else {
+            self.total_net_bytes / self.count as isize
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Registry {
-    /// Map of Op Name -> List of reports
-    ops: HashMap<String, Vec<ProfileReport>>,
+    ops: BTreeMap<String, OpStats>,
+    total_time: Duration,
 }
 
 impl Registry {
-    pub fn add(&mut self, name: &str, report: ProfileReport) {
-        self.ops.entry(name.to_string()).or_default().push(report);
+    pub fn add(&mut self, name: &str, report: &ProfileReport) {
+        self.total_time += report.wall_time;
+        self.ops.entry(name.to_string()).or_default().record(report);
+    }
+
+    pub fn clear(&mut self) {
+        self.ops.clear();
+        self.total_time = Duration::ZERO;
+    }
+
+    pub fn ops(&self) -> &BTreeMap<String, OpStats> {
+        &self.ops
+    }
+
+    pub fn total_time(&self) -> Duration {
+        self.total_time
     }
 
     pub fn print_summary(&self) {
         println!("\n=== Profiling Summary ===");
-        println!("| {:<20} | {:<5} | {:<12} | {:<12} | {:<12} |", 
-            "Op Name", "Count", "Avg Time(µs)", "Avg Net(B)", "Avg Peak(B)");
-        println!("|{:-<22}|{:-<7}|{:-<14}|{:-<14}|{:-<14}|", "", "", "", "", "");
+        println!(
+            "| {:<30} | {:>5} | {:>10} | {:>10} | {:>10} | {:>10} | {:>12} |",
+            "Op", "Count", "Avg(µs)", "Min(µs)", "Max(µs)", "Std(µs)", "ScopePeak(B)"
+        );
+        println!(
+            "|{:-<32}|{:-<7}|{:-<12}|{:-<12}|{:-<12}|{:-<12}|{:-<14}|",
+            "", "", "", "", "", "", ""
+        );
 
-        for (name, reports) in &self.ops {
-            let count = reports.len();
-            if count == 0 { continue; }
-            
-            let total_time: u128 = reports.iter().map(|r| r.wall_time.as_micros()).sum();
-            let total_net: isize = reports.iter().map(|r| r.memory_stats.net_allocated_bytes).sum();
-            let max_rss: u64 = reports.iter().map(|r| r.memory_stats.peak_rss_bytes).max().unwrap_or(0);
+        let mut entries: Vec<_> = self.ops.iter().collect();
+        entries.sort_by(|a, b| b.1.total_time_us.cmp(&a.1.total_time_us));
 
-            println!("| {:<20} | {:<5} | {:<12} | {:<12} | {:<12} |",
-                name,
-                count,
-                total_time / count as u128,
-                total_net / count as isize,
-                max_rss
+        for (name, stats) in entries {
+            println!(
+                "| {:<30} | {:>5} | {:>10} | {:>10} | {:>10} | {:>10.1} | {:>12} |",
+                truncate_name(name, 30),
+                stats.count,
+                stats.avg_time_us(),
+                stats.min_time_us,
+                stats.max_time_us,
+                stats.stddev_time_us(),
+                stats.max_scope_peak_bytes
             );
         }
-        println!("=========================\n");
+
+        println!(
+            "|{:-<32}|{:-<7}|{:-<12}|{:-<12}|{:-<12}|{:-<12}|{:-<14}|",
+            "", "", "", "", "", "", ""
+        );
+        println!("Total profiled time: {:?}\n", self.total_time);
     }
 }
 
-/// A Backend Decorator that profiles every operation.
+fn truncate_name(s: &str, max_len: usize) -> &str {
+    if s.len() <= max_len {
+        s
+    } else {
+        &s[..max_len]
+    }
+}
+
+fn format_shape(shape: &[usize]) -> String {
+    shape
+        .iter()
+        .map(|d| d.to_string())
+        .collect::<Vec<_>>()
+        .join("x")
+}
+
+fn make_op_key(name: &str, shapes: &[&[usize]]) -> String {
+    if shapes.is_empty() {
+        return name.to_string();
+    }
+    let shape_str = shapes
+        .iter()
+        .map(|s| format_shape(s))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{}[{}]", name, shape_str)
+}
+
 #[derive(Debug, Clone)]
 pub struct ProfiledBackend<B> {
     inner: B,
@@ -56,11 +166,6 @@ pub struct ProfiledBackend<B> {
 }
 
 impl<B> ProfiledBackend<B> {
-    /// Creates a new ProfiledBackend wrapping the given backend.
-    ///
-    /// # Arguments
-    /// * `inner` - The backend to wrap (e.g. CpuBackend).
-    /// * `allocator` - Optional global allocator tracker for precise memory stats.
     pub fn new(inner: B, allocator: Option<&'static TrackingAllocator>) -> Self {
         Self {
             inner,
@@ -69,16 +174,25 @@ impl<B> ProfiledBackend<B> {
         }
     }
 
-    /// Prints the aggregated report to stdout.
     pub fn print_report(&self) {
-        let reg = self.registry.lock().unwrap();
-        reg.print_summary();
+        self.registry.lock().print_summary();
     }
 
-    fn profile_op<F, R>(&self, name: &str, op: F) -> R 
-    where F: FnOnce() -> R {
+    pub fn clear_stats(&self) {
+        self.registry.lock().clear();
+    }
+
+    pub fn registry(&self) -> Arc<Mutex<Registry>> {
+        Arc::clone(&self.registry)
+    }
+
+    fn profile_op<F, R>(&self, name: &str, shapes: &[&[usize]], op: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        let key = make_op_key(name, shapes);
         let (result, report) = profile(self.allocator, op);
-        self.registry.lock().unwrap().add(name, report);
+        self.registry.lock().add(&key, &report);
         result
     }
 }
@@ -101,23 +215,35 @@ impl<D: NativeType, B: Backend<D>> Backend<D> for ProfiledBackend<B> {
     }
 
     fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()> {
-        self.profile_op("read", || self.inner.read(storage, layout, dst))
+        self.profile_op("read", &[layout.shape()], || {
+            self.inner.read(storage, layout, dst)
+        })
     }
 
     fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()> {
-        self.profile_op("write", || self.inner.write(storage, layout, src))
+        self.profile_op("write", &[layout.shape()], || {
+            self.inner.write(storage, layout, src)
+        })
     }
 }
 
 impl<D: NativeType, B: CopyOp<D>> CopyOp<D> for ProfiledBackend<B> {
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
-        self.profile_op("copy", || self.inner.copy(storage, layout))
+    fn copy(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>> {
+        self.profile_op("copy", &[layout.shape()], || {
+            self.inner.copy(storage, layout)
+        })
     }
 }
 
 impl<D: NativeType, B: FillOp<D>> FillOp<D> for ProfiledBackend<B> {
     fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
-        self.profile_op("fill", || self.inner.fill(layout, value))
+        self.profile_op("fill", &[layout.shape()], || {
+            self.inner.fill(layout, value)
+        })
     }
 }
 
@@ -129,7 +255,9 @@ impl<D: NativeType, B: AddOp<D>> AddOp<D> for ProfiledBackend<B> {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>> {
-        self.profile_op("add", || self.inner.add(lhs, rhs, lhs_layout, rhs_layout))
+        self.profile_op("add", &[lhs_layout.shape(), rhs_layout.shape()], || {
+            self.inner.add(lhs, rhs, lhs_layout, rhs_layout)
+        })
     }
 }
 
@@ -141,7 +269,9 @@ impl<D: NativeType, B: SubOp<D>> SubOp<D> for ProfiledBackend<B> {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>> {
-        self.profile_op("sub", || self.inner.sub(lhs, rhs, lhs_layout, rhs_layout))
+        self.profile_op("sub", &[lhs_layout.shape(), rhs_layout.shape()], || {
+            self.inner.sub(lhs, rhs, lhs_layout, rhs_layout)
+        })
     }
 }
 
@@ -153,38 +283,38 @@ impl<D: NativeType, B: MatmulOp<D>> MatmulOp<D> for ProfiledBackend<B> {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>> {
-        self.profile_op("matmul", || self.inner.matmul(lhs, rhs, lhs_layout, rhs_layout))
+        self.profile_op("matmul", &[lhs_layout.shape(), rhs_layout.shape()], || {
+            self.inner.matmul(lhs, rhs, lhs_layout, rhs_layout)
+        })
     }
 }
 
-impl<D: NativeType, B: MeanOp<D>> MeanOp<D> for ProfiledBackend<B> 
-where 
+impl<D: NativeType, B: MeanOp<D>> MeanOp<D> for ProfiledBackend<B>
+where
     B: Backend<f32>,
-    ProfiledBackend<B>: Backend<f32>
+    ProfiledBackend<B>: Backend<f32>,
 {
     fn mean_f32(
         &self,
         storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
     ) -> Result<TensorParts<<Self as Backend<f32>>::Storage>> {
+        let key = make_op_key("mean_f32", &[layout.shape()]);
         let (res, report) = profile(self.allocator, || self.inner.mean_f32(storage, layout));
-        self.registry.lock().unwrap().add("mean_f32", report);
-        
+        self.registry.lock().add(&key, &report);
+
         let parts = res?;
-        // We manually construct the return type to help inference
-        let storage: <B as Backend<f32>>::Storage = parts.storage;
-        
-        // Force the compiler to accept that B::Storage == ProfiledBackend<B>::Storage.
-        // They are defined as equal in the impl block, but generic bounds confuse the checker.
-        let storage_ptr = &storage as *const <B as Backend<f32>>::Storage;
-        let casted_storage = unsafe {
-             std::ptr::read(storage_ptr as *const <Self as Backend<f32>>::Storage)
-        };
-        // Forget the original to avoid double drop
-        std::mem::forget(storage);
-        
+        let inner_storage: <B as Backend<f32>>::Storage = parts.storage;
+
+        // SAFETY: ProfiledBackend<B>::Storage is defined as B::Storage in the Backend impl.
+        // This transmute is sound because both types are identical (just different paths
+        // through the type system). We use transmute_copy + forget to convince the compiler.
+        let outer_storage: <Self as Backend<f32>>::Storage =
+            unsafe { std::mem::transmute_copy(&inner_storage) };
+        std::mem::forget(inner_storage);
+
         Ok(TensorParts {
-            storage: casted_storage,
+            storage: outer_storage,
             layout: parts.layout,
         })
     }

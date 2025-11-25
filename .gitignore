@@ -4,6 +4,9 @@ target/
 .gemini/
 .serena/
 devlog/
+bun.lock
+node_modules/
+package.json
 
 
 # START Ruler Generated Files
@@ -19,4 +22,6 @@ devlog/
 /AGENTS.md.bak
 /CLAUDE.md
 /CLAUDE.md.bak
+/opencode.json
+/opencode.json.bak
 # END Ruler Generated Files

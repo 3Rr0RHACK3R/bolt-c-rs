@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 libc = "0.2"
 bolt-core = { path = "../bolt-core" }
+parking_lot = "0.12"
 
 [features]
 default = []

@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_profiler::{ProfiledBackend, TrackingAllocator};
+use std::sync::Arc;
 
 #[global_allocator]
 static GLOBAL: TrackingAllocator = TrackingAllocator::new();
@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Smaller for MatMul speed
     let small_shape = [128, 128];
-    let small_data = vec![1.0; 128*128];
+    let small_data = vec![1.0; 128 * 128];
     let t1 = Tensor::from_slice(&backend, &small_data, &small_shape)?;
     let t2 = Tensor::from_slice(&backend, &small_data, &small_shape)?;
     let _t3 = t1.matmul(&t2)?;
@@ -36,3 +36,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+

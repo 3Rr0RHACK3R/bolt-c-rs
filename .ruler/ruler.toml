@@ -3,7 +3,7 @@
 
 # To specify which agents are active by default when --agents is not used,
 # uncomment and populate the following line. If omitted, all agents are active.
-default_agents = ["codex", "gemini-cli", "claude", "jules"]
+default_agents = ["codex", "gemini-cli", "claude", "jules", "opencode"]
 
 # Enable nested rule loading from nested .ruler directories
 # When enabled, ruler will search for and process .ruler directories throughout the project hierarchy
@@ -23,6 +23,9 @@ default_agents = ["codex", "gemini-cli", "claude", "jules"]
 # output_path_config = ".aider.conf.yml"
 
 [agents.gemini-cli]
+enabled = true
+
+[agents.opencode]
 enabled = true
 
 # --- MCP Servers ---
