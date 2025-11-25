@@ -139,9 +139,7 @@ pub fn broadcast_shapes(lhs: &[usize], rhs: &[usize]) -> Result<Vec<usize>> {
 pub fn canonical_axes(axes: &[usize], rank: usize) -> Result<Vec<usize>> {
     if rank == 0 {
         if !axes.is_empty() {
-            return Err(Error::InvalidAxes(
-                "axis out of bounds for rank 0".into(),
-            ));
+            return Err(Error::InvalidAxes("axis out of bounds for rank 0".into()));
         }
         return Ok(Vec::new());
     }

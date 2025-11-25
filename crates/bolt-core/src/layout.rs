@@ -1,7 +1,7 @@
 use crate::{
     dtype::DType,
     error::{Error, Result},
-    shape::{broadcast_shapes, ConcreteShape, MAX_RANK},
+    shape::{ConcreteShape, MAX_RANK, broadcast_shapes},
 };
 use tinyvec::ArrayVec;
 
@@ -144,12 +144,7 @@ impl Layout {
         // Iterate over the layout's dimensions.
         // If an indexer is provided for a dimension, apply it.
         // Otherwise, treat it as a full slice (keep the dimension as-is).
-        for (i, (&dim, &stride)) in self
-            .shape()
-            .iter()
-            .zip(self.strides.iter())
-            .enumerate()
-        {
+        for (i, (&dim, &stride)) in self.shape().iter().zip(self.strides.iter()).enumerate() {
             let indexer = indexers.get(i).copied().unwrap_or(TensorIndexer::Slice {
                 start: 0,
                 end: dim,
@@ -354,7 +349,13 @@ impl Layout {
             .map_err(|_| Error::invalid_shape("offset_bytes too large for isize"))?;
         let mut min_offset = base_offset;
 
-        for (i, (&dim, &stride)) in self.shape.as_slice().iter().zip(self.strides.iter()).enumerate() {
+        for (i, (&dim, &stride)) in self
+            .shape
+            .as_slice()
+            .iter()
+            .zip(self.strides.iter())
+            .enumerate()
+        {
             shape.push(dim);
             indices.push(0);
 
@@ -507,7 +508,6 @@ fn compute_kind(shape: &[usize], strides: &[isize]) -> LayoutKind {
     LayoutKind::Contiguous
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -579,9 +579,11 @@ mod tests {
         let layout = Layout::contiguous(shape);
         let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
         let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        assert!(new_layout
-            .iter_offsets_for(IterMode::Write, DType::F32)
-            .is_err());
+        assert!(
+            new_layout
+                .iter_offsets_for(IterMode::Write, DType::F32)
+                .is_err()
+        );
     }
 
     #[test]

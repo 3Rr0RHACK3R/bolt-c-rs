@@ -1,6 +1,5 @@
 mod allocator;
 mod context;
-mod layout_utils;
 mod ops;
 mod storage;
 
@@ -95,13 +94,14 @@ where
     D: CpuScalar,
 {
     fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
-        let len_bytes = layout
-            .max_offset_bytes(D::DTYPE)?
-            .checked_add(1)
-            .ok_or_else(|| Error::TensorTooLarge {
-                limit: isize::MAX as usize,
-                requested: usize::MAX,
-            })?;
+        let len_bytes =
+            layout
+                .max_offset_bytes(D::DTYPE)?
+                .checked_add(1)
+                .ok_or(Error::TensorTooLarge {
+                    limit: isize::MAX as usize,
+                    requested: usize::MAX,
+                })?;
         let mut storage = self.allocator().allocate_bytes(len_bytes, D::DTYPE)?;
         fill_storage(&mut storage, layout, value)?;
         Ok(storage)

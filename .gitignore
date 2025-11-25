@@ -1,8 +1,14 @@
 target/
 .claude/
+.codex/
+.gemini/
 .serena/
 devlog/
-
+bun.lock
+node_modules/
+package.json
+ 
+ 
 
 # START Ruler Generated Files
 /.codex/config.json
@@ -17,4 +23,6 @@ devlog/
 /AGENTS.md.bak
 /CLAUDE.md
 /CLAUDE.md.bak
+/opencode.json
+/opencode.json.bak
 # END Ruler Generated Files

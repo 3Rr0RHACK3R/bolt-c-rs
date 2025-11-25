@@ -8,8 +8,6 @@ use bolt_core::{
     storage::{BufferHandle, TensorView},
 };
 
-use super::layout_utils::{expand_strides, linear_to_indices, offset_from_strides};
-
 #[derive(Debug)]
 pub struct StorageBlock<D: NativeType> {
     data: Vec<MaybeUninit<D>>,
@@ -125,9 +123,6 @@ impl<D: NativeType> CpuStorage<D> {
     }
 }
 
-/// # Safety
-/// The caller must ensure that the portion of the storage being read from is fully initialized.
-/// Reading from uninitialized memory is undefined behavior.
 pub unsafe fn read_into_slice<D: NativeType>(
     storage: &CpuStorage<D>,
     layout: &Layout,
@@ -145,9 +140,6 @@ pub unsafe fn read_into_slice<D: NativeType>(
     unsafe { read_into_uninit_slice(storage, layout, uninit_dst) }
 }
 
-/// # Safety
-/// The caller must ensure that the portion of the storage being read from is fully initialized.
-/// Reading from uninitialized memory is undefined behavior.
 pub unsafe fn read_into_uninit_slice<D: NativeType>(
     storage: &CpuStorage<D>,
     layout: &Layout,
@@ -169,14 +161,12 @@ pub unsafe fn read_into_uninit_slice<D: NativeType>(
         }
         return Ok(());
     }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let src = offset + offset_from_strides(&coords, &strides);
-        let value = unsafe { data[src as usize].assume_init() };
+    let elem_size = D::DTYPE.size_in_bytes();
+    let iter = layout.iter_offsets(D::DTYPE)?;
+    for (idx, src_bytes) in iter.enumerate() {
+        debug_assert_eq!(src_bytes % elem_size, 0);
+        let src = src_bytes / elem_size;
+        let value = unsafe { data[src].assume_init() };
         dst[idx].write(value);
     }
     Ok(())
@@ -201,14 +191,12 @@ pub fn write_from_slice<D: NativeType>(
         }
         return Ok(());
     }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let dst_idx = offset + offset_from_strides(&coords, &strides);
-        dst[dst_idx as usize].write(src[idx]);
+    let elem_size = D::DTYPE.size_in_bytes();
+    let iter = layout.iter_offsets(D::DTYPE)?;
+    for (idx, dst_bytes) in iter.enumerate() {
+        debug_assert_eq!(dst_bytes % elem_size, 0);
+        let dst_idx = dst_bytes / elem_size;
+        dst[dst_idx].write(src[idx]);
     }
     Ok(())
 }
@@ -227,14 +215,12 @@ pub fn fill_storage<D: NativeType>(
         }
         return Ok(());
     }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let dst_idx = offset + offset_from_strides(&coords, &strides);
-        dst[dst_idx as usize].write(value);
+    let elem_size = D::DTYPE.size_in_bytes();
+    let iter = layout.iter_offsets(D::DTYPE)?;
+    for dst_bytes in iter {
+        debug_assert_eq!(dst_bytes % elem_size, 0);
+        let dst_idx = dst_bytes / elem_size;
+        dst[dst_idx].write(value);
     }
     Ok(())
 }
@@ -242,7 +228,7 @@ pub fn fill_storage<D: NativeType>(
 pub fn make_cpu_handle<D: NativeType>(len: usize) -> Result<BufferHandle> {
     let bytes = len
         .checked_mul(D::DTYPE.size_in_bytes())
-        .ok_or_else(|| Error::TensorTooLarge {
+        .ok_or(Error::TensorTooLarge {
             limit: usize::MAX,
             requested: usize::MAX,
         })?;
