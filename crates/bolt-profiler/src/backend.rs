@@ -132,10 +132,13 @@ impl Registry {
 
 fn truncate_name(s: &str, max_len: usize) -> &str {
     if s.len() <= max_len {
-        s
-    } else {
-        &s[..max_len]
+        return s;
     }
+    let mut end = max_len;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 fn format_shape(shape: &[usize]) -> String {
@@ -228,11 +231,7 @@ impl<D: NativeType, B: Backend<D>> Backend<D> for ProfiledBackend<B> {
 }
 
 impl<D: NativeType, B: CopyOp<D>> CopyOp<D> for ProfiledBackend<B> {
-    fn copy(
-        &self,
-        storage: &Self::Storage,
-        layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
         self.profile_op("copy", &[layout.shape()], || {
             self.inner.copy(storage, layout)
         })
@@ -241,9 +240,7 @@ impl<D: NativeType, B: CopyOp<D>> CopyOp<D> for ProfiledBackend<B> {
 
 impl<D: NativeType, B: FillOp<D>> FillOp<D> for ProfiledBackend<B> {
     fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
-        self.profile_op("fill", &[layout.shape()], || {
-            self.inner.fill(layout, value)
-        })
+        self.profile_op("fill", &[layout.shape()], || self.inner.fill(layout, value))
     }
 }
 
@@ -304,18 +301,20 @@ where
         self.registry.lock().add(&key, &report);
 
         let parts = res?;
-        let inner_storage: <B as Backend<f32>>::Storage = parts.storage;
+        let TensorParts {
+            storage: inner_storage,
+            layout,
+        } = parts;
 
         // SAFETY: ProfiledBackend<B>::Storage is defined as B::Storage in the Backend impl.
-        // This transmute is sound because both types are identical (just different paths
-        // through the type system). We use transmute_copy + forget to convince the compiler.
+        // The transmute copy is a no-op between identical concrete types.
         let outer_storage: <Self as Backend<f32>>::Storage =
             unsafe { std::mem::transmute_copy(&inner_storage) };
         std::mem::forget(inner_storage);
 
         Ok(TensorParts {
             storage: outer_storage,
-            layout: parts.layout,
+            layout,
         })
     }
 }

@@ -6,7 +6,8 @@ use std::sync::Arc;
 fn test_scalar_creation() {
     let backend = Arc::new(CpuBackend::new());
     let data = [42.0];
-    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[]).expect("failed to create scalar tensor");
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[])
+        .expect("failed to create scalar tensor");
     assert_eq!(tensor.shape(), &[]);
     assert_eq!(tensor.numel(), 1);
     assert_eq!(tensor.rank(), 0);

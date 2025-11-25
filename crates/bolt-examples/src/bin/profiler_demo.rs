@@ -1,4 +1,4 @@
-use bolt_profiler::{profile, TrackingAllocator};
+use bolt_profiler::{TrackingAllocator, profile};
 
 #[global_allocator]
 static GLOBAL: TrackingAllocator = TrackingAllocator::new();

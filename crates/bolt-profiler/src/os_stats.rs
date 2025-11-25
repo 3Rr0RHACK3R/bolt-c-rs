@@ -1,5 +1,13 @@
 use std::time::Duration;
 
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn mach_port_deallocate(
+        task: libc::mach_port_t,
+        name: libc::mach_port_t,
+    ) -> libc::kern_return_t;
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OsStats {
     pub user_cpu_time: Duration,
@@ -83,7 +91,14 @@ fn get_thread_cpu_time() -> Duration {
         )
     };
 
-    if ret != libc::KERN_SUCCESS as i32 {
+    #[allow(deprecated)]
+    unsafe {
+        // mach_task_self is deprecated in libc; acceptable here for cleanup in tests.
+        let task = libc::mach_task_self();
+        mach_port_deallocate(task, thread_self);
+    }
+
+    if ret != libc::KERN_SUCCESS {
         return Duration::ZERO;
     }
 

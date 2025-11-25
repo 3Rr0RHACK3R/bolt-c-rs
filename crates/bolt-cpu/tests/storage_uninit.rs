@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use bolt_core::{
+    NativeType,
     backend::{Backend, FillOp},
     layout::Layout,
-    NativeType,
     shape::ConcreteShape,
 };
 use bolt_cpu::CpuBackend;
@@ -29,8 +29,7 @@ fn fill_and_read_strided_layout() {
     let backend = Arc::new(CpuBackend::new());
     let shape = ConcreteShape::from_slice(&[2, 2]).unwrap();
     // Strided layout with an offset into the underlying buffer.
-    let layout =
-        Layout::with_strides(shape, &[3, 1], f32::DTYPE.size_in_bytes()).unwrap();
+    let layout = Layout::with_strides(shape, &[3, 1], f32::DTYPE.size_in_bytes()).unwrap();
 
     let storage = backend.fill(&layout, 5.0f32).unwrap();
 

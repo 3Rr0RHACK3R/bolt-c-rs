@@ -41,9 +41,7 @@ where
             sum += unsafe { slot.assume_init() }.to_f32();
         }
     } else {
-        let mut iter = input.layout.iter_offsets(D::DTYPE)?;
-        for _ in 0..numel {
-            let idx_bytes = iter.next().unwrap();
+        for idx_bytes in input.layout.iter_offsets(D::DTYPE)? {
             debug_assert_eq!(idx_bytes % elem_size, 0);
             let idx = idx_bytes / elem_size;
             sum += unsafe { data[idx].assume_init() }.to_f32();

@@ -53,12 +53,16 @@ where
     let mut out_storage: CpuStorage<D> = allocator.allocate(m * n)?;
     let out_slice = out_storage.try_as_uninit_slice_mut()?;
 
-    if lhs.layout.is_contiguous() && rhs.layout.is_contiguous() && 
-       lhs.layout.offset_bytes() == 0 && rhs.layout.offset_bytes() == 0 &&
-       lhs.layout.strides()[1] == 1 && rhs.layout.strides()[1] == 1 {
+    if lhs.layout.is_contiguous()
+        && rhs.layout.is_contiguous()
+        && lhs.layout.offset_bytes() == 0
+        && rhs.layout.offset_bytes() == 0
+        && lhs.layout.strides()[1] == 1
+        && rhs.layout.strides()[1] == 1
+    {
         let lhs_s0 = lhs.layout.strides()[0] as usize;
         let rhs_s0 = rhs.layout.strides()[0] as usize;
-        
+
         for i in 0..m {
             for j in 0..n {
                 let mut sum = D::default();
@@ -73,23 +77,33 @@ where
             }
         }
     } else {
+        let rhs_col_offsets: Vec<Vec<usize>> = (0..n)
+            .map(|j| {
+                let layout = rhs.layout.slice(1, j, j + 1, 1, D::DTYPE)?;
+                let mut offsets = Vec::with_capacity(k);
+                for idx_bytes in layout.iter_offsets(D::DTYPE)? {
+                    debug_assert_eq!(idx_bytes % elem_size, 0);
+                    offsets.push(idx_bytes / elem_size);
+                }
+                Ok(offsets)
+            })
+            .collect::<Result<_>>()?;
+
         for i in 0..m {
             let lhs_row_layout = lhs.layout.slice(0, i, i + 1, 1, D::DTYPE)?;
-            
-            for j in 0..n {
+            let mut lhs_offsets = Vec::with_capacity(k);
+            for idx_bytes in lhs_row_layout.iter_offsets(D::DTYPE)? {
+                debug_assert_eq!(idx_bytes % elem_size, 0);
+                lhs_offsets.push(idx_bytes / elem_size);
+            }
+
+            for (j, rhs_offsets) in rhs_col_offsets.iter().enumerate() {
                 let mut sum = D::default();
-                
-                let mut lhs_row_iter = lhs_row_layout.iter_offsets(D::DTYPE)?;
-                let rhs_col_layout = rhs.layout.slice(1, j, j + 1, 1, D::DTYPE)?;
-                let mut rhs_col_iter = rhs_col_layout.iter_offsets(D::DTYPE)?;
-                
-                for (lhs_idx_bytes, rhs_idx_bytes) in lhs_row_iter.by_ref().zip(rhs_col_iter.by_ref()) {
-                    debug_assert_eq!(lhs_idx_bytes % elem_size, 0);
-                    debug_assert_eq!(rhs_idx_bytes % elem_size, 0);
-                    let lhs_idx = lhs_idx_bytes / elem_size;
-                    let rhs_idx = rhs_idx_bytes / elem_size;
-                    let lhs_val = unsafe { lhs_data[lhs_idx].assume_init() };
-                    let rhs_val = unsafe { rhs_data[rhs_idx].assume_init() };
+                debug_assert_eq!(lhs_offsets.len(), rhs_offsets.len());
+
+                for (lhs_idx, rhs_idx) in lhs_offsets.iter().zip(rhs_offsets.iter()) {
+                    let lhs_val = unsafe { lhs_data[*lhs_idx].assume_init() };
+                    let rhs_val = unsafe { rhs_data[*rhs_idx].assume_init() };
                     sum = sum + lhs_val * rhs_val;
                 }
                 out_slice[i * n + j].write(sum);

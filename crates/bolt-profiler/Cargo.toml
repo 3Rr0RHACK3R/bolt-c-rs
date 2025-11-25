@@ -3,7 +3,7 @@ name = "bolt-profiler"
 version = "0.1.0"
 edition = "2024"
 description = "Profiling utilities for the Bolt ML framework"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 libc = "0.2"
@@ -12,3 +12,6 @@ parking_lot = "0.12"
 
 [features]
 default = []
+
+[dev-dependencies]
+serial_test = "3"

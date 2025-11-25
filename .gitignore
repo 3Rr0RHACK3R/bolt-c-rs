@@ -7,7 +7,8 @@ devlog/
 bun.lock
 node_modules/
 package.json
-
+ 
+ 
 
 # START Ruler Generated Files
 /.codex/config.json

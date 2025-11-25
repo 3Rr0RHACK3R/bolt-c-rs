@@ -32,7 +32,7 @@ pub fn add<D>(
 where
     D: NativeType + Copy + Add<Output = D>,
 {
-    let (lhs_layout, rhs_layout) = Layout::broadcast_binary(&lhs.layout, &rhs.layout)?;
+    let (lhs_layout, rhs_layout) = Layout::broadcast_binary(lhs.layout, rhs.layout)?;
     let shape = lhs_layout.shape();
     let numel: usize = shape.iter().product();
     let mut out_storage: CpuStorage<D> = allocator.allocate(numel)?;
@@ -42,30 +42,38 @@ where
     let rhs_data = rhs.storage.as_uninit_slice();
     let elem_size = D::DTYPE.size_in_bytes();
 
-    if lhs_layout.is_contiguous() && rhs_layout.is_contiguous() && 
-       lhs_layout.offset_bytes() == 0 && rhs_layout.offset_bytes() == 0 {
-        for (i, (&lhs_val, &rhs_val)) in lhs_data.iter().zip(rhs_data.iter()).enumerate() {
+    let no_broadcast = lhs.layout.shape() == rhs.layout.shape();
+    if no_broadcast
+        && lhs_layout.is_contiguous()
+        && rhs_layout.is_contiguous()
+        && lhs_layout.offset_bytes() == 0
+        && rhs_layout.offset_bytes() == 0
+    {
+        for (dst, (&lhs_val, &rhs_val)) in out_slice
+            .iter_mut()
+            .zip(lhs_data.iter().zip(rhs_data.iter()))
+        {
             let lhs_val = unsafe { lhs_val.assume_init() };
             let rhs_val = unsafe { rhs_val.assume_init() };
-            out_slice[i].write(lhs_val + rhs_val);
+            dst.write(lhs_val + rhs_val);
         }
     } else {
-        let mut lhs_iter = lhs_layout.iter_offsets(D::DTYPE)?;
-        let mut rhs_iter = rhs_layout.iter_offsets(D::DTYPE)?;
-        for i in 0..numel {
-            let lhs_idx_bytes = lhs_iter.next().unwrap();
-            let rhs_idx_bytes = rhs_iter.next().unwrap();
+        let lhs_iter = lhs_layout.iter_offsets(D::DTYPE)?;
+        let rhs_iter = rhs_layout.iter_offsets(D::DTYPE)?;
+        for (dst, (lhs_idx_bytes, rhs_idx_bytes)) in
+            out_slice.iter_mut().zip(lhs_iter.zip(rhs_iter))
+        {
             debug_assert_eq!(lhs_idx_bytes % elem_size, 0);
             debug_assert_eq!(rhs_idx_bytes % elem_size, 0);
             let lhs_idx = lhs_idx_bytes / elem_size;
             let rhs_idx = rhs_idx_bytes / elem_size;
             let lhs_val = unsafe { lhs_data[lhs_idx].assume_init() };
             let rhs_val = unsafe { rhs_data[rhs_idx].assume_init() };
-            out_slice[i].write(lhs_val + rhs_val);
+            dst.write(lhs_val + rhs_val);
         }
     }
 
-    let layout = Layout::contiguous(ConcreteShape::from_slice(&shape)?);
+    let layout = Layout::contiguous(ConcreteShape::from_slice(shape)?);
     Ok(TensorParts {
         storage: out_storage,
         layout,

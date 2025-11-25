@@ -12,6 +12,12 @@ pub struct TrackingAllocator {
     scope_peak: AtomicUsize,
 }
 
+impl Default for TrackingAllocator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrackingAllocator {
     pub const fn new() -> Self {
         Self {
@@ -41,6 +47,7 @@ impl TrackingAllocator {
         self.dealloc_count.store(0, Ordering::Relaxed);
     }
 
+    /// Scope tracking is global across threads; overlapping scopes share one baseline/peak.
     pub fn begin_scope(&self) {
         let current = self.allocated_bytes.load(Ordering::Relaxed);
         self.scope_baseline.store(current, Ordering::Relaxed);
@@ -102,8 +109,11 @@ unsafe impl GlobalAlloc for TrackingAllocator {
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         unsafe { System.dealloc(ptr, layout) };
         self.dealloc_count.fetch_add(1, Ordering::Relaxed);
-        self.allocated_bytes
-            .fetch_sub(layout.size(), Ordering::Relaxed);
+        let _ =
+            self.allocated_bytes
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                    Some(current.saturating_sub(layout.size()))
+                });
     }
 }
 
