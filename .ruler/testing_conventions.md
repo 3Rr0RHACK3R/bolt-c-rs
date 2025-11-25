@@ -1,0 +1,7 @@
+- Keep crate tests in a top-level `tests/` directory separate from library code.
+  - No test should be present inside library code .rs file. Keep tests in separate file
+- Group tests semantically per file (e.g., `layout_tests.rs`, `tensor_view_tests.rs`) and use descriptive function names.
+- Never lower the standards of your tests just to make things "pass" and deceptively work.
+- Initialize shared fixtures/helpers via reusable modules to stay DRY (no ad-hoc setup duplication across files).
+- Prefer focused unit tests over property tests by default; expand coverage incrementally with meaningful scenarios.
+- Tests must be deterministic, readable, and fail loudly on assertion mismatches.

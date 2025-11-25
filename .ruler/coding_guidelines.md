@@ -1,0 +1,19 @@
+- Composition > inheritance
+- Avoid Spaghetti code at all costs
+- Write semantically correct code instead of fixing compilation errors and making things "pass"
+- Explicit > implicit
+- DRY but clear
+- SOLID, KISS, YAGNI
+- Minimize user/developer cognitive overload
+- Avoid over-engineering and speculative future-proofing
+- Strict and consistent naming conventions
+- Small funcs, no "fat" ones
+- Occam's razor: no deep abstractions
+- No assumptions about libs; check usage first
+- Check latest stable version of packages before adding to project
+- No comments/docstrings unless required
+- No inlined imports
+- Try to adhere to SRP but wisely (without "fragmenting" the codebase too much)
+- Try to keep related things together (locality of concerns) but wisely (without "fattening" modules)
+- Code should be readable like prose and naturally flow
+- Minimize code bloat/tech debt

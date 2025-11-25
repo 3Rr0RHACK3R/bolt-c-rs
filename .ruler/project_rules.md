@@ -1,0 +1,15 @@
+- ALWAYS use `gh` cli tool for github interaction
+- ALWAYS Activate the current dir as project using serena on first message
+  - Read the initial instructions of serena MCP
+  - For activation, ALWAYS do: `serena.activate_project({"project":"bolt-rs"})`
+- ALWAYS try to use serena (if available) for semantic search across codebase, coding/editing/patching files
+- ALWAYS try to check serena memory files to get overview, context and state of the codebase
+- ALWAYS respect .gitignore and DO NOT version control `devlog/`. It exists for internal reference only and shouldn't be referred in PRs or GH issues either
+- Consistency > cleverness; avoid magic or hidden side-effects
+- ALWAYS avoid anti-patterns and bad practices
+- Performance awareness: assume scale; optimize for asymptotics before micro-tweaks
+- Testable code: every non-trivial func/class must be written in a way that's easy to test
+- Logging > silent failures; errors must fail loud and clear
+- Cross-discipline rigor: ML code follows same SWE standards (no "research-grade hacks")
+- Decision traceability: why > what; architectural choices must be recordable
+- Project is in active development; prefer clean, coherent refactors over preserving internal backwards-compatibility. Breaking internal APIs is acceptable when it simplifies the design and tests/examples are updated accordingly
