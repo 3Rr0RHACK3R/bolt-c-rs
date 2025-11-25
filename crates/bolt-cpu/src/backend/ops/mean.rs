@@ -7,7 +7,6 @@ use bolt_core::{
 };
 
 use super::super::allocator::CpuAllocator;
-use super::super::layout_utils::{linear_to_indices, offset_from_strides};
 use super::super::storage::{CpuStorage, CpuTensorView};
 
 pub trait MeanKernel: NativeType + ToF32 {
@@ -30,13 +29,10 @@ where
         return Err(Error::OpError("cannot compute mean of empty tensor".into()));
     }
 
-    let strides = input.layout.strides();
     let data = input.storage.as_uninit_slice();
-    let offset = input.layout.offset_elements(D::DTYPE);
-
     let mut sum: f32 = 0.0;
+    let elem_size = D::DTYPE.size_in_bytes();
 
-    // Optimization: if contiguous and no offset, iterate slice directly
     if input.layout.is_contiguous() && input.layout.offset_bytes() == 0 {
         if data.len() < numel {
             return Err(Error::OpError("storage smaller than shape requires".into()));
@@ -45,11 +41,12 @@ where
             sum += unsafe { slot.assume_init() }.to_f32();
         }
     } else {
-        let mut coords = vec![0usize; shape.len()];
-        for i in 0..numel {
-            linear_to_indices(i, shape, &mut coords);
-            let idx = offset + offset_from_strides(&coords, strides);
-            sum += unsafe { data[idx as usize].assume_init() }.to_f32();
+        let mut iter = input.layout.iter_offsets(D::DTYPE)?;
+        for _ in 0..numel {
+            let idx_bytes = iter.next().unwrap();
+            debug_assert_eq!(idx_bytes % elem_size, 0);
+            let idx = idx_bytes / elem_size;
+            sum += unsafe { data[idx].assume_init() }.to_f32();
         }
     }
 

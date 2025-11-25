@@ -48,27 +48,52 @@ where
     let n = rhs_shape[1];
     let lhs_data = lhs.storage.as_uninit_slice();
     let rhs_data = rhs.storage.as_uninit_slice();
-    let lhs_s0 = lhs.layout.strides()[0];
-    let lhs_s1 = lhs.layout.strides()[1];
-    let rhs_s0 = rhs.layout.strides()[0];
-    let rhs_s1 = rhs.layout.strides()[1];
-    let lhs_off = lhs.layout.offset_elements(D::DTYPE);
-    let rhs_off = rhs.layout.offset_elements(D::DTYPE);
+    let elem_size = D::DTYPE.size_in_bytes();
 
     let mut out_storage: CpuStorage<D> = allocator.allocate(m * n)?;
     let out_slice = out_storage.try_as_uninit_slice_mut()?;
 
-    for i in 0..m {
-        for j in 0..n {
-            let mut sum = D::default();
-            for p in 0..k {
-                let lhs_idx = lhs_off + (i as isize * lhs_s0) + (p as isize * lhs_s1);
-                let rhs_idx = rhs_off + (p as isize * rhs_s0) + (j as isize * rhs_s1);
-                let lhs_val = unsafe { lhs_data[lhs_idx as usize].assume_init() };
-                let rhs_val = unsafe { rhs_data[rhs_idx as usize].assume_init() };
-                sum = sum + lhs_val * rhs_val;
+    if lhs.layout.is_contiguous() && rhs.layout.is_contiguous() && 
+       lhs.layout.offset_bytes() == 0 && rhs.layout.offset_bytes() == 0 &&
+       lhs.layout.strides()[1] == 1 && rhs.layout.strides()[1] == 1 {
+        let lhs_s0 = lhs.layout.strides()[0] as usize;
+        let rhs_s0 = rhs.layout.strides()[0] as usize;
+        
+        for i in 0..m {
+            for j in 0..n {
+                let mut sum = D::default();
+                for p in 0..k {
+                    let lhs_idx = i * lhs_s0 + p;
+                    let rhs_idx = p * rhs_s0 + j;
+                    let lhs_val = unsafe { lhs_data[lhs_idx].assume_init() };
+                    let rhs_val = unsafe { rhs_data[rhs_idx].assume_init() };
+                    sum = sum + lhs_val * rhs_val;
+                }
+                out_slice[i * n + j].write(sum);
             }
-            out_slice[i * n + j].write(sum);
+        }
+    } else {
+        for i in 0..m {
+            let lhs_row_layout = lhs.layout.slice(0, i, i + 1, 1, D::DTYPE)?;
+            
+            for j in 0..n {
+                let mut sum = D::default();
+                
+                let mut lhs_row_iter = lhs_row_layout.iter_offsets(D::DTYPE)?;
+                let rhs_col_layout = rhs.layout.slice(1, j, j + 1, 1, D::DTYPE)?;
+                let mut rhs_col_iter = rhs_col_layout.iter_offsets(D::DTYPE)?;
+                
+                for (lhs_idx_bytes, rhs_idx_bytes) in lhs_row_iter.by_ref().zip(rhs_col_iter.by_ref()) {
+                    debug_assert_eq!(lhs_idx_bytes % elem_size, 0);
+                    debug_assert_eq!(rhs_idx_bytes % elem_size, 0);
+                    let lhs_idx = lhs_idx_bytes / elem_size;
+                    let rhs_idx = rhs_idx_bytes / elem_size;
+                    let lhs_val = unsafe { lhs_data[lhs_idx].assume_init() };
+                    let rhs_val = unsafe { rhs_data[rhs_idx].assume_init() };
+                    sum = sum + lhs_val * rhs_val;
+                }
+                out_slice[i * n + j].write(sum);
+            }
         }
     }
 

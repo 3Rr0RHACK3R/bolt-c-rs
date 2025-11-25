@@ -8,8 +8,6 @@ use bolt_core::{
     storage::{BufferHandle, TensorView},
 };
 
-use super::layout_utils::{expand_strides, linear_to_indices, offset_from_strides};
-
 #[derive(Debug)]
 pub struct StorageBlock<D: NativeType> {
     data: Vec<MaybeUninit<D>>,
@@ -125,62 +123,55 @@ impl<D: NativeType> CpuStorage<D> {
     }
 }
 
-/// # Safety
-/// The caller must ensure that the portion of the storage being read from is fully initialized.
-/// Reading from uninitialized memory is undefined behavior.
-pub unsafe fn read_into_slice<D: NativeType>(
-    storage: &CpuStorage<D>,
-    layout: &Layout,
-    dst: &mut [D],
-) -> Result<()> {
-    if layout.num_elements() != dst.len() {
-        return Err(Error::SizeMismatch {
-            expected: layout.num_elements(),
-            actual: dst.len(),
-        });
-    }
-    let uninit_dst: &mut [MaybeUninit<D>] = unsafe {
-        std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut MaybeUninit<D>, dst.len())
-    };
-    unsafe { read_into_uninit_slice(storage, layout, uninit_dst) }
-}
-
-/// # Safety
-/// The caller must ensure that the portion of the storage being read from is fully initialized.
-/// Reading from uninitialized memory is undefined behavior.
-pub unsafe fn read_into_uninit_slice<D: NativeType>(
-    storage: &CpuStorage<D>,
-    layout: &Layout,
-    dst: &mut [MaybeUninit<D>],
-) -> Result<()> {
-    if layout.num_elements() != dst.len() {
-        return Err(Error::SizeMismatch {
-            expected: layout.num_elements(),
-            actual: dst.len(),
-        });
-    }
-    storage.handle().validate_layout(layout)?;
-    let data = storage.block.as_uninit_slice();
-    if layout.is_contiguous() && layout.offset_bytes() == 0 {
-        let len = dst.len();
-        let init = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const D, len) };
-        for (slot, value) in dst.iter_mut().take(len).zip(init.iter().copied()) {
-            slot.write(value);
+    pub unsafe fn read_into_slice<D: NativeType>(
+        storage: &CpuStorage<D>,
+        layout: &Layout,
+        dst: &mut [D],
+    ) -> Result<()> {
+        if layout.num_elements() != dst.len() {
+            return Err(Error::SizeMismatch {
+                expected: layout.num_elements(),
+                actual: dst.len(),
+            });
         }
-        return Ok(());
+        let uninit_dst: &mut [MaybeUninit<D>] = unsafe {
+            std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut MaybeUninit<D>, dst.len())
+        };
+        unsafe { read_into_uninit_slice(storage, layout, uninit_dst) }
     }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let src = offset + offset_from_strides(&coords, &strides);
-        let value = unsafe { data[src as usize].assume_init() };
-        dst[idx].write(value);
+
+    pub unsafe fn read_into_uninit_slice<D: NativeType>(
+        storage: &CpuStorage<D>,
+        layout: &Layout,
+        dst: &mut [MaybeUninit<D>],
+    ) -> Result<()> {
+        if layout.num_elements() != dst.len() {
+            return Err(Error::SizeMismatch {
+                expected: layout.num_elements(),
+                actual: dst.len(),
+            });
+        }
+        storage.handle().validate_layout(layout)?;
+        let data = storage.block.as_uninit_slice();
+        if layout.is_contiguous() && layout.offset_bytes() == 0 {
+            let len = dst.len();
+            let init = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const D, len) };
+            for (slot, value) in dst.iter_mut().take(len).zip(init.iter().copied()) {
+                slot.write(value);
+            }
+            return Ok(());
+        }
+        let elem_size = D::DTYPE.size_in_bytes();
+        let iter = layout.iter_offsets(D::DTYPE)?;
+        for (idx, src_bytes) in iter.enumerate() {
+            debug_assert_eq!(src_bytes % elem_size, 0);
+            let src = src_bytes / elem_size;
+            let value = unsafe { data[src].assume_init() };
+            dst[idx].write(value);
+        }
+        Ok(())
     }
-    Ok(())
-}
+
 
 pub fn write_from_slice<D: NativeType>(
     storage: &mut CpuStorage<D>,
@@ -201,14 +192,12 @@ pub fn write_from_slice<D: NativeType>(
         }
         return Ok(());
     }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let dst_idx = offset + offset_from_strides(&coords, &strides);
-        dst[dst_idx as usize].write(src[idx]);
+    let elem_size = D::DTYPE.size_in_bytes();
+    let iter = layout.iter_offsets(D::DTYPE)?;
+    for (idx, dst_bytes) in iter.enumerate() {
+        debug_assert_eq!(dst_bytes % elem_size, 0);
+        let dst_idx = dst_bytes / elem_size;
+        dst[dst_idx].write(src[idx]);
     }
     Ok(())
 }
@@ -227,14 +216,12 @@ pub fn fill_storage<D: NativeType>(
         }
         return Ok(());
     }
-    let shape = layout.shape();
-    let strides = expand_strides(layout, shape)?;
-    let offset = layout.offset_elements(D::DTYPE);
-    let mut coords = vec![0usize; shape.len()];
-    for idx in 0..layout.num_elements() {
-        linear_to_indices(idx, shape, &mut coords);
-        let dst_idx = offset + offset_from_strides(&coords, &strides);
-        dst[dst_idx as usize].write(value);
+    let elem_size = D::DTYPE.size_in_bytes();
+    let iter = layout.iter_offsets(D::DTYPE)?;
+    for dst_bytes in iter {
+        debug_assert_eq!(dst_bytes % elem_size, 0);
+        let dst_idx = dst_bytes / elem_size;
+        dst[dst_idx].write(value);
     }
     Ok(())
 }
