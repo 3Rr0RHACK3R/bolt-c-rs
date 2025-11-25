@@ -3,6 +3,7 @@ members = [
     "crates/bolt-core",
     "crates/bolt-cpu",
     "crates/bolt-examples",
+    "crates/bolt-profiler",
 ]
 resolver = "2"
 

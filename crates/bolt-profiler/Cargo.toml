@@ -1,0 +1,12 @@
+[package]
+name = "bolt-profiler"
+version = "0.1.0"
+edition = "2024"
+description = "Profiling utilities for the Bolt ML framework"
+license = "MIT"
+
+[dependencies]
+libc = "0.2"
+
+[features]
+default = []
