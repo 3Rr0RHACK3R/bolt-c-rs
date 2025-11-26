@@ -11,7 +11,7 @@
 - Occam's razor: no deep abstractions
 - No assumptions about libs; check usage first
 - Check latest stable version of packages before adding to project
-- No comments/docstrings unless required
+- No comments/docstrings unless absolutely required to document something not obvious
 - No inlined imports
 - Try to adhere to SRP but wisely (without "fragmenting" the codebase too much)
 - Try to keep related things together (locality of concerns) but wisely (without "fattening" modules)

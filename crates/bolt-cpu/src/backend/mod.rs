@@ -1,5 +1,6 @@
 mod allocator;
 mod context;
+mod memory_pool;
 mod ops;
 mod storage;
 
@@ -20,6 +21,7 @@ pub use storage::CpuStorage;
 use allocator::CpuAllocTelemetry;
 use allocator::CpuAllocator;
 use context::CpuContext;
+use memory_pool::MemoryPool;
 use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, SubKernel};
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
@@ -27,6 +29,7 @@ use storage::{fill_storage, read_into_slice, write_from_slice};
 pub struct CpuBackend {
     device: Arc<CpuDevice>,
     context: Arc<CpuContext>,
+    pool: Option<Arc<MemoryPool>>,
     #[cfg(feature = "diagnostics")]
     diagnostics: Arc<CpuAllocTelemetry>,
 }
@@ -36,6 +39,17 @@ impl CpuBackend {
         Self {
             device: Arc::new(CpuDevice),
             context: CpuContext::new(),
+            pool: None,
+            #[cfg(feature = "diagnostics")]
+            diagnostics: Arc::new(CpuAllocTelemetry::default()),
+        }
+    }
+
+    pub fn with_pooling() -> Self {
+        Self {
+            device: Arc::new(CpuDevice),
+            context: CpuContext::new(),
+            pool: Some(Arc::new(MemoryPool::new())),
             #[cfg(feature = "diagnostics")]
             diagnostics: Arc::new(CpuAllocTelemetry::default()),
         }
@@ -72,12 +86,20 @@ where
     fn allocator(&self) -> Self::Allocator {
         #[cfg(feature = "diagnostics")]
         {
-            CpuAllocator::with_diagnostics(self.context.clone(), Arc::clone(&self.diagnostics))
+            CpuAllocator::with_diagnostics(
+                self.context.clone(),
+                Arc::clone(&self.diagnostics),
+                self.pool.clone(),
+            )
         }
 
         #[cfg(not(feature = "diagnostics"))]
         {
-            CpuAllocator::new(self.context.clone())
+            if let Some(pool) = &self.pool {
+                CpuAllocator::new_caching(self.context.clone(), pool.clone())
+            } else {
+                CpuAllocator::new(self.context.clone())
+            }
         }
     }
 

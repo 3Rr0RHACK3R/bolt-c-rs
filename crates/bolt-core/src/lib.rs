@@ -20,5 +20,5 @@ pub use dtype::{DType, NativeType, OneValue, ToF32};
 pub use error::{Error, Result};
 pub use index::TensorIndex;
 pub use layout::{Layout, LayoutKind, TensorIndexer};
-pub use storage::{BufferHandle, TensorView};
+pub use storage::TensorView;
 pub use tensor::Tensor;

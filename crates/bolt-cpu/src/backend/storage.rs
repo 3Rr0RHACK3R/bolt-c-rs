@@ -1,19 +1,25 @@
 use std::{mem::MaybeUninit, sync::Arc};
+use std::mem::ManuallyDrop;
+use std::ptr::NonNull;
+use std::alloc::Layout;
 
 #[cfg(feature = "diagnostics")]
 use super::allocator::CpuAllocTelemetry;
+use super::memory_pool::MemoryPool;
 
 use bolt_core::{
     DType, DeviceKind,
     dtype::NativeType,
     error::{Error, Result},
-    layout::Layout,
-    storage::{BufferHandle, TensorView},
+    layout::Layout as TensorLayout,
+    storage::TensorView,
 };
 
 #[derive(Debug)]
 pub struct StorageBlock<D: NativeType> {
-    data: Vec<MaybeUninit<D>>,
+    data: ManuallyDrop<Vec<MaybeUninit<D>>>,
+    pool: Option<Arc<MemoryPool>>,
+    layout: Layout,
     #[cfg(feature = "diagnostics")]
     diagnostics: Option<Arc<CpuAllocTelemetry>>,
 }
@@ -22,80 +28,113 @@ impl<D: NativeType> StorageBlock<D> {
     pub(crate) fn new(
         len: usize,
         zeroed: bool,
+        pool: Option<Arc<MemoryPool>>,
         #[cfg(feature = "diagnostics")] diagnostics: Option<Arc<CpuAllocTelemetry>>,
-    ) -> Self {
-        let mut data = if zeroed {
-            vec![MaybeUninit::new(D::default()); len]
+    ) -> Result<Self> {
+        let (data, layout) = if let Some(pool_ref) = &pool {
+            let align = std::mem::align_of::<D>().max(64);
+            let size = len.checked_mul(std::mem::size_of::<D>())
+                 .ok_or(Error::TensorTooLarge { limit: usize::MAX, requested: usize::MAX })?;
+            
+            if size == 0 {
+                 return Ok(Self {
+                     data: ManuallyDrop::new(Vec::new()),
+                     pool: None,
+                     layout: Layout::new::<D>(),
+                     #[cfg(feature = "diagnostics")]
+                     diagnostics,
+                 });
+            }
+
+            let layout = Layout::from_size_align(size, align)
+                .map_err(|_| Error::invalid_shape("Invalid memory layout request"))?;
+
+            let ptr = pool_ref.acquire(layout);
+            let cap = size / std::mem::size_of::<D>();
+            let mut vec = unsafe { 
+                Vec::from_raw_parts(ptr.as_ptr() as *mut MaybeUninit<D>, len, cap) 
+            };
+            
+            if zeroed {
+               unsafe {
+                   std::ptr::write_bytes(vec.as_mut_ptr(), 0, len);
+               }
+            }
+            
+            (vec, layout)
         } else {
-            // Safe: MaybeUninit<D> does not require initialization.
             let mut vec = Vec::with_capacity(len);
             unsafe { vec.set_len(len) };
-            vec
+            
+            if zeroed {
+                unsafe {
+                   std::ptr::write_bytes(vec.as_mut_ptr(), 0, len);
+                }
+            }
+            
+            let layout = Layout::array::<D>(len).unwrap_or(Layout::new::<D>()); 
+            (vec, layout)
         };
-        if len == 0 {
-            data.clear();
-        }
-        Self {
-            data,
+
+        Ok(Self {
+            data: ManuallyDrop::new(data),
+            pool,
+            layout,
             #[cfg(feature = "diagnostics")]
             diagnostics,
-        }
+        })
     }
 
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
-    /// Returns the raw backing slice as `MaybeUninit`, with no initialization guarantee.
     pub fn as_uninit_slice(&self) -> &[MaybeUninit<D>] {
         &self.data
     }
 
-    /// Returns the raw mutable backing slice as `MaybeUninit`, with no initialization guarantee.
     pub fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<D>] {
         &mut self.data
     }
 
-    /// Returns an initialized typed slice over the entire buffer.
-    ///
-    /// # Safety
-    /// Caller must ensure every element is initialized.
     pub unsafe fn assume_init_slice(&self) -> &[D] {
         unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const D, self.data.len()) }
     }
 
-    /// Returns an initialized mutable typed slice over the entire buffer.
-    ///
-    /// # Safety
-    /// Caller must ensure every element is initialized.
     pub unsafe fn assume_init_slice_mut(&mut self) -> &mut [D] {
         unsafe { std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len()) }
     }
 }
 
-#[cfg(feature = "diagnostics")]
 impl<D: NativeType> Drop for StorageBlock<D> {
     fn drop(&mut self) {
+        #[cfg(feature = "diagnostics")]
         if let Some(diag) = &self.diagnostics {
             let bytes = self.data.len().saturating_mul(D::DTYPE.size_in_bytes());
             diag.record_dealloc(bytes as u64);
+        }
+
+        if let Some(pool) = &self.pool {
+             let ptr = self.data.as_mut_ptr() as *mut u8;
+             unsafe {
+                 if let Some(non_null) = NonNull::new(ptr) {
+                     pool.release(non_null, self.layout);
+                 }
+             }
+        } else {
+             unsafe { ManuallyDrop::drop(&mut self.data) };
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct CpuStorage<D: NativeType> {
-    handle: BufferHandle,
     block: Arc<StorageBlock<D>>,
 }
 
 impl<D: NativeType> CpuStorage<D> {
-    pub fn new(handle: BufferHandle, block: Arc<StorageBlock<D>>) -> Self {
-        Self { handle, block }
-    }
-
-    pub fn handle(&self) -> &BufferHandle {
-        &self.handle
+    pub fn new(block: Arc<StorageBlock<D>>) -> Self {
+        Self { block }
     }
 
     pub fn block(&self) -> &Arc<StorageBlock<D>> {
@@ -103,30 +142,17 @@ impl<D: NativeType> CpuStorage<D> {
     }
 
     pub fn len_bytes(&self) -> usize {
-        self.handle.len_bytes()
+        self.block.len() * D::DTYPE.size_in_bytes()
     }
 
-    /// Returns a typed slice over the storage.
-    /// Precondition: the entire buffer must be fully initialized. Prefer
-    /// `as_uninit_slice` when initialization is partial or unknown.
     pub fn as_uninit_slice(&self) -> &[MaybeUninit<D>] {
         self.block.as_uninit_slice()
     }
 
-    /// Returns an initialized typed slice over the storage.
-    ///
-    /// # Safety
-    /// The caller must ensure the entire buffer is initialized. Prefer
-    /// `as_uninit_slice` when initialization is partial or unknown.
     pub unsafe fn as_slice(&self) -> &[D] {
         unsafe { self.block.assume_init_slice() }
     }
 
-    /// Returns an initialized mutable typed slice over the storage.
-    ///
-    /// # Safety
-    /// The caller must ensure the entire buffer is initialized. Prefer
-    /// `try_as_uninit_slice_mut` when initialization is partial or unknown.
     pub unsafe fn try_as_mut_slice(&mut self) -> Result<&mut [D]> {
         let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
             Error::OpError("cannot write to shared tensor storage; clone before mutating".into())
@@ -142,13 +168,17 @@ impl<D: NativeType> CpuStorage<D> {
     }
 
     pub fn dtype(&self) -> DType {
-        self.handle.dtype()
+        D::DTYPE
+    }
+    
+    pub fn device_kind(&self) -> DeviceKind {
+        DeviceKind::Cpu
     }
 }
 
 pub unsafe fn read_into_slice<D: NativeType>(
     storage: &CpuStorage<D>,
-    layout: &Layout,
+    layout: &TensorLayout,
     dst: &mut [D],
 ) -> Result<()> {
     if layout.num_elements() != dst.len() {
@@ -165,7 +195,7 @@ pub unsafe fn read_into_slice<D: NativeType>(
 
 pub unsafe fn read_into_uninit_slice<D: NativeType>(
     storage: &CpuStorage<D>,
-    layout: &Layout,
+    layout: &TensorLayout,
     dst: &mut [MaybeUninit<D>],
 ) -> Result<()> {
     if layout.num_elements() != dst.len() {
@@ -174,7 +204,9 @@ pub unsafe fn read_into_uninit_slice<D: NativeType>(
             actual: dst.len(),
         });
     }
-    storage.handle().validate_layout(layout)?;
+    
+    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
+
     let data = storage.block.as_uninit_slice();
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
         let len = dst.len();
@@ -197,7 +229,7 @@ pub unsafe fn read_into_uninit_slice<D: NativeType>(
 
 pub fn write_from_slice<D: NativeType>(
     storage: &mut CpuStorage<D>,
-    layout: &Layout,
+    layout: &TensorLayout,
     src: &[D],
 ) -> Result<()> {
     if layout.num_elements() != src.len() {
@@ -206,7 +238,9 @@ pub fn write_from_slice<D: NativeType>(
             actual: src.len(),
         });
     }
-    storage.handle().validate_layout(layout)?;
+
+    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
+
     let dst = storage.try_as_uninit_slice_mut()?;
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
         for (slot, value) in dst.iter_mut().take(src.len()).zip(src.iter().copied()) {
@@ -226,10 +260,10 @@ pub fn write_from_slice<D: NativeType>(
 
 pub fn fill_storage<D: NativeType>(
     storage: &mut CpuStorage<D>,
-    layout: &Layout,
+    layout: &TensorLayout,
     value: D,
 ) -> Result<()> {
-    storage.handle().validate_layout(layout)?;
+    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
     let dst = storage.try_as_uninit_slice_mut()?;
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
         let len = layout.num_elements();
@@ -246,16 +280,6 @@ pub fn fill_storage<D: NativeType>(
         dst[dst_idx].write(value);
     }
     Ok(())
-}
-
-pub fn make_cpu_handle<D: NativeType>(len: usize) -> Result<BufferHandle> {
-    let bytes = len
-        .checked_mul(D::DTYPE.size_in_bytes())
-        .ok_or(Error::TensorTooLarge {
-            limit: usize::MAX,
-            requested: usize::MAX,
-        })?;
-    BufferHandle::new(DeviceKind::Cpu, D::DTYPE, bytes)
 }
 
 pub type CpuTensorView<'a, D> = TensorView<'a, CpuStorage<D>>;

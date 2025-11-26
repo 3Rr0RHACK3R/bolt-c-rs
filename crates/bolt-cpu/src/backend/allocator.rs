@@ -9,12 +9,13 @@ use std::{
 use bolt_core::{
     allocator::{AllocatorDiagnostics, AllocatorSnapshot, DiagnosticsCaps, StorageAllocator},
     dtype::{DType, NativeType},
-    error::Result,
+    error::{Error, Result},
 };
 
 use super::context::CpuContext;
+use super::memory_pool::MemoryPool;
 
-use super::storage::{CpuStorage, StorageBlock, make_cpu_handle};
+use super::storage::{CpuStorage, StorageBlock};
 
 #[cfg(feature = "diagnostics")]
 #[derive(Debug, Default)]
@@ -106,6 +107,7 @@ impl CpuAllocTelemetry {
 pub struct CpuAllocator<D: NativeType> {
     #[allow(dead_code)]
     context: Arc<CpuContext>,
+    pool: Option<Arc<MemoryPool>>,
     #[cfg(feature = "diagnostics")]
     diagnostics: Arc<CpuAllocTelemetry>,
     _marker: PhantomData<D>,
@@ -118,6 +120,20 @@ impl<D: NativeType> CpuAllocator<D> {
 
         Self {
             context,
+            pool: None,
+            #[cfg(feature = "diagnostics")]
+            diagnostics,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn new_caching(context: Arc<CpuContext>, pool: Arc<MemoryPool>) -> Self {
+        #[cfg(feature = "diagnostics")]
+        let diagnostics = Arc::new(CpuAllocTelemetry::default());
+
+        Self {
+            context,
+            pool: Some(pool),
             #[cfg(feature = "diagnostics")]
             diagnostics,
             _marker: PhantomData,
@@ -128,10 +144,12 @@ impl<D: NativeType> CpuAllocator<D> {
     pub(crate) fn with_diagnostics(
         context: Arc<CpuContext>,
         diagnostics: Arc<CpuAllocTelemetry>,
+        pool: Option<Arc<MemoryPool>>,
     ) -> Self {
         Self {
             context,
             diagnostics,
+            pool,
             _marker: PhantomData,
         }
     }
@@ -145,76 +163,84 @@ impl<D: NativeType> StorageAllocator<D> for CpuAllocator<D> {
     type Storage = CpuStorage<D>;
 
     fn allocate(&self, len: usize) -> Result<Self::Storage> {
-        let handle = make_cpu_handle::<D>(len)?;
+        let bytes_total = len
+             .checked_mul(D::DTYPE.size_in_bytes())
+             .ok_or(Error::TensorTooLarge {
+                 limit: usize::MAX,
+                 requested: usize::MAX,
+             })?;
+
         #[cfg(feature = "diagnostics")]
         {
-            let bytes = handle.len_bytes() as u64;
-            self.diagnostics.record_alloc(bytes, bytes);
+            self.diagnostics.record_alloc(bytes_total as u64, bytes_total as u64);
         }
         Ok(CpuStorage::new(
-            handle,
             Arc::new(StorageBlock::new(
                 len,
                 false,
+                self.pool.clone(),
                 #[cfg(feature = "diagnostics")]
                 Some(Arc::clone(&self.diagnostics)),
-            )),
+            )?),
         ))
     }
 
     fn allocate_zeroed(&self, len: usize) -> Result<Self::Storage> {
-        let handle = make_cpu_handle::<D>(len)?;
+        let bytes_total = len
+             .checked_mul(D::DTYPE.size_in_bytes())
+             .ok_or(Error::TensorTooLarge {
+                 limit: usize::MAX,
+                 requested: usize::MAX,
+             })?;
         #[cfg(feature = "diagnostics")]
         {
-            let bytes = handle.len_bytes() as u64;
-            self.diagnostics.record_alloc(bytes, bytes);
+            self.diagnostics.record_alloc(bytes_total as u64, bytes_total as u64);
         }
         Ok(CpuStorage::new(
-            handle,
             Arc::new(StorageBlock::new(
                 len,
                 true,
+                self.pool.clone(),
                 #[cfg(feature = "diagnostics")]
                 Some(Arc::clone(&self.diagnostics)),
-            )),
+            )?),
         ))
     }
 
     fn allocate_bytes(&self, len_bytes: usize, dtype: DType) -> Result<Self::Storage> {
         let len = len_bytes / dtype.size_in_bytes();
-        let handle = make_cpu_handle::<D>(len)?;
+        let bytes_total = len * dtype.size_in_bytes();
+
         #[cfg(feature = "diagnostics")]
         {
-            let bytes = handle.len_bytes() as u64;
-            self.diagnostics.record_alloc(len_bytes as u64, bytes);
+            self.diagnostics.record_alloc(len_bytes as u64, bytes_total as u64);
         }
         Ok(CpuStorage::new(
-            handle,
             Arc::new(StorageBlock::new(
                 len,
                 false,
+                self.pool.clone(),
                 #[cfg(feature = "diagnostics")]
                 Some(Arc::clone(&self.diagnostics)),
-            )),
+            )?),
         ))
     }
 
     fn allocate_zeroed_bytes(&self, len_bytes: usize, dtype: DType) -> Result<Self::Storage> {
         let len = len_bytes / dtype.size_in_bytes();
-        let handle = make_cpu_handle::<D>(len)?;
+        let bytes_total = len * dtype.size_in_bytes();
         #[cfg(feature = "diagnostics")]
         {
-            let bytes = handle.len_bytes() as u64;
-            self.diagnostics.record_alloc(len_bytes as u64, bytes);
+            self.diagnostics.record_alloc(len_bytes as u64, bytes_total as u64);
         }
         Ok(CpuStorage::new(
-            handle,
             Arc::new(StorageBlock::new(
                 len,
                 true,
+                self.pool.clone(),
                 #[cfg(feature = "diagnostics")]
                 Some(Arc::clone(&self.diagnostics)),
-            )),
+            )?),
         ))
     }
 }
