@@ -17,6 +17,8 @@ use bolt_core::{
 pub use storage::CpuStorage;
 
 use allocator::CpuAllocator;
+#[cfg(feature = "diagnostics")]
+use allocator::CpuAllocTelemetry;
 use context::CpuContext;
 use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, SubKernel};
 use storage::{fill_storage, read_into_slice, write_from_slice};
@@ -25,6 +27,8 @@ use storage::{fill_storage, read_into_slice, write_from_slice};
 pub struct CpuBackend {
     device: Arc<CpuDevice>,
     context: Arc<CpuContext>,
+    #[cfg(feature = "diagnostics")]
+    diagnostics: Arc<CpuAllocTelemetry>,
 }
 
 impl CpuBackend {
@@ -32,6 +36,8 @@ impl CpuBackend {
         Self {
             device: Arc::new(CpuDevice),
             context: CpuContext::new(),
+            #[cfg(feature = "diagnostics")]
+            diagnostics: Arc::new(CpuAllocTelemetry::default()),
         }
     }
 }
@@ -64,7 +70,18 @@ where
     }
 
     fn allocator(&self) -> Self::Allocator {
-        CpuAllocator::new(self.context.clone())
+        #[cfg(feature = "diagnostics")]
+        {
+            CpuAllocator::with_diagnostics(
+                self.context.clone(),
+                Arc::clone(&self.diagnostics),
+            )
+        }
+
+        #[cfg(not(feature = "diagnostics"))]
+        {
+            CpuAllocator::new(self.context.clone())
+        }
     }
 
     fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
@@ -169,17 +186,16 @@ impl<D> MeanOp<D> for CpuBackend
 where
     D: CpuScalar + MeanKernel,
 {
+    type F32Storage = CpuStorage<f32>;
+
     fn mean_f32(
         &self,
         storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
-    ) -> Result<TensorParts<<Self as Backend<f32>>::Storage>>
-    where
-        Self: Backend<f32>,
-    {
+    ) -> Result<TensorParts<Self::F32Storage>> {
         <D as MeanKernel>::mean_f32_kernel(
             TensorView::new(storage, layout),
-            &<Self as Backend<f32>>::allocator(self),
+            &CpuAllocator::<f32>::new(Arc::clone(&self.context)),
         )
     }
 }

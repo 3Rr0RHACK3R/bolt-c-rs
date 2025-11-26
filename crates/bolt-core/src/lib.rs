@@ -13,7 +13,7 @@ pub mod storage;
 pub mod tensor;
 pub(crate) mod utils;
 
-pub use allocator::StorageAllocator;
+pub use allocator::{AllocatorDiagnostics, AllocatorSnapshot, DiagnosticsCaps, StorageAllocator};
 pub use backend::{Backend, TensorParts};
 pub use device::DeviceKind;
 pub use dtype::{DType, NativeType, OneValue, ToF32};
