@@ -10,24 +10,39 @@ type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 static GLOBAL: TrackingAllocator = TrackingAllocator::new();
 
 fn main() -> AnyResult<()> {
-    let backend = Arc::new(ProfiledBackend::new(CpuBackend::new(), Some(&GLOBAL)));
+    let backend = Arc::new(
+        ProfiledBackend::builder(CpuBackend::new())
+            .with_tracking_allocator(&GLOBAL)
+            .build(),
+    );
 
-    run_and_report("dense_matmul", &backend, run_dense_matmul)?;
-    run_and_report("add_chain", &backend, run_add_chain)?;
-    run_and_report("mean_reduction", &backend, run_mean_reduction)?;
-    run_and_report("transpose_copy", &backend, run_transpose_copy)?;
+    run_scoped_workload("dense_matmul", &backend, run_dense_matmul)?;
+    run_scoped_workload("add_chain", &backend, run_add_chain)?;
+    run_scoped_workload("mean_reduction", &backend, run_mean_reduction)?;
+    run_scoped_workload("transpose_copy", &backend, run_transpose_copy)?;
+
+    println!("\n===== All workloads summary =====");
+    backend.print_report_detailed();
 
     Ok(())
 }
 
-fn run_and_report<F>(label: &str, backend: &Arc<ProfiledBackend<CpuBackend>>, workload: F) -> AnyResult<()>
+fn run_scoped_workload<F>(
+    label: &str,
+    backend: &Arc<ProfiledBackend<CpuBackend>>,
+    workload: F,
+) -> AnyResult<()>
 where
     F: FnOnce(&Arc<ProfiledBackend<CpuBackend>>) -> AnyResult<()>,
 {
-    backend.clear_stats();
+    backend.begin_scope(label);
     workload(backend)?;
-    println!("\n===== {} workload =====", label);
-    backend.print_report();
+    let report = backend.end_scope().expect("scope report");
+
+    println!(
+        "[{}] time={:?}, allocs={}, peak={}",
+        label, report.wall_time, report.memory_stats.alloc_count, report.memory_stats.peak_in_scope
+    );
     Ok(())
 }
 

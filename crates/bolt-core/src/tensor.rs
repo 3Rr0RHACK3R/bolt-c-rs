@@ -272,7 +272,7 @@ where
 
     pub fn mean_f32(&self) -> Result<Tensor<B, f32>>
     where
-        B: Backend<f32> + MeanOp<D>,
+        B: Backend<f32> + MeanOp<D, F32Storage = <B as Backend<f32>>::Storage>,
         D: ToF32,
     {
         let parts = MeanOp::<D>::mean_f32(self.backend.as_ref(), &self.storage, &self.layout)?;

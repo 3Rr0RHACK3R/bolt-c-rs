@@ -7,3 +7,7 @@ license.workspace = true
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
+
+[features]
+default = ["diagnostics"]
+diagnostics = []

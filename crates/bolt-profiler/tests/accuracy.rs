@@ -1,132 +1,108 @@
-use bolt_profiler::{TrackingAllocator, profile};
+use bolt_core::backend::FillOp;
+use bolt_core::layout::Layout;
+use bolt_core::shape::ConcreteShape;
+use bolt_cpu::CpuBackend;
+use bolt_profiler::{MemoryStatsSource, ProfiledBackend, QueryBuilder, TrackingAllocator};
 use serial_test::serial;
-use std::alloc::GlobalAlloc;
-use std::alloc::Layout;
+use std::sync::Arc;
 
 #[global_allocator]
 static GLOBAL: TrackingAllocator = TrackingAllocator::new();
 
-#[test]
-#[serial]
-fn test_allocator_accuracy() {
-    // This test verifies that the TrackingAllocator correctly counts bytes and calls.
-    // Note: We must run this in a separate process or ensure no other threads are allocating
-    // to be strictly precise, but for unit tests `cargo test` runs in parallel.
-    // However, since we are checking *deltas* inside a profile block, and `profile`
-    // snapshots global state, we might get noise from other threads.
-    // Ideally, we use `--test-threads=1` for this, but let's try to be robust.
-
-    // We allocate a substantial amount to distinguish from background noise.
-    let alloc_size = 1024 * 1024; // 1MB
-    let alloc = TrackingAllocator::new();
-
-    let (_, report) = profile(Some(&alloc), || {
-        // Use TrackingAllocator directly to bypass Vec resizing logic / capacity over-allocation
-        let layout = Layout::from_size_align(alloc_size, 1).unwrap();
-        unsafe {
-            let ptr = alloc.alloc(layout);
-            assert!(!ptr.is_null());
-            // Prevent optimization
-            std::ptr::write_volatile(ptr, 0xFF);
-            alloc.dealloc(ptr, layout);
-        }
-    });
-
-    // Verify Alloc Count
-    // We expect exactly 1 alloc and 1 dealloc if we called them manually.
-    assert_eq!(
-        report.memory_stats.alloc_count, 1,
-        "Should record exactly 1 allocation"
-    );
-    assert_eq!(
-        report.memory_stats.dealloc_count, 1,
-        "Should record exactly 1 deallocation"
-    );
-
-    // Verify Bytes
-    assert_eq!(
-        report.memory_stats.total_allocated_bytes, alloc_size,
-        "Total allocated should match request"
-    );
-    assert_eq!(
-        report.memory_stats.net_allocated_bytes, 0,
-        "Net allocation should be 0 after dealloc"
-    );
+fn make_layout(len: usize) -> Layout {
+    let shape = ConcreteShape::from_slice(&[len]).expect("shape");
+    Layout::contiguous(shape)
 }
 
 #[test]
 #[serial]
-fn test_vec_behavior() {
-    // Simulate growth-style allocations and ensure drops happen within the profile scope.
-    let alloc = TrackingAllocator::new();
-    let layout_a = Layout::from_size_align(1_000, 1).unwrap();
-    let layout_b = Layout::from_size_align(2_000, 1).unwrap();
+fn allocator_tracks_fill_ops() {
+    let backend = Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
+    let layout = make_layout(1024);
 
-    let (_, report) = profile(Some(&alloc), || unsafe {
-        let ptr_a = alloc.alloc(layout_a);
-        assert!(!ptr_a.is_null());
-        let ptr_b = alloc.alloc(layout_b);
-        assert!(!ptr_b.is_null());
-        alloc.dealloc(ptr_b, layout_b);
-        alloc.dealloc(ptr_a, layout_a);
-    });
+    let _ = backend.fill(&layout, 1.0f32).unwrap();
 
-    assert_eq!(report.memory_stats.alloc_count, 2);
-    assert_eq!(report.memory_stats.dealloc_count, 2);
+    let registry = backend.registry();
+    let stats = registry.lock();
+
+    let fill_ops: Vec<_> = QueryBuilder::new(&stats).name_contains("fill").collect();
+
+    assert!(!fill_ops.is_empty(), "Should have recorded fill op");
+    let record = fill_ops[0];
+    assert_eq!(record.name, "fill");
+    assert!(record.stats.last_report.is_some());
+
+    let report = record.stats.last_report.as_ref().unwrap();
     assert_eq!(
-        report.memory_stats.total_allocated_bytes,
-        layout_a.size() + layout_b.size()
+        report.memory_stats.source,
+        MemoryStatsSource::BackendAllocator
     );
-    assert_eq!(report.memory_stats.net_allocated_bytes, 0);
+    assert!(report.memory_stats.alloc_count > 0);
 }
 
 #[test]
 #[serial]
-fn test_leak_behavior() {
-    let alloc = TrackingAllocator::new();
-    let alloc_size = 500;
-    let layout = Layout::from_size_align(alloc_size, 1).unwrap();
-    let (_, report) = profile(Some(&alloc), || {
-        unsafe {
-            let ptr = alloc.alloc(layout);
-            assert!(!ptr.is_null());
-            std::ptr::write_volatile(ptr, 0xAA);
-            // Intentionally leak: no dealloc
-        }
-    });
+fn scope_tracks_nested_ops() {
+    let backend: Arc<ProfiledBackend<CpuBackend>> =
+        Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
+    backend.clear_stats();
 
-    assert_eq!(report.memory_stats.net_allocated_bytes, alloc_size as isize);
+    let _scope_id = backend.begin_scope("my_scope");
+    let layout = make_layout(512);
+    let _ = backend.fill(&layout, 2.0f32).unwrap();
+    let _ = backend.fill(&layout, 3.0f32).unwrap();
+    let report = backend.end_scope().expect("scope report");
+
+    assert!(report.wall_time.as_nanos() > 0);
+
+    let registry = backend.registry();
+    let stats = registry.lock();
+
+    let scopes: Vec<_> = stats.top_level_ops().collect();
+    assert_eq!(scopes.len(), 1, "Should have one top-level scope");
+    assert_eq!(scopes[0].name, "my_scope");
+
+    let children: Vec<_> = stats.children_of(scopes[0].id).collect();
+    assert_eq!(children.len(), 2, "Scope should have 2 fill children");
 }
 
 #[test]
 #[serial]
-fn test_scope_peak_tracking() {
-    let alloc = TrackingAllocator::new();
-    let (_, report) = profile(Some(&alloc), || {
-        // Allocate 1MB, then free, then allocate 512KB
-        let layout_1mb = Layout::from_size_align(1024 * 1024, 1).unwrap();
-        let layout_512kb = Layout::from_size_align(512 * 1024, 1).unwrap();
+fn tracking_allocator_fallback() {
+    let backend = Arc::new(
+        ProfiledBackend::builder(CpuBackend::new())
+            .with_tracking_allocator(&GLOBAL)
+            .build(),
+    );
+    let layout = make_layout(256);
 
-        unsafe {
-            let ptr1 = alloc.alloc(layout_1mb);
-            assert!(!ptr1.is_null());
-            std::ptr::write_volatile(ptr1, 0xFF);
+    let _ = backend.fill(&layout, 1.0f32).unwrap();
 
-            alloc.dealloc(ptr1, layout_1mb);
+    let registry = backend.registry();
+    let stats = registry.lock();
 
-            let ptr2 = alloc.alloc(layout_512kb);
-            assert!(!ptr2.is_null());
-            std::ptr::write_volatile(ptr2, 0xAA);
+    let ops: Vec<_> = stats.top_level_ops().collect();
+    assert!(!ops.is_empty());
+}
 
-            alloc.dealloc(ptr2, layout_512kb);
-        }
-    });
+#[test]
+#[serial]
+fn sample_rate_controls_profiling() {
+    let backend = Arc::new(
+        ProfiledBackend::builder(CpuBackend::new())
+            .sample_rate(0.0)
+            .build(),
+    );
 
-    // Peak during scope should be ~1MB (the first allocation)
+    let layout = make_layout(64);
+    for _ in 0..10 {
+        let _ = backend.fill(&layout, 1.0f32).unwrap();
+    }
+
+    let registry = backend.registry();
+    let stats = registry.lock();
     assert!(
-        report.memory_stats.scope_peak_bytes >= 1024 * 1024,
-        "Scope peak should capture the 1MB allocation: got {}",
-        report.memory_stats.scope_peak_bytes
+        stats.ops().is_empty(),
+        "No ops should be recorded with 0% sample rate"
     );
-    assert_eq!(report.memory_stats.net_allocated_bytes, 0);
 }

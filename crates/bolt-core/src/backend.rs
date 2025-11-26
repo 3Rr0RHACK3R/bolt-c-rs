@@ -67,11 +67,11 @@ pub trait MatmulOp<D: NativeType>: Backend<D> {
 }
 
 pub trait MeanOp<D: NativeType>: Backend<D> {
+    type F32Storage: Clone + Send + Sync + 'static;
+
     fn mean_f32(
         &self,
         storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
-    ) -> Result<TensorParts<<Self as Backend<f32>>::Storage>>
-    where
-        Self: Backend<f32>;
+    ) -> Result<TensorParts<Self::F32Storage>>;
 }

@@ -1,5 +1,8 @@
 use std::{mem::MaybeUninit, sync::Arc};
 
+#[cfg(feature = "diagnostics")]
+use super::allocator::CpuAllocTelemetry;
+
 use bolt_core::{
     DType, DeviceKind,
     dtype::NativeType,
@@ -11,10 +14,16 @@ use bolt_core::{
 #[derive(Debug)]
 pub struct StorageBlock<D: NativeType> {
     data: Vec<MaybeUninit<D>>,
+    #[cfg(feature = "diagnostics")]
+    diagnostics: Option<Arc<CpuAllocTelemetry>>,
 }
 
 impl<D: NativeType> StorageBlock<D> {
-    pub fn new(len: usize, zeroed: bool) -> Self {
+    pub(crate) fn new(
+        len: usize,
+        zeroed: bool,
+        #[cfg(feature = "diagnostics")] diagnostics: Option<Arc<CpuAllocTelemetry>>,
+    ) -> Self {
         let mut data = if zeroed {
             vec![MaybeUninit::new(D::default()); len]
         } else {
@@ -26,7 +35,11 @@ impl<D: NativeType> StorageBlock<D> {
         if len == 0 {
             data.clear();
         }
-        Self { data }
+        Self {
+            data,
+            #[cfg(feature = "diagnostics")]
+            diagnostics,
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -57,6 +70,16 @@ impl<D: NativeType> StorageBlock<D> {
     /// Caller must ensure every element is initialized.
     pub unsafe fn assume_init_slice_mut(&mut self) -> &mut [D] {
         unsafe { std::slice::from_raw_parts_mut(self.data.as_mut_ptr() as *mut D, self.data.len()) }
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+impl<D: NativeType> Drop for StorageBlock<D> {
+    fn drop(&mut self) {
+        if let Some(diag) = &self.diagnostics {
+            let bytes = self.data.len().saturating_mul(D::DTYPE.size_in_bytes());
+            diag.record_dealloc(bytes as u64);
+        }
     }
 }
 
