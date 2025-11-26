@@ -79,7 +79,9 @@ pub trait AllocatorDiagnostics: Send + Sync + 'static {
     }
 }
 
-pub trait StorageAllocator<D: NativeType>: AllocatorDiagnostics + Clone + Send + Sync + 'static {
+pub trait StorageAllocator<D: NativeType>:
+    AllocatorDiagnostics + Clone + Send + Sync + 'static
+{
     type Storage: Clone + Send + Sync + 'static;
 
     fn allocate(&self, len: usize) -> Result<Self::Storage>;

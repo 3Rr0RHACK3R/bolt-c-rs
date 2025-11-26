@@ -14,7 +14,7 @@ use bolt_core::{
 
 use super::context::CpuContext;
 
-use super::storage::{make_cpu_handle, CpuStorage, StorageBlock};
+use super::storage::{CpuStorage, StorageBlock, make_cpu_handle};
 
 #[cfg(feature = "diagnostics")]
 #[derive(Debug, Default)]
@@ -93,12 +93,8 @@ impl CpuAllocTelemetry {
     fn bump_peak(&self, target: &AtomicU64, value: u64) {
         let mut current = target.load(Ordering::Relaxed);
         while value > current {
-            match target.compare_exchange_weak(
-                current,
-                value,
-                Ordering::Relaxed,
-                Ordering::Relaxed,
-            ) {
+            match target.compare_exchange_weak(current, value, Ordering::Relaxed, Ordering::Relaxed)
+            {
                 Ok(_) => break,
                 Err(observed) => current = observed,
             }
@@ -224,19 +220,24 @@ impl<D: NativeType> StorageAllocator<D> for CpuAllocator<D> {
 }
 
 impl<D: NativeType> AllocatorDiagnostics for CpuAllocator<D> {
+    #[cfg(feature = "diagnostics")]
     fn capabilities(&self) -> DiagnosticsCaps {
-        if cfg!(feature = "diagnostics") {
-            DiagnosticsCaps::SUPPORTS_SCOPE
-        } else {
-            DiagnosticsCaps::empty()
-        }
+        DiagnosticsCaps::SUPPORTS_SCOPE
+    }
+
+    #[cfg(not(feature = "diagnostics"))]
+    fn capabilities(&self) -> DiagnosticsCaps {
+        DiagnosticsCaps::empty()
     }
 
     fn snapshot(&self) -> AllocatorSnapshot {
-        if cfg!(feature = "diagnostics") {
-            self.diagnostics.snapshot()
-        } else {
-            AllocatorSnapshot::default()
+        #[cfg(feature = "diagnostics")]
+        {
+            return self.diagnostics.snapshot();
+        }
+        #[cfg(not(feature = "diagnostics"))]
+        {
+            return AllocatorSnapshot::default();
         }
     }
 
@@ -256,7 +257,8 @@ impl<D: NativeType> AllocatorDiagnostics for CpuAllocator<D> {
     }
 
     fn end_scope(&self) -> Option<AllocatorSnapshot> {
-        if cfg!(feature = "diagnostics") {
+        #[cfg(feature = "diagnostics")]
+        {
             let baseline = match SCOPE_BASELINES.with(|stack| stack.borrow_mut().pop()) {
                 Some(b) => b,
                 None => {
@@ -299,7 +301,9 @@ impl<D: NativeType> AllocatorDiagnostics for CpuAllocator<D> {
             }
 
             Some(delta)
-        } else {
+        }
+        #[cfg(not(feature = "diagnostics"))]
+        {
             None
         }
     }

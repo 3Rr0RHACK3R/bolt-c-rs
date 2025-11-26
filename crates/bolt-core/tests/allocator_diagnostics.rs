@@ -1,5 +1,5 @@
-use bolt_core::{AllocatorDiagnostics, StorageAllocator};
 use bolt_core::Result;
+use bolt_core::{AllocatorDiagnostics, StorageAllocator};
 
 #[derive(Clone)]
 struct NoopAlloc;

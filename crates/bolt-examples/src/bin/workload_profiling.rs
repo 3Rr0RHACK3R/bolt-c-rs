@@ -41,10 +41,7 @@ where
 
     println!(
         "[{}] time={:?}, allocs={}, peak={}",
-        label,
-        report.wall_time,
-        report.memory_stats.alloc_count,
-        report.memory_stats.peak_in_scope
+        label, report.wall_time, report.memory_stats.alloc_count, report.memory_stats.peak_in_scope
     );
     Ok(())
 }

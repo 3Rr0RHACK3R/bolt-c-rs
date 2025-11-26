@@ -162,7 +162,7 @@ impl Registry {
 
     pub fn clear(&mut self) {
         self.ops.clear();
-        self.next_id = 0;
+        // Preserve next_id to avoid colliding with stale OpId references
         self.total_time = Duration::ZERO;
     }
 

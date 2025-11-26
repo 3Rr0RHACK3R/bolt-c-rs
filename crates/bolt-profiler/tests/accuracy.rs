@@ -1,8 +1,8 @@
-use bolt_profiler::{MemoryStatsSource, ProfiledBackend, QueryBuilder, TrackingAllocator};
-use bolt_cpu::CpuBackend;
 use bolt_core::backend::FillOp;
 use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
+use bolt_cpu::CpuBackend;
+use bolt_profiler::{MemoryStatsSource, ProfiledBackend, QueryBuilder, TrackingAllocator};
 use serial_test::serial;
 use std::sync::Arc;
 
@@ -25,9 +25,7 @@ fn allocator_tracks_fill_ops() {
     let registry = backend.registry();
     let stats = registry.lock();
 
-    let fill_ops: Vec<_> = QueryBuilder::new(&stats)
-        .name_contains("fill")
-        .collect();
+    let fill_ops: Vec<_> = QueryBuilder::new(&stats).name_contains("fill").collect();
 
     assert!(!fill_ops.is_empty(), "Should have recorded fill op");
     let record = fill_ops[0];
@@ -35,14 +33,18 @@ fn allocator_tracks_fill_ops() {
     assert!(record.stats.last_report.is_some());
 
     let report = record.stats.last_report.as_ref().unwrap();
-    assert_eq!(report.memory_stats.source, MemoryStatsSource::BackendAllocator);
+    assert_eq!(
+        report.memory_stats.source,
+        MemoryStatsSource::BackendAllocator
+    );
     assert!(report.memory_stats.alloc_count > 0);
 }
 
 #[test]
 #[serial]
 fn scope_tracks_nested_ops() {
-    let backend: Arc<ProfiledBackend<CpuBackend>> = Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
+    let backend: Arc<ProfiledBackend<CpuBackend>> =
+        Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
     backend.clear_stats();
 
     let _scope_id = backend.begin_scope("my_scope");
@@ -70,7 +72,7 @@ fn tracking_allocator_fallback() {
     let backend = Arc::new(
         ProfiledBackend::builder(CpuBackend::new())
             .with_tracking_allocator(&GLOBAL)
-            .build()
+            .build(),
     );
     let layout = make_layout(256);
 
@@ -89,7 +91,7 @@ fn sample_rate_controls_profiling() {
     let backend = Arc::new(
         ProfiledBackend::builder(CpuBackend::new())
             .sample_rate(0.0)
-            .build()
+            .build(),
     );
 
     let layout = make_layout(64);
@@ -99,5 +101,8 @@ fn sample_rate_controls_profiling() {
 
     let registry = backend.registry();
     let stats = registry.lock();
-    assert!(stats.ops().is_empty(), "No ops should be recorded with 0% sample rate");
+    assert!(
+        stats.ops().is_empty(),
+        "No ops should be recorded with 0% sample rate"
+    );
 }

@@ -10,7 +10,7 @@ use bolt_core::error::Result;
 use bolt_core::layout::Layout;
 use parking_lot::Mutex;
 
-use crate::allocator::TrackingAllocator;
+use crate::allocator::{AllocatorStats, TrackingAllocator};
 use crate::os_stats::get_os_stats;
 use crate::registry::{OpCategory, OpId, Registry, current_scope, pop_scope, push_scope};
 use crate::report::{CpuStats, MemoryStats, MemoryStatsSource, ProfileReport};
@@ -23,10 +23,9 @@ struct ScopeState {
     start_time: Instant,
     start_os: crate::os_stats::OsStats,
     start_alloc: Option<AllocatorSnapshot>,
+    tracking_start_stats: Option<AllocatorStats>,
     op_id: OpId,
 }
-
-pub use crate::registry::QueryBuilder;
 
 pub struct ProfiledBackendBuilder<B> {
     inner: B,
@@ -138,11 +137,13 @@ impl<B> ProfiledBackend<B> {
         let allocator = <B as Backend<D>>::allocator(&self.inner);
         let caps = allocator.capabilities();
 
+        let mut tracking_start_stats = None;
         let start_alloc = if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
             allocator.begin_scope();
             Some(allocator.snapshot())
         } else if let Some(ta) = self.allocator {
             ta.begin_scope();
+            tracking_start_stats = Some(ta.stats());
             None
         } else {
             None
@@ -167,6 +168,7 @@ impl<B> ProfiledBackend<B> {
                 start_time: Instant::now(),
                 start_os: get_os_stats(),
                 start_alloc,
+                tracking_start_stats,
                 op_id,
             });
         });
@@ -187,9 +189,15 @@ impl<B> ProfiledBackend<B> {
         let wall_time = end_time.duration_since(state.start_time);
 
         let cpu_stats = CpuStats {
-            user_time: end_os.user_cpu_time.saturating_sub(state.start_os.user_cpu_time),
-            sys_time: end_os.sys_cpu_time.saturating_sub(state.start_os.sys_cpu_time),
-            thread_time: end_os.thread_cpu_time.saturating_sub(state.start_os.thread_cpu_time),
+            user_time: end_os
+                .user_cpu_time
+                .saturating_sub(state.start_os.user_cpu_time),
+            sys_time: end_os
+                .sys_cpu_time
+                .saturating_sub(state.start_os.sys_cpu_time),
+            thread_time: end_os
+                .thread_cpu_time
+                .saturating_sub(state.start_os.thread_cpu_time),
         };
 
         let allocator = <B as Backend<D>>::allocator(&self.inner);
@@ -208,7 +216,7 @@ impl<B> ProfiledBackend<B> {
         } else if let Some(ta) = self.allocator {
             let scope_peak = ta.end_scope();
             let end_stats = ta.stats();
-            let start_stats = crate::allocator::AllocatorStats::default();
+            let start_stats = state.tracking_start_stats.unwrap_or_default();
             build_tracking_memory_stats(&start_stats, &end_stats, scope_peak, end_os.rss_bytes)
         } else {
             MemoryStats {
@@ -256,16 +264,19 @@ impl<B> ProfiledBackend<B> {
         }
 
         let caps = allocator.capabilities();
+        let mut tracking_start_stats = None;
         if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
             allocator.begin_scope();
         } else if let Some(ta) = self.allocator {
             ta.begin_scope();
+            tracking_start_stats = Some(ta.stats());
         }
 
         Some(ProfileStart {
             time: Instant::now(),
             os: get_os_stats(),
             alloc: allocator.snapshot(),
+            tracking_start_stats,
         })
     }
 
@@ -300,7 +311,7 @@ impl<B> ProfiledBackend<B> {
         } else if let Some(ta) = self.allocator {
             let scope_peak = ta.end_scope();
             let end_stats = ta.stats();
-            let start_stats = crate::allocator::AllocatorStats::default();
+            let start_stats = start.tracking_start_stats.unwrap_or_default();
             build_tracking_memory_stats(&start_stats, &end_stats, scope_peak, end_os.rss_bytes)
         } else {
             MemoryStats {
@@ -325,6 +336,7 @@ struct ProfileStart {
     time: Instant,
     os: crate::os_stats::OsStats,
     alloc: AllocatorSnapshot,
+    tracking_start_stats: Option<AllocatorStats>,
 }
 
 fn rand_simple() -> f64 {
@@ -379,17 +391,23 @@ fn build_memory_stats(
 }
 
 fn build_tracking_memory_stats(
-    _start: &crate::allocator::AllocatorStats,
+    start: &crate::allocator::AllocatorStats,
     end: &crate::allocator::AllocatorStats,
     scope_peak: usize,
     peak_rss_bytes: u64,
 ) -> MemoryStats {
+    let bytes_requested = end
+        .cumulative_allocated_bytes
+        .saturating_sub(start.cumulative_allocated_bytes) as u64;
+    let alloc_count = end.alloc_count.saturating_sub(start.alloc_count) as u64;
+    let dealloc_count = end.dealloc_count.saturating_sub(start.dealloc_count) as u64;
+
     MemoryStats {
         source: MemoryStatsSource::TrackingAllocator,
-        bytes_requested: end.cumulative_allocated_bytes as u64,
-        bytes_granted: end.cumulative_allocated_bytes as u64,
-        alloc_count: end.alloc_count as u64,
-        dealloc_count: end.dealloc_count as u64,
+        bytes_requested,
+        bytes_granted: bytes_requested,
+        alloc_count,
+        dealloc_count,
         peak_in_scope: scope_peak as u64,
         persistent_peak: end.peak_allocated_bytes as u64,
         peak_rss_bytes,
@@ -414,8 +432,6 @@ fn snapshot_delta(after: &AllocatorSnapshot, before: &AllocatorSnapshot) -> Allo
 fn shapes_from_layout(layout: &Layout) -> Vec<usize> {
     layout.shape().to_vec()
 }
-
-
 
 impl<D: NativeType, B: Backend<D>> Backend<D> for ProfiledBackend<B> {
     type Device = B::Device;

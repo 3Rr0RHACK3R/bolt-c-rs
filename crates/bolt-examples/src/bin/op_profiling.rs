@@ -56,7 +56,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Wall time: {:?}", report.wall_time);
     println!("  Allocs: {}", report.memory_stats.alloc_count);
     println!("  Deallocs: {}", report.memory_stats.dealloc_count);
-    println!("  Peak in scope: {} bytes", report.memory_stats.peak_in_scope);
+    println!(
+        "  Peak in scope: {} bytes",
+        report.memory_stats.peak_in_scope
+    );
 
     backend.print_report_detailed();
 

@@ -16,9 +16,9 @@ use bolt_core::{
 
 pub use storage::CpuStorage;
 
-use allocator::CpuAllocator;
 #[cfg(feature = "diagnostics")]
 use allocator::CpuAllocTelemetry;
+use allocator::CpuAllocator;
 use context::CpuContext;
 use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, SubKernel};
 use storage::{fill_storage, read_into_slice, write_from_slice};
@@ -72,10 +72,7 @@ where
     fn allocator(&self) -> Self::Allocator {
         #[cfg(feature = "diagnostics")]
         {
-            CpuAllocator::with_diagnostics(
-                self.context.clone(),
-                Arc::clone(&self.diagnostics),
-            )
+            CpuAllocator::with_diagnostics(self.context.clone(), Arc::clone(&self.diagnostics))
         }
 
         #[cfg(not(feature = "diagnostics"))]
@@ -193,9 +190,7 @@ where
         storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
     ) -> Result<TensorParts<Self::F32Storage>> {
-        <D as MeanKernel>::mean_f32_kernel(
-            TensorView::new(storage, layout),
-            &CpuAllocator::<f32>::new(Arc::clone(&self.context)),
-        )
+        let allocator = <Self as Backend<f32>>::allocator(self);
+        <D as MeanKernel>::mean_f32_kernel(TensorView::new(storage, layout), &allocator)
     }
 }

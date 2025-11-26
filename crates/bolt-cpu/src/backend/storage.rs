@@ -77,10 +77,7 @@ impl<D: NativeType> StorageBlock<D> {
 impl<D: NativeType> Drop for StorageBlock<D> {
     fn drop(&mut self) {
         if let Some(diag) = &self.diagnostics {
-            let bytes = self
-                .data
-                .len()
-                .saturating_mul(D::DTYPE.size_in_bytes());
+            let bytes = self.data.len().saturating_mul(D::DTYPE.size_in_bytes());
             diag.record_dealloc(bytes as u64);
         }
     }
