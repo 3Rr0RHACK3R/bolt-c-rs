@@ -22,7 +22,7 @@ fn main() -> AnyResult<()> {
     run_scoped_workload("transpose_copy", &backend, run_transpose_copy)?;
 
     println!("\n===== All workloads summary =====");
-    backend.print_report_detailed();
+    bolt_profiler::print_report(backend.registry());
 
     Ok(())
 }
@@ -41,7 +41,10 @@ where
 
     println!(
         "[{}] time={:?}, allocs={}, peak={}",
-        label, report.wall_time, report.memory_stats.alloc_count, report.memory_stats.peak_in_scope
+        label,
+        report.time.host.wall_time,
+        report.memory.device.alloc_count,
+        report.memory.device.peak_in_scope
     );
     Ok(())
 }

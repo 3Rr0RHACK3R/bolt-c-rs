@@ -30,10 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _t3 = t1.matmul(&t2)?;
 
     println!("=== Default Summary (top-level only) ===");
-    backend.print_report();
-
-    println!("\n=== Memory Details ===");
-    backend.print_memory_details();
+    bolt_profiler::print_report(backend.registry());
 
     // Scoped profiling
     println!("\n=== Scoped Profiling Demo ===");
@@ -46,16 +43,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let report = backend.end_scope().expect("scope report");
 
     println!("Scope 'forward_pass' completed:");
-    println!("  Wall time: {:?}", report.wall_time);
-    println!("  Allocs: {}", report.memory_stats.alloc_count);
-    println!("  Deallocs: {}", report.memory_stats.dealloc_count);
+    println!("  Wall time: {:?}", report.time.host.wall_time);
+    println!("  Allocs: {}", report.memory.device.alloc_count);
+    println!("  Deallocs: {}", report.memory.device.dealloc_count);
     println!(
         "  Peak in scope: {} bytes",
-        report.memory_stats.peak_in_scope
+        report.memory.device.peak_in_scope
     );
 
-    backend.print_report_detailed();
-    backend.print_memory_details();
+    bolt_profiler::print_report(backend.registry());
 
     Ok(())
 }

@@ -26,11 +26,11 @@ fn main() {
     }
     let report = backend.end_scope().expect("scope");
 
-    println!("Wall Time: {:?}", report.wall_time);
-    println!("Alloc Count: {}", report.memory_stats.alloc_count);
+    println!("Wall Time: {:?}", report.time.host.wall_time);
+    println!("Alloc Count: {}", report.memory.host.alloc_count);
     println!(
         "Scope Peak: {:.2} MB",
-        report.memory_stats.peak_in_scope as f64 / 1024.0 / 1024.0
+        report.memory.host.peak_in_scope as f64 / 1024.0 / 1024.0
     );
 
     // Example 2: CPU Bound
@@ -45,9 +45,9 @@ fn main() {
     }
     let report = backend.end_scope().expect("scope");
 
-    println!("Wall Time: {:?}", report.wall_time);
-    println!("Thread CPU: {:?}", report.cpu_stats.thread_time);
-    println!("User CPU (process): {:?}", report.cpu_stats.user_time);
+    println!("Wall Time: {:?}", report.time.host.wall_time);
+    println!("Thread CPU: {:?}", report.time.host.thread_time);
+    println!("User CPU (process): {:?}", report.time.host.user_time);
 
     // Example 3: Nested Profiling
     println!("\n--- Profile: Nested Scopes ---");
@@ -64,19 +64,19 @@ fn main() {
 
         println!(
             "  -> Inner: time={:?}, scope_peak={:.2} MB",
-            inner_report.wall_time,
-            inner_report.memory_stats.peak_in_scope as f64 / 1024.0 / 1024.0
+            inner_report.time.host.wall_time,
+            inner_report.memory.host.peak_in_scope as f64 / 1024.0 / 1024.0
         );
     }
     let outer_report = backend.end_scope().expect("outer scope");
 
-    println!("Outer Total Time: {:?}", outer_report.wall_time);
+    println!("Outer Total Time: {:?}", outer_report.time.host.wall_time);
     println!(
         "Outer Scope Peak: {:.2} MB",
-        outer_report.memory_stats.peak_in_scope as f64 / 1024.0 / 1024.0
+        outer_report.memory.host.peak_in_scope as f64 / 1024.0 / 1024.0
     );
 
     // Show hierarchical report
     println!("\n--- Hierarchical Report ---");
-    backend.print_report_detailed();
+    bolt_profiler::print_report(backend.registry());
 }

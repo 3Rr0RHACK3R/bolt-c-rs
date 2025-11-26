@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use crate::report::{MemoryStatsSource, ProfileReport};
+use crate::report::ProfileReport;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OpId(pub(crate) u64);
@@ -33,62 +33,134 @@ pub struct OpRecord {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct TimeAgg {
+    pub total_us: u128,
+    pub min_us: u128,
+    pub max_us: u128,
+    pub sum_sq_us: u128,
+    pub count: usize,
+}
+
+impl TimeAgg {
+    pub fn record(&mut self, us: u128) {
+        self.count += 1;
+        self.total_us += us;
+        if self.count == 1 {
+            self.min_us = us;
+        } else {
+            self.min_us = self.min_us.min(us);
+        }
+        self.max_us = self.max_us.max(us);
+        self.sum_sq_us += us * us;
+    }
+
+    pub fn avg_us(&self) -> u128 {
+        if self.count == 0 {
+            0
+        } else {
+            self.total_us / self.count as u128
+        }
+    }
+
+    pub fn stddev_us(&self) -> f64 {
+        if self.count < 2 {
+            return 0.0;
+        }
+        let n = self.count as f64;
+        let mean = self.total_us as f64 / n;
+        let variance = (self.sum_sq_us as f64 / n) - (mean * mean);
+        variance.max(0.0).sqrt()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MemoryAgg {
+    pub total_requested: u128,
+    pub total_granted: u128,
+    pub alloc_count: usize,
+    pub dealloc_count: usize,
+    pub max_scope_peak: u64,
+    pub max_persistent_peak: u64,
+}
+
+impl MemoryAgg {
+    pub fn record(
+        &mut self,
+        req: u64,
+        grant: u64,
+        alloc: u64,
+        dealloc: u64,
+        peak: u64,
+        persist: u64,
+    ) {
+        self.total_requested += req as u128;
+        self.total_granted += grant as u128;
+        self.alloc_count += alloc as usize;
+        self.dealloc_count += dealloc as usize;
+        self.max_scope_peak = self.max_scope_peak.max(peak);
+        self.max_persistent_peak = self.max_persistent_peak.max(persist);
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct OpStats {
     pub count: usize,
-    pub total_time_us: u128,
-    pub min_time_us: u128,
-    pub max_time_us: u128,
-    pub sum_sq_time_us: u128,
-    pub total_requested_bytes: u128,
-    pub total_granted_bytes: u128,
-    pub max_scope_peak_bytes: u64,
+    pub host_time: TimeAgg,
+    pub device_time: TimeAgg,
+    pub host_memory: MemoryAgg,
+    pub device_memory: MemoryAgg,
+    pub max_rss: u64,
     pub last_report: Option<ProfileReport>,
 }
 
 impl OpStats {
     pub fn record(&mut self, report: &ProfileReport) {
-        let time_us = report.wall_time.as_micros();
         self.count += 1;
-        self.total_time_us += time_us;
-        self.min_time_us = if self.count == 1 {
-            time_us
-        } else {
-            self.min_time_us.min(time_us)
-        };
-        self.max_time_us = self.max_time_us.max(time_us);
-        self.sum_sq_time_us += time_us * time_us;
-        self.total_requested_bytes += report.memory_stats.bytes_requested as u128;
-        self.total_granted_bytes += report.memory_stats.bytes_granted as u128;
-        self.max_scope_peak_bytes = self
-            .max_scope_peak_bytes
-            .max(report.memory_stats.peak_in_scope);
+
+        if report.time.host.available {
+            self.host_time
+                .record(report.time.host.wall_time.as_micros());
+        }
+
+        if report.time.device.available {
+            // Assuming kernel time as main metric if available, or 0
+            let t = report
+                .time
+                .device
+                .kernel_time
+                .map(|d| d.as_micros())
+                .unwrap_or(0);
+            self.device_time.record(t);
+        }
+
+        if report.memory.host.available {
+            self.host_memory.record(
+                report.memory.host.bytes_requested,
+                report.memory.host.bytes_granted,
+                report.memory.host.alloc_count,
+                report.memory.host.dealloc_count,
+                report.memory.host.peak_in_scope,
+                report.memory.host.persistent_peak,
+            );
+        }
+
+        if report.memory.device.available {
+            self.device_memory.record(
+                report.memory.device.bytes_requested,
+                report.memory.device.bytes_granted,
+                report.memory.device.alloc_count,
+                report.memory.device.dealloc_count,
+                report.memory.device.peak_in_scope,
+                report.memory.device.persistent_peak,
+            );
+        }
+
+        self.max_rss = self.max_rss.max(report.memory.peak_rss_bytes);
         self.last_report = Some(report.clone());
     }
 
-    pub fn avg_time_us(&self) -> u128 {
-        if self.count == 0 {
-            0
-        } else {
-            self.total_time_us / self.count as u128
-        }
-    }
-
-    pub fn stddev_time_us(&self) -> f64 {
-        if self.count < 2 {
-            return 0.0;
-        }
-        let n = self.count as f64;
-        let mean = self.total_time_us as f64 / n;
-        let variance = (self.sum_sq_time_us as f64 / n) - (mean * mean);
-        variance.max(0.0).sqrt()
-    }
-
-    pub fn avg_granted_bytes(&self) -> u64 {
-        if self.count == 0 {
-            0
-        } else {
-            (self.total_granted_bytes / self.count as u128) as u64
-        }
+    pub fn avg_host_time_us(&self) -> u128 {
+        self.host_time.avg_us()
     }
 }
 
@@ -126,7 +198,7 @@ impl Registry {
     ) -> OpId {
         let id = OpId(self.next_id);
         self.next_id += 1;
-        self.total_time += report.wall_time;
+        self.total_time += report.time.host.wall_time;
 
         let mut stats = OpStats::default();
         stats.record(report);
@@ -147,7 +219,7 @@ impl Registry {
 
     pub fn update(&mut self, id: OpId, report: &ProfileReport) {
         if let Some(record) = self.ops.get_mut(&id) {
-            self.total_time += report.wall_time;
+            self.total_time += report.time.host.wall_time;
             record.stats.record(report);
         }
     }
@@ -180,124 +252,6 @@ impl Registry {
 
     pub fn children_of(&self, parent: OpId) -> impl Iterator<Item = &OpRecord> {
         self.ops.values().filter(move |r| r.parent == Some(parent))
-    }
-
-    pub fn print_summary(&self) {
-        self.print_summary_impl(false);
-    }
-
-    pub fn print_summary_detailed(&self) {
-        self.print_summary_impl(true);
-    }
-
-    fn print_summary_impl(&self, detailed: bool) {
-        println!("\n=== Profiling Summary ===");
-        println!(
-            "| {:<30} | {:>5} | {:>10} | {:>10} | {:>10} | {:>10} | {:>12} | {:>6} |",
-            "Op", "Count", "Avg(us)", "Min(us)", "Max(us)", "Std(us)", "ScopePeak(B)", "Source"
-        );
-        println!(
-            "|{:-<32}|{:-<7}|{:-<12}|{:-<12}|{:-<12}|{:-<12}|{:-<14}|{:-<8}|",
-            "", "", "", "", "", "", "", ""
-        );
-
-        let mut top_level: Vec<_> = self.top_level_ops().collect();
-        top_level.sort_by(|a, b| b.stats.total_time_us.cmp(&a.stats.total_time_us));
-
-        for record in top_level {
-            self.print_record(record, 0);
-            if detailed {
-                self.print_children(record.id, 1);
-            }
-        }
-
-        println!(
-            "|{:-<32}|{:-<7}|{:-<12}|{:-<12}|{:-<12}|{:-<12}|{:-<14}|{:-<8}|",
-            "", "", "", "", "", "", "", ""
-        );
-        println!("Total profiled time: {:?}\n", self.total_time);
-    }
-
-    fn print_children(&self, parent: OpId, depth: usize) {
-        let mut children: Vec<_> = self.children_of(parent).collect();
-        children.sort_by(|a, b| b.stats.total_time_us.cmp(&a.stats.total_time_us));
-        for child in children {
-            self.print_record(child, depth);
-            self.print_children(child.id, depth + 1);
-        }
-    }
-
-    fn print_record(&self, record: &OpRecord, depth: usize) {
-        let indent = "  ".repeat(depth);
-        let prefix = if depth > 0 { "- " } else { "" };
-        let name = format!("{}{}{}", indent, prefix, format_op_name(record));
-        let src = record
-            .stats
-            .last_report
-            .as_ref()
-            .map(|r| format_source(r.memory_stats.source))
-            .unwrap_or("-");
-        println!(
-            "| {:<30} | {:>5} | {:>10} | {:>10} | {:>10} | {:>10.1} | {:>12} | {:>6} |",
-            truncate_str(&name, 30),
-            record.stats.count,
-            record.stats.avg_time_us(),
-            record.stats.min_time_us,
-            record.stats.max_time_us,
-            record.stats.stddev_time_us(),
-            record.stats.max_scope_peak_bytes,
-            src
-        );
-    }
-
-    pub fn print_memory_details(&self) {
-        println!("Memory stats legend:");
-        println!("  - source: backend | tracking | none");
-        println!("  - bytes_requested/granted: allocator-reported totals");
-        println!("  - alloc/dealloc_count: operation-level allocation counts");
-        println!("  - peak_in_scope: scoped high-water mark during the op");
-        println!("  - persistent_peak: allocator lifetime high-water mark\n");
-
-        println!(
-            "| {:<30} | {:>6} | {:>12} | {:>12} | {:>6} | {:>6} | {:>12} | {:>12} |",
-            "Op", "Source", "Req(B)", "Grant(B)", "Alloc", "Dealloc", "PeakScope", "Persistent"
-        );
-        println!(
-            "|{:-<32}|{:-<8}|{:-<14}|{:-<14}|{:-<8}|{:-<8}|{:-<14}|{:-<14}|",
-            "", "", "", "", "", "", "", ""
-        );
-
-        let mut top_level: Vec<_> = self.top_level_ops().collect();
-        top_level.sort_by(|a, b| b.stats.total_time_us.cmp(&a.stats.total_time_us));
-
-        for record in top_level {
-            self.print_memory_record(record, 0);
-        }
-
-        println!(
-            "|{:-<32}|{:-<8}|{:-<14}|{:-<14}|{:-<8}|{:-<8}|{:-<14}|{:-<14}|",
-            "", "", "", "", "", "", "", ""
-        );
-    }
-
-    fn print_memory_record(&self, record: &OpRecord, depth: usize) {
-        if let Some(report) = &record.stats.last_report {
-            let indent = "  ".repeat(depth);
-            let prefix = if depth > 0 { "- " } else { "" };
-            let name = format!("{}{}{}", indent, prefix, format_op_name(record));
-            let mem = &report.memory_stats;
-            println!(
-                "| {:<30} | {:>6} | {:>12} | {:>12} | {:>6} | {:>6} | {:>12} | {:>12} |",
-                truncate_str(&name, 30),
-                format_source(mem.source),
-                mem.bytes_requested,
-                mem.bytes_granted,
-                mem.alloc_count,
-                mem.dealloc_count,
-                mem.peak_in_scope,
-                mem.persistent_peak,
-            );
-        }
     }
 }
 
@@ -354,7 +308,7 @@ impl<'a> QueryBuilder<'a> {
                     }
                 }
                 if let Some(min) = self.min_duration_us {
-                    if r.stats.avg_time_us() < min {
+                    if r.stats.avg_host_time_us() < min {
                         return false;
                     }
                 }
@@ -364,45 +318,7 @@ impl<'a> QueryBuilder<'a> {
                     }
                 }
                 true
-            })
-            .collect()
-    }
-}
-
-fn format_op_name(record: &OpRecord) -> String {
-    if record.shapes.is_empty() {
-        record.name.clone()
-    } else {
-        let shapes_str = record
-            .shapes
-            .iter()
-            .map(|s| {
-                s.iter()
-                    .map(|d| d.to_string())
-                    .collect::<Vec<_>>()
-                    .join("x")
-            })
-            .collect::<Vec<_>>()
-            .join(",");
-        format!("{}[{}]", record.name, shapes_str)
-    }
-}
-
-fn truncate_str(s: &str, max_len: usize) -> &str {
-    if s.len() <= max_len {
-        return s;
-    }
-    let mut end = max_len;
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
-fn format_source(source: MemoryStatsSource) -> &'static str {
-    match source {
-        MemoryStatsSource::BackendAllocator => "backend",
-        MemoryStatsSource::TrackingAllocator => "tracking",
-        MemoryStatsSource::Unavailable => "none",
-    }
-}
+                })
+                .collect()
+                }
+                }

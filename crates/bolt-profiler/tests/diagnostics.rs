@@ -5,7 +5,7 @@ use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
 use bolt_core::{AllocatorDiagnostics, NativeType, StorageAllocator, Tensor};
 use bolt_cpu::CpuBackend;
-use bolt_profiler::{MemoryStatsSource, OpCategory, ProfiledBackend, QueryBuilder};
+use bolt_profiler::{OpCategory, ProfiledBackend, QueryBuilder};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -118,12 +118,9 @@ fn backend_allocator_diagnostics_used() -> CoreResult<()> {
     assert!(!fills.is_empty(), "Should have fill op");
     let report = fills[0].stats.last_report.as_ref().expect("fill stats");
 
-    assert_eq!(
-        report.memory_stats.source,
-        MemoryStatsSource::BackendAllocator
-    );
-    assert!(report.memory_stats.alloc_count > 0);
-    assert!(report.memory_stats.bytes_granted > 0);
+    assert!(report.memory.device.available, "Backend allocator diagnostics should be used");
+    assert!(report.memory.device.alloc_count > 0);
+    assert!(report.memory.device.bytes_granted > 0);
     Ok(())
 }
 
@@ -141,9 +138,9 @@ fn diagnostics_unavailable_without_backend_or_fallback() -> CoreResult<()> {
     assert!(!fills.is_empty());
     let report = fills[0].stats.last_report.as_ref().expect("fill stats");
 
-    assert_eq!(report.memory_stats.source, MemoryStatsSource::Unavailable);
-    assert_eq!(report.memory_stats.bytes_granted, 0);
-    assert_eq!(report.memory_stats.bytes_requested, 0);
+    assert!(!report.memory.device.available, "Diagnostics should be unavailable");
+    assert_eq!(report.memory.device.bytes_granted, 0);
+    assert_eq!(report.memory.device.bytes_requested, 0);
     Ok(())
 }
 
@@ -165,20 +162,14 @@ fn tensor_add_reports_balanced_allocs_and_deallocs() -> CoreResult<()> {
 
     let report = backend.end_scope().expect("scope report");
 
-    backend.print_report();
-    println!("\n--- Detailed view with hierarchy ---");
-    backend.print_report_detailed();
-    backend.print_memory_details();
+    bolt_profiler::print_report(backend.registry());
 
+    assert!(report.memory.device.available);
     assert_eq!(
-        report.memory_stats.source,
-        MemoryStatsSource::BackendAllocator
-    );
-    assert_eq!(
-        report.memory_stats.alloc_count, report.memory_stats.dealloc_count,
+        report.memory.device.alloc_count, report.memory.device.dealloc_count,
         "Allocs and deallocs should be balanced"
     );
-    assert!(report.memory_stats.alloc_count > 0);
+    assert!(report.memory.device.alloc_count > 0);
 
     let registry = backend.registry();
     let stats = registry.lock();

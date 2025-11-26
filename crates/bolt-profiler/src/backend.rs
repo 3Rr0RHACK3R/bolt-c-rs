@@ -13,7 +13,10 @@ use parking_lot::Mutex;
 use crate::allocator::{AllocatorStats, TrackingAllocator};
 use crate::os_stats::get_os_stats;
 use crate::registry::{OpCategory, OpId, Registry, current_scope, pop_scope, push_scope};
-use crate::report::{CpuStats, MemoryStats, MemoryStatsSource, ProfileReport};
+use crate::report::{
+    DeviceMemoryStats, DeviceTimeStats, HostMemoryStats, HostTimeStats, MemoryStats, ProfileReport,
+    TimeStats,
+};
 
 thread_local! {
     static SCOPE_START: RefCell<Vec<ScopeState>> = const { RefCell::new(Vec::new()) };
@@ -103,18 +106,6 @@ impl<B> ProfiledBackend<B> {
         self.registry.lock().clear();
     }
 
-    pub fn print_report(&self) {
-        self.registry.lock().print_summary();
-    }
-
-    pub fn print_report_detailed(&self) {
-        self.registry.lock().print_summary_detailed();
-    }
-
-    pub fn print_memory_details(&self) {
-        self.registry.lock().print_memory_details();
-    }
-
     pub fn with_registry<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&Registry) -> R,
@@ -137,17 +128,16 @@ impl<B> ProfiledBackend<B> {
         let allocator = <B as Backend<D>>::allocator(&self.inner);
         let caps = allocator.capabilities();
 
-        let mut tracking_start_stats = None;
-        let start_alloc = if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
+        if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
             allocator.begin_scope();
-            Some(allocator.snapshot())
-        } else if let Some(ta) = self.allocator {
+        }
+        let start_alloc = Some(allocator.snapshot());
+
+        let mut tracking_start_stats = None;
+        if let Some(ta) = self.allocator {
             ta.begin_scope();
             tracking_start_stats = Some(ta.stats());
-            None
-        } else {
-            None
-        };
+        }
 
         let op_id = self.registry.lock().record(
             name,
@@ -155,9 +145,11 @@ impl<B> ProfiledBackend<B> {
             Vec::new(),
             current_scope(),
             &ProfileReport {
-                wall_time: std::time::Duration::ZERO,
-                cpu_stats: CpuStats::default(),
-                memory_stats: MemoryStats::default(),
+                time: TimeStats {
+                    host: HostTimeStats::default(),
+                    device: DeviceTimeStats::default(),
+                },
+                memory: MemoryStats::default(),
             },
         );
 
@@ -188,7 +180,8 @@ impl<B> ProfiledBackend<B> {
         let end_os = get_os_stats();
         let wall_time = end_time.duration_since(state.start_time);
 
-        let cpu_stats = CpuStats {
+        let host_time = HostTimeStats {
+            wall_time,
             user_time: end_os
                 .user_cpu_time
                 .saturating_sub(state.start_os.user_cpu_time),
@@ -198,37 +191,46 @@ impl<B> ProfiledBackend<B> {
             thread_time: end_os
                 .thread_cpu_time
                 .saturating_sub(state.start_os.thread_cpu_time),
+            available: true,
         };
 
         let allocator = <B as Backend<D>>::allocator(&self.inner);
         let caps = allocator.capabilities();
 
-        let memory_stats = if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
+        let device_memory = if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
             let scope_snapshot = allocator.end_scope();
             let after = allocator.snapshot();
-            build_memory_stats(
-                &state.start_alloc.unwrap_or_default(),
-                &after,
-                scope_snapshot,
-                caps,
-                end_os.rss_bytes,
-            )
-        } else if let Some(ta) = self.allocator {
+            let base = scope_snapshot
+                .unwrap_or_else(|| snapshot_delta(&after, state.start_alloc.as_ref().unwrap()));
+            build_device_memory_stats(&base, true)
+        } else if let Some(start_snapshot) = state.start_alloc {
+            let end_snapshot = allocator.snapshot();
+            let base = snapshot_delta(&end_snapshot, &start_snapshot);
+            let available = !caps.is_empty() || base.bytes_requested > 0 || base.alloc_count > 0;
+            build_device_memory_stats(&base, available)
+        } else {
+            DeviceMemoryStats::default()
+        };
+
+        let host_memory = if let Some(ta) = self.allocator {
             let scope_peak = ta.end_scope();
             let end_stats = ta.stats();
             let start_stats = state.tracking_start_stats.unwrap_or_default();
-            build_tracking_memory_stats(&start_stats, &end_stats, scope_peak, end_os.rss_bytes)
+            build_host_memory_stats(&start_stats, &end_stats, scope_peak)
         } else {
-            MemoryStats {
-                peak_rss_bytes: end_os.rss_bytes,
-                ..Default::default()
-            }
+            HostMemoryStats::default()
         };
 
         let report = ProfileReport {
-            wall_time,
-            cpu_stats,
-            memory_stats,
+            time: TimeStats {
+                host: host_time,
+                device: DeviceTimeStats::default(),
+            },
+            memory: MemoryStats {
+                host: host_memory,
+                device: device_memory,
+                peak_rss_bytes: end_os.rss_bytes,
+            },
         };
 
         self.registry.lock().update(state.op_id, &report);
@@ -264,10 +266,13 @@ impl<B> ProfiledBackend<B> {
         }
 
         let caps = allocator.capabilities();
-        let mut tracking_start_stats = None;
         if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
             allocator.begin_scope();
-        } else if let Some(ta) = self.allocator {
+        }
+        let alloc = allocator.snapshot();
+
+        let mut tracking_start_stats = None;
+        if let Some(ta) = self.allocator {
             ta.begin_scope();
             tracking_start_stats = Some(ta.stats());
         }
@@ -275,7 +280,7 @@ impl<B> ProfiledBackend<B> {
         Some(ProfileStart {
             time: Instant::now(),
             os: get_os_stats(),
-            alloc: allocator.snapshot(),
+            alloc,
             tracking_start_stats,
         })
     }
@@ -295,35 +300,48 @@ impl<B> ProfiledBackend<B> {
         let end_os = get_os_stats();
         let wall_time = end_time.duration_since(start.time);
 
-        let cpu_stats = CpuStats {
+        let host_time = HostTimeStats {
+            wall_time,
             user_time: end_os.user_cpu_time.saturating_sub(start.os.user_cpu_time),
             sys_time: end_os.sys_cpu_time.saturating_sub(start.os.sys_cpu_time),
             thread_time: end_os
                 .thread_cpu_time
                 .saturating_sub(start.os.thread_cpu_time),
+            available: true,
         };
 
         let caps = allocator.capabilities();
-        let memory_stats = if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
+        let device_memory = if caps.contains(DiagnosticsCaps::SUPPORTS_SCOPE) {
             let scope_snapshot = allocator.end_scope();
             let after = allocator.snapshot();
-            build_memory_stats(&start.alloc, &after, scope_snapshot, caps, end_os.rss_bytes)
-        } else if let Some(ta) = self.allocator {
+            let base = scope_snapshot.unwrap_or_else(|| snapshot_delta(&after, &start.alloc));
+            build_device_memory_stats(&base, true)
+        } else {
+            let end_snapshot = allocator.snapshot();
+            let base = snapshot_delta(&end_snapshot, &start.alloc);
+            let available = !caps.is_empty() || base.bytes_requested > 0 || base.alloc_count > 0;
+            build_device_memory_stats(&base, available)
+        };
+
+        let host_memory = if let Some(ta) = self.allocator {
             let scope_peak = ta.end_scope();
             let end_stats = ta.stats();
             let start_stats = start.tracking_start_stats.unwrap_or_default();
-            build_tracking_memory_stats(&start_stats, &end_stats, scope_peak, end_os.rss_bytes)
+            build_host_memory_stats(&start_stats, &end_stats, scope_peak)
         } else {
-            MemoryStats {
-                peak_rss_bytes: end_os.rss_bytes,
-                ..Default::default()
-            }
+            HostMemoryStats::default()
         };
 
         let report = ProfileReport {
-            wall_time,
-            cpu_stats,
-            memory_stats,
+            time: TimeStats {
+                host: host_time,
+                device: DeviceTimeStats::default(),
+            },
+            memory: MemoryStats {
+                host: host_memory,
+                device: device_memory,
+                peak_rss_bytes: end_os.rss_bytes,
+            },
         };
 
         self.registry
@@ -359,59 +377,40 @@ macro_rules! profile_op {
     }};
 }
 
-fn build_memory_stats(
-    before: &AllocatorSnapshot,
-    after: &AllocatorSnapshot,
-    scope: Option<AllocatorSnapshot>,
-    caps: DiagnosticsCaps,
-    peak_rss_bytes: u64,
-) -> MemoryStats {
-    let base = scope.unwrap_or_else(|| snapshot_delta(after, before));
-    let mut stats = MemoryStats {
-        source: MemoryStatsSource::BackendAllocator,
+fn build_device_memory_stats(base: &AllocatorSnapshot, available: bool) -> DeviceMemoryStats {
+    DeviceMemoryStats {
         bytes_requested: base.bytes_requested,
         bytes_granted: base.bytes_granted,
         alloc_count: base.alloc_count,
         dealloc_count: base.dealloc_count,
         peak_in_scope: base.peak_in_scope,
         persistent_peak: base.persistent_peak,
-        peak_rss_bytes,
-        ..Default::default()
-    };
-    if caps.contains(DiagnosticsCaps::SUPPORTS_FRAGMENTATION) {
-        stats.fragmentation_pct = base.fragmentation_pct;
+        fragmentation_pct: base.fragmentation_pct,
+        scratch_bytes: base.scratch_bytes,
+        extensions: base.extensions.clone(),
+        available,
     }
-    if caps.contains(DiagnosticsCaps::SUPPORTS_SCRATCH) {
-        stats.scratch_bytes = base.scratch_bytes;
-    }
-    if caps.contains(DiagnosticsCaps::SUPPORTS_EXTENSIONS) {
-        stats.extensions = base.extensions;
-    }
-    stats
 }
 
-fn build_tracking_memory_stats(
+fn build_host_memory_stats(
     start: &crate::allocator::AllocatorStats,
     end: &crate::allocator::AllocatorStats,
     scope_peak: usize,
-    peak_rss_bytes: u64,
-) -> MemoryStats {
+) -> HostMemoryStats {
     let bytes_requested = end
         .cumulative_allocated_bytes
         .saturating_sub(start.cumulative_allocated_bytes) as u64;
     let alloc_count = end.alloc_count.saturating_sub(start.alloc_count) as u64;
     let dealloc_count = end.dealloc_count.saturating_sub(start.dealloc_count) as u64;
 
-    MemoryStats {
-        source: MemoryStatsSource::TrackingAllocator,
+    HostMemoryStats {
         bytes_requested,
         bytes_granted: bytes_requested,
         alloc_count,
         dealloc_count,
         peak_in_scope: scope_peak as u64,
         persistent_peak: end.peak_allocated_bytes as u64,
-        peak_rss_bytes,
-        ..Default::default()
+        available: true,
     }
 }
 

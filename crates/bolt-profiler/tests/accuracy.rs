@@ -2,7 +2,7 @@ use bolt_core::backend::FillOp;
 use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
 use bolt_cpu::CpuBackend;
-use bolt_profiler::{MemoryStatsSource, ProfiledBackend, QueryBuilder, TrackingAllocator};
+use bolt_profiler::{ProfiledBackend, QueryBuilder, TrackingAllocator};
 use serial_test::serial;
 use std::sync::Arc;
 
@@ -33,11 +33,11 @@ fn allocator_tracks_fill_ops() {
     assert!(record.stats.last_report.is_some());
 
     let report = record.stats.last_report.as_ref().unwrap();
-    assert_eq!(
-        report.memory_stats.source,
-        MemoryStatsSource::BackendAllocator
-    );
-    assert!(report.memory_stats.alloc_count > 0);
+    
+    // Updated for new profiler axes
+    // CpuBackend uses the backend allocator (device stats)
+    assert!(report.memory.device.available, "Device memory stats should be available for CpuBackend");
+    assert!(report.memory.device.alloc_count > 0);
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn scope_tracks_nested_ops() {
     let _ = backend.fill(&layout, 3.0f32).unwrap();
     let report = backend.end_scope().expect("scope report");
 
-    assert!(report.wall_time.as_nanos() > 0);
+    assert!(report.time.host.wall_time.as_nanos() > 0);
 
     let registry = backend.registry();
     let stats = registry.lock();
