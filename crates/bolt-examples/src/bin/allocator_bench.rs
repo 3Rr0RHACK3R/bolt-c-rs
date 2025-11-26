@@ -13,6 +13,7 @@ fn benchmark_allocator(backend: CpuBackend, name: &str) {
     
     // Reset global allocator stats before run
     GLOBAL.reset_counts();
+    let baseline = GLOBAL.stats();
     
     let start = Instant::now();
     let iterations = 2_000;
@@ -32,12 +33,22 @@ fn benchmark_allocator(backend: CpuBackend, name: &str) {
     
     let duration = start.elapsed();
     let stats = GLOBAL.stats();
+    let alloc_delta = stats.alloc_count;
+    let dealloc_delta = stats.dealloc_count;
+    let bytes_delta = stats
+        .cumulative_allocated_bytes
+        .saturating_sub(baseline.cumulative_allocated_bytes);
+    let live_delta = stats
+        .allocated_bytes
+        .saturating_sub(baseline.allocated_bytes);
     
     println!("Total Time: {:.2?}", duration);
     println!("Average: {:.2?} per alloc/free cycle", duration / iterations);
     println!("Throughput: {:.2} allocs/sec", iterations as f64 / duration.as_secs_f64());
-    println!("System Allocations: {}", stats.alloc_count);
-    println!("System Deallocations: {}", stats.dealloc_count);
+    println!("System Allocations: {}", alloc_delta);
+    println!("System Deallocations: {}", dealloc_delta);
+    println!("Bytes Allocated (delta): {}", bytes_delta);
+    println!("Live Bytes Delta: {}", live_delta);
     println!();
 }
 
@@ -46,11 +57,15 @@ fn main() {
     println!("Iterations: 2,000 | Allocation Size: 10MB");
     println!("=================================================\n");
     
-    // 1. Naive (System Allocator)
+    // 1. Naive (System Allocator) - single run
     let naive = CpuBackend::new();
     benchmark_allocator(naive, "Naive Allocator (System Malloc)");
-
-    // 2. Caching (Pool)
+ 
+    // 2. Caching (Pool) - multiple rounds on the same backend instance
     let caching = CpuBackend::with_pooling();
-    benchmark_allocator(caching, "Caching Allocator (Memory Pool)");
+    let rounds = 5;
+    for round in 1..=rounds {
+        let label = format!("Caching Allocator (Memory Pool) [round {}]", round);
+        benchmark_allocator(caching.clone(), &label);
+    }
 }
