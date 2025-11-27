@@ -32,7 +32,7 @@ impl MemoryPool {
     /// Returns a pointer to the block and the layout used for allocation (which matches the requested layout).
     pub fn acquire(&self, layout: Layout) -> NonNull<u8> {
         let key = (layout.size(), layout.align());
-        
+
         // 1. Try to pop from cache
         {
             let mut blocks = self.blocks.lock().unwrap();
@@ -44,7 +44,7 @@ impl MemoryPool {
         }
 
         // 2. Allocate from system if not found
-        // Safety: Layout is checked by caller to be non-zero usually, 
+        // Safety: Layout is checked by caller to be non-zero usually,
         // but alloc requires non-zero size.
         let size = layout.size();
         if size == 0 {
