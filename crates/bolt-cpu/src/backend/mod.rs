@@ -9,7 +9,7 @@ use std::sync::Arc;
 use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
-    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp},
+    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, MulOp, SubOp},
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
     layout::Layout,
@@ -22,7 +22,7 @@ use allocator::CpuAllocTelemetry;
 use allocator::CpuAllocator;
 use context::CpuContext;
 use memory_pool::MemoryPool;
-use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, SubKernel};
+use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, MulKernel, SubKernel};
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
 #[derive(Clone)]
@@ -194,6 +194,25 @@ where
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>> {
         <D as MatmulKernel>::matmul_kernel(
+            TensorView::new(lhs, lhs_layout),
+            TensorView::new(rhs, rhs_layout),
+            &self.allocator(),
+        )
+    }
+}
+
+impl<D> MulOp<D> for CpuBackend
+where
+    D: CpuScalar + MulKernel,
+{
+    fn mul(
+        &self,
+        lhs: &Self::Storage,
+        rhs: &Self::Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as MulKernel>::mul_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
             &self.allocator(),
