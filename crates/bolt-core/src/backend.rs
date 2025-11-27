@@ -46,6 +46,16 @@ pub trait AddOp<D: NativeType>: Backend<D> {
     ) -> Result<TensorParts<Self::Storage>>;
 }
 
+pub trait MulOp<D: NativeType>: Backend<D> {
+    fn mul(
+        &self,
+        lhs: &Self::Storage,
+        rhs: &Self::Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
+
 pub trait SubOp<D: NativeType>: Backend<D> {
     fn sub(
         &self,

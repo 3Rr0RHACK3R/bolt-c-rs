@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     allocator::StorageAllocator,
-    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp},
+    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, MulOp, SubOp},
     dtype::{NativeType, OneValue, ToF32},
     error::{Error, Result},
     index::TensorIndex,
@@ -248,6 +248,21 @@ where
         let parts = self
             .backend
             .sub(&self.storage, &other.storage, &self.layout, &other.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn mul(&self, other: &Self) -> Result<Self>
+    where
+        B: MulOp<D>,
+    {
+        self.ensure_same_backend(other)?;
+        let parts =
+            self.backend
+                .mul(&self.storage, &other.storage, &self.layout, &other.layout)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
