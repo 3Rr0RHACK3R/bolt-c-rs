@@ -26,7 +26,7 @@ fn print_time_stats(registry: &Registry) {
         print_time_record(registry, record, 0);
         print_time_children(registry, record.id, 1);
     }
-    
+
     println!(
         "|{:-<32}|{:-<7}|{:-<12}|{:-<12}|{:-<12}|{:-<12}|{:-<12}|",
         "", "", "", "", "", "", ""

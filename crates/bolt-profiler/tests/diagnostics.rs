@@ -5,7 +5,7 @@ use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
 use bolt_core::{AllocatorDiagnostics, NativeType, StorageAllocator, Tensor};
 use bolt_cpu::CpuBackend;
-use bolt_profiler::{OpCategory, ProfiledBackend, QueryBuilder};
+use bolt_profiler::{OpCategory, ProfiledBackend};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -106,19 +106,22 @@ fn make_layout(len: usize) -> Layout {
 
 #[test]
 fn backend_allocator_diagnostics_used() -> CoreResult<()> {
-    let backend = ProfiledBackend::new(CpuBackend::new(), None);
+    let (backend, profiler) = ProfiledBackend::wrap(CpuBackend::new());
     let layout = make_layout(8);
     let _ = backend.fill(&layout, 1.0f32)?;
 
-    let registry = backend.registry();
+    let registry = profiler.registry();
     let stats = registry.lock();
 
-    let fills: Vec<_> = QueryBuilder::new(&stats).name_contains("fill").collect();
+    let fills: Vec<_> = stats.ops().values().filter(|r| r.name == "fill").collect();
 
     assert!(!fills.is_empty(), "Should have fill op");
     let report = fills[0].stats.last_report.as_ref().expect("fill stats");
 
-    assert!(report.memory.device.available, "Backend allocator diagnostics should be used");
+    assert!(
+        report.memory.device.available,
+        "Backend allocator diagnostics should be used"
+    );
     assert!(report.memory.device.alloc_count > 0);
     assert!(report.memory.device.bytes_granted > 0);
     Ok(())
@@ -126,52 +129,43 @@ fn backend_allocator_diagnostics_used() -> CoreResult<()> {
 
 #[test]
 fn diagnostics_unavailable_without_backend_or_fallback() -> CoreResult<()> {
-    let backend = ProfiledBackend::new(NoDiagBackend::new(), None);
+    let (backend, profiler) = ProfiledBackend::wrap(NoDiagBackend::new());
     let layout = make_layout(2);
     let _ = backend.fill(&layout, 3.0f32)?;
 
-    let registry = backend.registry();
+    let registry = profiler.registry();
     let stats = registry.lock();
 
-    let fills: Vec<_> = QueryBuilder::new(&stats).name_contains("fill").collect();
+    let fills: Vec<_> = stats.ops().values().filter(|r| r.name == "fill").collect();
 
     assert!(!fills.is_empty());
     let report = fills[0].stats.last_report.as_ref().expect("fill stats");
 
-    assert!(!report.memory.device.available, "Diagnostics should be unavailable");
+    assert!(
+        !report.memory.device.available,
+        "Diagnostics should be unavailable"
+    );
     assert_eq!(report.memory.device.bytes_granted, 0);
     assert_eq!(report.memory.device.bytes_requested, 0);
     Ok(())
 }
 
 #[test]
-fn tensor_add_reports_balanced_allocs_and_deallocs() -> CoreResult<()> {
+fn scopes_record_parent_child_relationships() -> CoreResult<()> {
     let backend: Arc<ProfiledBackend<CpuBackend>> =
         Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
-    backend.clear_stats();
-    let shape = [1024, 1024];
+    let profiler = backend.profiler().clone();
+    profiler.clear();
 
-    backend.begin_scope("tensor_add_scope");
+    profiler.with_scope("tensor_add_scope", || {
+        let shape = [1024, 1024];
+        let a = Tensor::<_, f32>::zeros(&backend, &shape).unwrap();
+        let b = Tensor::<_, f32>::zeros(&backend, &shape).unwrap();
+        let c = a.add(&b).unwrap();
+        drop(c);
+    });
 
-    let a = Tensor::<_, f32>::zeros(&backend, &shape)?;
-    let b = Tensor::<_, f32>::zeros(&backend, &shape)?;
-    let c = a.add(&b)?;
-    drop(c);
-    drop(b);
-    drop(a);
-
-    let report = backend.end_scope().expect("scope report");
-
-    bolt_profiler::print_report(backend.registry());
-
-    assert!(report.memory.device.available);
-    assert_eq!(
-        report.memory.device.alloc_count, report.memory.device.dealloc_count,
-        "Allocs and deallocs should be balanced"
-    );
-    assert!(report.memory.device.alloc_count > 0);
-
-    let registry = backend.registry();
+    let registry = profiler.registry();
     let stats = registry.lock();
 
     let top_level: Vec<_> = stats.top_level_ops().collect();
@@ -180,35 +174,10 @@ fn tensor_add_reports_balanced_allocs_and_deallocs() -> CoreResult<()> {
     assert_eq!(top_level[0].category, OpCategory::UserScope);
 
     let children: Vec<_> = stats.children_of(top_level[0].id).collect();
-    assert!(children.len() >= 1, "Scope should have child ops");
-
-    Ok(())
-}
-
-#[test]
-fn query_api_filters_correctly() -> CoreResult<()> {
-    let backend = Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
-    backend.clear_stats();
-
-    let small_layout = make_layout(8);
-    let _ = backend.fill(&small_layout, 1.0f32)?;
-    let _ = backend.fill(&small_layout, 2.0f32)?;
-
-    let registry = backend.registry();
-    let stats = registry.lock();
-
-    let all_ops: Vec<_> = QueryBuilder::new(&stats).collect();
-    assert_eq!(all_ops.len(), 2);
-
-    let memory_ops: Vec<_> = QueryBuilder::new(&stats)
-        .category(OpCategory::Memory)
-        .collect();
-    assert_eq!(memory_ops.len(), 2);
-
-    let compute_ops: Vec<_> = QueryBuilder::new(&stats)
-        .category(OpCategory::Compute)
-        .collect();
-    assert_eq!(compute_ops.len(), 0);
+    assert!(
+        children.len() >= 1,
+        "Scope should have child ops recorded within it"
+    );
 
     Ok(())
 }

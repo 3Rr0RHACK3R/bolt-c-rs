@@ -2,11 +2,11 @@ use bolt_core::allocator::StorageAllocator;
 use bolt_core::backend::Backend;
 use bolt_core::dtype::DType;
 use bolt_cpu::backend::CpuBackend;
-use bolt_profiler::TrackingAllocator;
+use bolt_profiler::HostMemTracker;
 use std::time::Instant;
 
 #[global_allocator]
-static GLOBAL: TrackingAllocator = TrackingAllocator::new();
+static GLOBAL: HostMemTracker = HostMemTracker::new();
 
 fn benchmark_allocator(backend: CpuBackend, name: &str) {
     let allocator = <CpuBackend as Backend<f32>>::allocator(&backend);

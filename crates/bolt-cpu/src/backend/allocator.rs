@@ -163,48 +163,46 @@ impl<D: NativeType> StorageAllocator<D> for CpuAllocator<D> {
     type Storage = CpuStorage<D>;
 
     fn allocate(&self, len: usize) -> Result<Self::Storage> {
-        let bytes_total = len
-             .checked_mul(D::DTYPE.size_in_bytes())
-             .ok_or(Error::TensorTooLarge {
-                 limit: usize::MAX,
-                 requested: usize::MAX,
-             })?;
+        let bytes_total =
+            len.checked_mul(D::DTYPE.size_in_bytes())
+                .ok_or(Error::TensorTooLarge {
+                    limit: usize::MAX,
+                    requested: usize::MAX,
+                })?;
 
         #[cfg(feature = "diagnostics")]
         {
-            self.diagnostics.record_alloc(bytes_total as u64, bytes_total as u64);
+            self.diagnostics
+                .record_alloc(bytes_total as u64, bytes_total as u64);
         }
-        Ok(CpuStorage::new(
-            Arc::new(StorageBlock::new(
-                len,
-                false,
-                self.pool.clone(),
-                #[cfg(feature = "diagnostics")]
-                Some(Arc::clone(&self.diagnostics)),
-            )?),
-        ))
+        Ok(CpuStorage::new(Arc::new(StorageBlock::new(
+            len,
+            false,
+            self.pool.clone(),
+            #[cfg(feature = "diagnostics")]
+            Some(Arc::clone(&self.diagnostics)),
+        )?)))
     }
 
     fn allocate_zeroed(&self, len: usize) -> Result<Self::Storage> {
-        let bytes_total = len
-             .checked_mul(D::DTYPE.size_in_bytes())
-             .ok_or(Error::TensorTooLarge {
-                 limit: usize::MAX,
-                 requested: usize::MAX,
-             })?;
+        let bytes_total =
+            len.checked_mul(D::DTYPE.size_in_bytes())
+                .ok_or(Error::TensorTooLarge {
+                    limit: usize::MAX,
+                    requested: usize::MAX,
+                })?;
         #[cfg(feature = "diagnostics")]
         {
-            self.diagnostics.record_alloc(bytes_total as u64, bytes_total as u64);
+            self.diagnostics
+                .record_alloc(bytes_total as u64, bytes_total as u64);
         }
-        Ok(CpuStorage::new(
-            Arc::new(StorageBlock::new(
-                len,
-                true,
-                self.pool.clone(),
-                #[cfg(feature = "diagnostics")]
-                Some(Arc::clone(&self.diagnostics)),
-            )?),
-        ))
+        Ok(CpuStorage::new(Arc::new(StorageBlock::new(
+            len,
+            true,
+            self.pool.clone(),
+            #[cfg(feature = "diagnostics")]
+            Some(Arc::clone(&self.diagnostics)),
+        )?)))
     }
 
     fn allocate_bytes(&self, len_bytes: usize, dtype: DType) -> Result<Self::Storage> {
@@ -213,17 +211,16 @@ impl<D: NativeType> StorageAllocator<D> for CpuAllocator<D> {
 
         #[cfg(feature = "diagnostics")]
         {
-            self.diagnostics.record_alloc(len_bytes as u64, bytes_total as u64);
+            self.diagnostics
+                .record_alloc(len_bytes as u64, bytes_total as u64);
         }
-        Ok(CpuStorage::new(
-            Arc::new(StorageBlock::new(
-                len,
-                false,
-                self.pool.clone(),
-                #[cfg(feature = "diagnostics")]
-                Some(Arc::clone(&self.diagnostics)),
-            )?),
-        ))
+        Ok(CpuStorage::new(Arc::new(StorageBlock::new(
+            len,
+            false,
+            self.pool.clone(),
+            #[cfg(feature = "diagnostics")]
+            Some(Arc::clone(&self.diagnostics)),
+        )?)))
     }
 
     fn allocate_zeroed_bytes(&self, len_bytes: usize, dtype: DType) -> Result<Self::Storage> {
@@ -231,17 +228,16 @@ impl<D: NativeType> StorageAllocator<D> for CpuAllocator<D> {
         let bytes_total = len * dtype.size_in_bytes();
         #[cfg(feature = "diagnostics")]
         {
-            self.diagnostics.record_alloc(len_bytes as u64, bytes_total as u64);
+            self.diagnostics
+                .record_alloc(len_bytes as u64, bytes_total as u64);
         }
-        Ok(CpuStorage::new(
-            Arc::new(StorageBlock::new(
-                len,
-                true,
-                self.pool.clone(),
-                #[cfg(feature = "diagnostics")]
-                Some(Arc::clone(&self.diagnostics)),
-            )?),
-        ))
+        Ok(CpuStorage::new(Arc::new(StorageBlock::new(
+            len,
+            true,
+            self.pool.clone(),
+            #[cfg(feature = "diagnostics")]
+            Some(Arc::clone(&self.diagnostics)),
+        )?)))
     }
 }
 

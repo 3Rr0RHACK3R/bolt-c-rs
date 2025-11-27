@@ -1,82 +1,54 @@
 use bolt_cpu::CpuBackend;
-use bolt_profiler::{ProfiledBackend, TrackingAllocator};
+use bolt_profiler::{HostMemTracker, ProfiledBackend};
 use std::sync::Arc;
 
 #[global_allocator]
-static GLOBAL: TrackingAllocator = TrackingAllocator::new();
+static GLOBAL: HostMemTracker = HostMemTracker::new();
 
 fn main() {
     println!("Starting Profiler Demo...\n");
 
-    let backend: Arc<ProfiledBackend<CpuBackend>> = Arc::new(
-        ProfiledBackend::builder(CpuBackend::new())
-            .with_tracking_allocator(&GLOBAL)
-            .build(),
-    );
+    let (backend, profiler) = ProfiledBackend::wrap_with_host_mem(CpuBackend::new(), &GLOBAL);
+    let backend: Arc<ProfiledBackend<CpuBackend>> = Arc::new(backend);
 
     // Example 1: Heavy Allocation within scope
     println!("--- Profile: Heavy Allocation ---");
-    backend.begin_scope("heavy_allocation");
-    {
-        let mut vec = Vec::new();
-        for i in 0..1_000_000 {
-            vec.push(i);
-        }
-        std::hint::black_box(&vec);
-    }
-    let report = backend.end_scope().expect("scope");
-
-    println!("Wall Time: {:?}", report.time.host.wall_time);
-    println!("Alloc Count: {}", report.memory.host.alloc_count);
-    println!(
-        "Scope Peak: {:.2} MB",
-        report.memory.host.peak_in_scope as f64 / 1024.0 / 1024.0
-    );
+    profiler.with_scope("heavy_allocation", || {
+        // Large tensor creation to exercise host/device allocs.
+        let shape = [2048, 2048];
+        let len = shape.iter().product();
+        let data: Vec<f32> = (0..len).map(|i| (i % 1024) as f32).collect();
+        let t = bolt_core::tensor::Tensor::from_slice(&backend, &data, &shape).unwrap();
+        let _ = t.add(&t).unwrap();
+    });
 
     // Example 2: CPU Bound
     println!("\n--- Profile: CPU Bound ---");
-    backend.begin_scope("cpu_bound");
-    {
-        let mut sum = 0u64;
-        for i in 0..100_000_000 {
-            sum = sum.wrapping_add(i);
-        }
-        std::hint::black_box(sum);
-    }
-    let report = backend.end_scope().expect("scope");
-
-    println!("Wall Time: {:?}", report.time.host.wall_time);
-    println!("Thread CPU: {:?}", report.time.host.thread_time);
-    println!("User CPU (process): {:?}", report.time.host.user_time);
+    profiler.with_scope("cpu_bound", || {
+        let shape = [1024, 1024];
+        let len = shape.iter().product();
+        let data: Vec<f32> = (0..len).map(|i| (i % 512) as f32 * 0.001).collect();
+        let a = bolt_core::tensor::Tensor::from_slice(&backend, &data, &shape).unwrap();
+        let b = bolt_core::tensor::Tensor::from_slice(&backend, &data, &shape).unwrap();
+        let _ = a.matmul(&b).unwrap();
+    });
 
     // Example 3: Nested Profiling
     println!("\n--- Profile: Nested Scopes ---");
-    backend.begin_scope("outer_scope");
-    {
+    profiler.with_scope("outer_scope", || {
         println!("Inside outer block...");
 
-        backend.begin_scope("inner_scope");
-        {
-            let _v = vec![0u8; 1024 * 1024 * 10]; // 10MB
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-        let inner_report = backend.end_scope().expect("inner scope");
-
-        println!(
-            "  -> Inner: time={:?}, scope_peak={:.2} MB",
-            inner_report.time.host.wall_time,
-            inner_report.memory.host.peak_in_scope as f64 / 1024.0 / 1024.0
-        );
-    }
-    let outer_report = backend.end_scope().expect("outer scope");
-
-    println!("Outer Total Time: {:?}", outer_report.time.host.wall_time);
-    println!(
-        "Outer Scope Peak: {:.2} MB",
-        outer_report.memory.host.peak_in_scope as f64 / 1024.0 / 1024.0
-    );
+        profiler.with_scope("inner_scope", || {
+            let shape = [512, 512];
+            let len = shape.iter().product();
+            let data: Vec<f32> = (0..len).map(|i| (i % 256) as f32).collect();
+            let t1 = bolt_core::tensor::Tensor::from_slice(&backend, &data, &shape).unwrap();
+            let t2 = bolt_core::tensor::Tensor::from_slice(&backend, &data, &shape).unwrap();
+            let _ = t1.add(&t2).unwrap();
+        });
+    });
 
     // Show hierarchical report
     println!("\n--- Hierarchical Report ---");
-    bolt_profiler::print_report(backend.registry());
+    bolt_profiler::print_report(profiler.registry());
 }

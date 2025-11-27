@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -164,22 +163,6 @@ impl OpStats {
     }
 }
 
-thread_local! {
-    static SCOPE_STACK: RefCell<Vec<OpId>> = const { RefCell::new(Vec::new()) };
-}
-
-pub(crate) fn current_scope() -> Option<OpId> {
-    SCOPE_STACK.with(|s| s.borrow().last().copied())
-}
-
-pub(crate) fn push_scope(id: OpId) {
-    SCOPE_STACK.with(|s| s.borrow_mut().push(id));
-}
-
-pub(crate) fn pop_scope() -> Option<OpId> {
-    SCOPE_STACK.with(|s| s.borrow_mut().pop())
-}
-
 #[derive(Default, Debug)]
 pub struct Registry {
     ops: BTreeMap<OpId, OpRecord>,
@@ -254,71 +237,3 @@ impl Registry {
         self.ops.values().filter(move |r| r.parent == Some(parent))
     }
 }
-
-pub struct QueryBuilder<'a> {
-    registry: &'a Registry,
-    category: Option<OpCategory>,
-    min_duration_us: Option<u128>,
-    top_level_only: bool,
-    name_contains: Option<String>,
-}
-
-impl<'a> QueryBuilder<'a> {
-    pub fn new(registry: &'a Registry) -> Self {
-        Self {
-            registry,
-            category: None,
-            min_duration_us: None,
-            top_level_only: false,
-            name_contains: None,
-        }
-    }
-
-    pub fn category(mut self, cat: OpCategory) -> Self {
-        self.category = Some(cat);
-        self
-    }
-
-    pub fn min_duration(mut self, duration: Duration) -> Self {
-        self.min_duration_us = Some(duration.as_micros());
-        self
-    }
-
-    pub fn top_level_only(mut self) -> Self {
-        self.top_level_only = true;
-        self
-    }
-
-    pub fn name_contains(mut self, substr: &str) -> Self {
-        self.name_contains = Some(substr.to_string());
-        self
-    }
-
-    pub fn collect(self) -> Vec<&'a OpRecord> {
-        self.registry
-            .ops
-            .values()
-            .filter(|r| {
-                if self.top_level_only && r.parent.is_some() {
-                    return false;
-                }
-                if let Some(cat) = self.category {
-                    if r.category != cat {
-                        return false;
-                    }
-                }
-                if let Some(min) = self.min_duration_us {
-                    if r.stats.avg_host_time_us() < min {
-                        return false;
-                    }
-                }
-                if let Some(ref substr) = self.name_contains {
-                    if !r.name.contains(substr) {
-                        return false;
-                    }
-                }
-                true
-                })
-                .collect()
-                }
-                }

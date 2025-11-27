@@ -1,8 +1,4 @@
-use bolt_core::{
-    allocator::StorageAllocator,
-    backend::Backend,
-    dtype::DType,
-};
+use bolt_core::{allocator::StorageAllocator, backend::Backend, dtype::DType};
 use bolt_cpu::backend::CpuBackend;
 
 #[test]
@@ -31,11 +27,11 @@ fn test_caching_allocator_reuse() {
 fn test_caching_allocator_alignment() {
     let backend = CpuBackend::with_pooling();
     let allocator = <CpuBackend as Backend<f32>>::allocator(&backend);
-    
+
     // Allocate small size, but check alignment
     let t1 = allocator.allocate(1).unwrap(); // 1 float
     let ptr = unsafe { t1.as_slice().as_ptr() } as usize;
-    
+
     // We enforced 64-byte alignment in StorageBlock
     assert_eq!(ptr % 64, 0, "Pointer should be 64-byte aligned for SIMD");
 }
@@ -47,12 +43,12 @@ fn test_caching_allocator_multiple_sizes() {
 
     let t1 = allocator.allocate(100).unwrap();
     let p1 = unsafe { t1.as_slice().as_ptr() };
-    
+
     let t2 = allocator.allocate(200).unwrap();
     let p2 = unsafe { t2.as_slice().as_ptr() };
 
     drop(t1);
-    
+
     // Request 100 again -> should get p1
     let t3 = allocator.allocate(100).unwrap();
     let p3 = unsafe { t3.as_slice().as_ptr() };

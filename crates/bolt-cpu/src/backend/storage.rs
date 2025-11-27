@@ -1,7 +1,7 @@
-use std::{mem::MaybeUninit, sync::Arc};
+use std::alloc::Layout;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
-use std::alloc::Layout;
+use std::{mem::MaybeUninit, sync::Arc};
 
 #[cfg(feature = "diagnostics")]
 use super::allocator::CpuAllocTelemetry;
@@ -33,17 +33,21 @@ impl<D: NativeType> StorageBlock<D> {
     ) -> Result<Self> {
         let (data, layout) = if let Some(pool_ref) = &pool {
             let align = std::mem::align_of::<D>().max(64);
-            let size = len.checked_mul(std::mem::size_of::<D>())
-                 .ok_or(Error::TensorTooLarge { limit: usize::MAX, requested: usize::MAX })?;
-            
+            let size = len
+                .checked_mul(std::mem::size_of::<D>())
+                .ok_or(Error::TensorTooLarge {
+                    limit: usize::MAX,
+                    requested: usize::MAX,
+                })?;
+
             if size == 0 {
-                 return Ok(Self {
-                     data: ManuallyDrop::new(Vec::new()),
-                     pool: None,
-                     layout: Layout::new::<D>(),
-                     #[cfg(feature = "diagnostics")]
-                     diagnostics,
-                 });
+                return Ok(Self {
+                    data: ManuallyDrop::new(Vec::new()),
+                    pool: None,
+                    layout: Layout::new::<D>(),
+                    #[cfg(feature = "diagnostics")]
+                    diagnostics,
+                });
             }
 
             let layout = Layout::from_size_align(size, align)
@@ -51,28 +55,27 @@ impl<D: NativeType> StorageBlock<D> {
 
             let ptr = pool_ref.acquire(layout);
             let cap = size / std::mem::size_of::<D>();
-            let mut vec = unsafe { 
-                Vec::from_raw_parts(ptr.as_ptr() as *mut MaybeUninit<D>, len, cap) 
-            };
-            
+            let mut vec =
+                unsafe { Vec::from_raw_parts(ptr.as_ptr() as *mut MaybeUninit<D>, len, cap) };
+
             if zeroed {
-               unsafe {
-                   std::ptr::write_bytes(vec.as_mut_ptr(), 0, len);
-               }
+                unsafe {
+                    std::ptr::write_bytes(vec.as_mut_ptr(), 0, len);
+                }
             }
-            
+
             (vec, layout)
         } else {
             let mut vec = Vec::with_capacity(len);
             unsafe { vec.set_len(len) };
-            
+
             if zeroed {
                 unsafe {
-                   std::ptr::write_bytes(vec.as_mut_ptr(), 0, len);
+                    std::ptr::write_bytes(vec.as_mut_ptr(), 0, len);
                 }
             }
-            
-            let layout = Layout::array::<D>(len).unwrap_or(Layout::new::<D>()); 
+
+            let layout = Layout::array::<D>(len).unwrap_or(Layout::new::<D>());
             (vec, layout)
         };
 
@@ -115,14 +118,14 @@ impl<D: NativeType> Drop for StorageBlock<D> {
         }
 
         if let Some(pool) = &self.pool {
-             let ptr = self.data.as_mut_ptr() as *mut u8;
-             unsafe {
-                 if let Some(non_null) = NonNull::new(ptr) {
-                     pool.release(non_null, self.layout);
-                 }
-             }
+            let ptr = self.data.as_mut_ptr() as *mut u8;
+            unsafe {
+                if let Some(non_null) = NonNull::new(ptr) {
+                    pool.release(non_null, self.layout);
+                }
+            }
         } else {
-             unsafe { ManuallyDrop::drop(&mut self.data) };
+            unsafe { ManuallyDrop::drop(&mut self.data) };
         }
     }
 }
@@ -170,7 +173,7 @@ impl<D: NativeType> CpuStorage<D> {
     pub fn dtype(&self) -> DType {
         D::DTYPE
     }
-    
+
     pub fn device_kind(&self) -> DeviceKind {
         DeviceKind::Cpu
     }
@@ -204,7 +207,7 @@ pub unsafe fn read_into_uninit_slice<D: NativeType>(
             actual: dst.len(),
         });
     }
-    
+
     layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
 
     let data = storage.block.as_uninit_slice();
