@@ -2,7 +2,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
-pub struct TrackingAllocator {
+pub struct HostMemTracker {
     alloc_count: AtomicUsize,
     dealloc_count: AtomicUsize,
     allocated_bytes: AtomicUsize,
@@ -12,13 +12,13 @@ pub struct TrackingAllocator {
     scope_peak: AtomicUsize,
 }
 
-impl Default for TrackingAllocator {
+impl Default for HostMemTracker {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TrackingAllocator {
+impl HostMemTracker {
     pub const fn new() -> Self {
         Self {
             alloc_count: AtomicUsize::new(0),
@@ -31,8 +31,8 @@ impl TrackingAllocator {
         }
     }
 
-    pub fn stats(&self) -> AllocatorStats {
-        AllocatorStats {
+    pub fn stats(&self) -> HostMemStats {
+        HostMemStats {
             alloc_count: self.alloc_count.load(Ordering::Relaxed),
             dealloc_count: self.dealloc_count.load(Ordering::Relaxed),
             allocated_bytes: self.allocated_bytes.load(Ordering::Relaxed),
@@ -48,13 +48,13 @@ impl TrackingAllocator {
     }
 
     /// Scope tracking is global across threads; overlapping scopes share one baseline/peak.
-    pub fn begin_scope(&self) {
+    pub(crate) fn begin_interval(&self) {
         let current = self.allocated_bytes.load(Ordering::Relaxed);
         self.scope_baseline.store(current, Ordering::Relaxed);
         self.scope_peak.store(current, Ordering::Relaxed);
     }
 
-    pub fn end_scope(&self) -> usize {
+    pub(crate) fn end_interval(&self) -> usize {
         let baseline = self.scope_baseline.load(Ordering::Relaxed);
         let peak = self.scope_peak.load(Ordering::Relaxed);
         peak.saturating_sub(baseline)
@@ -76,7 +76,7 @@ impl TrackingAllocator {
     }
 }
 
-unsafe impl GlobalAlloc for TrackingAllocator {
+unsafe impl GlobalAlloc for HostMemTracker {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let ptr = unsafe { System.alloc(layout) };
         if !ptr.is_null() {
@@ -118,7 +118,7 @@ unsafe impl GlobalAlloc for TrackingAllocator {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct AllocatorStats {
+pub struct HostMemStats {
     pub alloc_count: usize,
     pub dealloc_count: usize,
     pub allocated_bytes: usize,

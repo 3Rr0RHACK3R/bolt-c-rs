@@ -2,27 +2,24 @@ use std::sync::Arc;
 
 use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_profiler::{ProfiledBackend, TrackingAllocator};
+use bolt_profiler::{HostMemTracker, ProfiledBackend};
 
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[global_allocator]
-static GLOBAL: TrackingAllocator = TrackingAllocator::new();
+static GLOBAL: HostMemTracker = HostMemTracker::new();
 
 fn main() -> AnyResult<()> {
-    let backend = Arc::new(
-        ProfiledBackend::builder(CpuBackend::new())
-            .with_tracking_allocator(&GLOBAL)
-            .build(),
-    );
+    let (backend, profiler) = ProfiledBackend::wrap_with_host_mem(CpuBackend::new(), &GLOBAL);
+    let backend = Arc::new(backend);
 
-    run_scoped_workload("dense_matmul", &backend, run_dense_matmul)?;
-    run_scoped_workload("add_chain", &backend, run_add_chain)?;
-    run_scoped_workload("mean_reduction", &backend, run_mean_reduction)?;
-    run_scoped_workload("transpose_copy", &backend, run_transpose_copy)?;
+    run_scoped_workload("dense_matmul", &backend, &profiler, run_dense_matmul)?;
+    run_scoped_workload("add_chain", &backend, &profiler, run_add_chain)?;
+    run_scoped_workload("mean_reduction", &backend, &profiler, run_mean_reduction)?;
+    run_scoped_workload("transpose_copy", &backend, &profiler, run_transpose_copy)?;
 
     println!("\n===== All workloads summary =====");
-    bolt_profiler::print_report(backend.registry());
+    bolt_profiler::print_report(profiler.registry());
 
     Ok(())
 }
@@ -30,22 +27,15 @@ fn main() -> AnyResult<()> {
 fn run_scoped_workload<F>(
     label: &str,
     backend: &Arc<ProfiledBackend<CpuBackend>>,
+    profiler: &bolt_profiler::Profiler,
     workload: F,
 ) -> AnyResult<()>
 where
     F: FnOnce(&Arc<ProfiledBackend<CpuBackend>>) -> AnyResult<()>,
 {
-    backend.begin_scope(label);
-    workload(backend)?;
-    let report = backend.end_scope().expect("scope report");
-
-    println!(
-        "[{}] time={:?}, allocs={}, peak={}",
-        label,
-        report.time.host.wall_time,
-        report.memory.device.alloc_count,
-        report.memory.device.peak_in_scope
-    );
+    profiler.with_scope(label, || {
+        workload(backend).unwrap();
+    });
     Ok(())
 }
 

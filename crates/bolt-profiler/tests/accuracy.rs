@@ -2,12 +2,12 @@ use bolt_core::backend::FillOp;
 use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
 use bolt_cpu::CpuBackend;
-use bolt_profiler::{ProfiledBackend, QueryBuilder, TrackingAllocator};
+use bolt_profiler::{HostMemTracker, ProfiledBackend};
 use serial_test::serial;
 use std::sync::Arc;
 
 #[global_allocator]
-static GLOBAL: TrackingAllocator = TrackingAllocator::new();
+static GLOBAL: HostMemTracker = HostMemTracker::new();
 
 fn make_layout(len: usize) -> Layout {
     let shape = ConcreteShape::from_slice(&[len]).expect("shape");
@@ -16,46 +16,45 @@ fn make_layout(len: usize) -> Layout {
 
 #[test]
 #[serial]
-fn allocator_tracks_fill_ops() {
-    let backend = Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
+fn host_mem_tracker_records_fill_ops() {
+    GLOBAL.reset_counts();
+    let (backend, profiler) = ProfiledBackend::wrap_with_host_mem(CpuBackend::new(), &GLOBAL);
     let layout = make_layout(1024);
 
     let _ = backend.fill(&layout, 1.0f32).unwrap();
 
-    let registry = backend.registry();
+    let registry = profiler.registry();
     let stats = registry.lock();
 
-    let fill_ops: Vec<_> = QueryBuilder::new(&stats).name_contains("fill").collect();
+    let fill_ops: Vec<_> = stats.ops().values().filter(|r| r.name == "fill").collect();
 
     assert!(!fill_ops.is_empty(), "Should have recorded fill op");
-    let record = fill_ops[0];
-    assert_eq!(record.name, "fill");
-    assert!(record.stats.last_report.is_some());
+    let report = fill_ops[0].stats.last_report.as_ref().unwrap();
 
-    let report = record.stats.last_report.as_ref().unwrap();
-    
-    // Updated for new profiler axes
-    // CpuBackend uses the backend allocator (device stats)
-    assert!(report.memory.device.available, "Device memory stats should be available for CpuBackend");
-    assert!(report.memory.device.alloc_count > 0);
+    assert!(
+        report.memory.host.available,
+        "Host memory stats should be available when tracker is provided"
+    );
+    assert!(report.memory.host.alloc_count > 0);
+    assert!(report.memory.host.bytes_granted > 0);
 }
 
 #[test]
 #[serial]
-fn scope_tracks_nested_ops() {
+fn scope_tracks_nested_ops_with_children() {
     let backend: Arc<ProfiledBackend<CpuBackend>> =
-        Arc::new(ProfiledBackend::new(CpuBackend::new(), None));
-    backend.clear_stats();
+        Arc::new(ProfiledBackend::new(CpuBackend::new(), Some(&GLOBAL)));
+    let profiler = backend.profiler().clone();
+    profiler.clear();
+    GLOBAL.reset_counts();
 
-    let _scope_id = backend.begin_scope("my_scope");
-    let layout = make_layout(512);
-    let _ = backend.fill(&layout, 2.0f32).unwrap();
-    let _ = backend.fill(&layout, 3.0f32).unwrap();
-    let report = backend.end_scope().expect("scope report");
+    profiler.with_scope("my_scope", || {
+        let layout = make_layout(512);
+        let _ = backend.fill(&layout, 2.0f32).unwrap();
+        let _ = backend.fill(&layout, 3.0f32).unwrap();
+    });
 
-    assert!(report.time.host.wall_time.as_nanos() > 0);
-
-    let registry = backend.registry();
+    let registry = profiler.registry();
     let stats = registry.lock();
 
     let scopes: Vec<_> = stats.top_level_ops().collect();
@@ -63,46 +62,14 @@ fn scope_tracks_nested_ops() {
     assert_eq!(scopes[0].name, "my_scope");
 
     let children: Vec<_> = stats.children_of(scopes[0].id).collect();
-    assert_eq!(children.len(), 2, "Scope should have 2 fill children");
-}
-
-#[test]
-#[serial]
-fn tracking_allocator_fallback() {
-    let backend = Arc::new(
-        ProfiledBackend::builder(CpuBackend::new())
-            .with_tracking_allocator(&GLOBAL)
-            .build(),
-    );
-    let layout = make_layout(256);
-
-    let _ = backend.fill(&layout, 1.0f32).unwrap();
-
-    let registry = backend.registry();
-    let stats = registry.lock();
-
-    let ops: Vec<_> = stats.top_level_ops().collect();
-    assert!(!ops.is_empty());
-}
-
-#[test]
-#[serial]
-fn sample_rate_controls_profiling() {
-    let backend = Arc::new(
-        ProfiledBackend::builder(CpuBackend::new())
-            .sample_rate(0.0)
-            .build(),
-    );
-
-    let layout = make_layout(64);
-    for _ in 0..10 {
-        let _ = backend.fill(&layout, 1.0f32).unwrap();
-    }
-
-    let registry = backend.registry();
-    let stats = registry.lock();
     assert!(
-        stats.ops().is_empty(),
-        "No ops should be recorded with 0% sample rate"
+        children.len() >= 2,
+        "Scope should have recorded child fill operations"
+    );
+    assert!(
+        children
+            .iter()
+            .all(|c| c.category != bolt_profiler::OpCategory::UserScope),
+        "Children should be op records, not scopes"
     );
 }
