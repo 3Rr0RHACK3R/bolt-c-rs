@@ -15,4 +15,4 @@ pub use float::Float;
 pub use gradients::Gradients;
 pub use graph::{Graph, NoGradGuard};
 pub use handle::Handle;
-pub use tensor::GradTensor;
+pub use tensor::{Attach, AttachBuilder, GradTensor, TensorLike};

@@ -60,11 +60,11 @@ where
         }
     }
 
-    pub fn leaf<'g>(&'g self, tensor: &Tensor<B, D>) -> GradTensor<'g, B, D> {
+    pub fn param<'g>(&'g self, tensor: &Tensor<B, D>) -> GradTensor<'g, B, D> {
         self.create_node(tensor.clone(), true, true, ArrayVec::new(), None)
     }
 
-    pub fn tensor<'g>(&'g self, tensor: &Tensor<B, D>) -> GradTensor<'g, B, D> {
+    pub fn input<'g>(&'g self, tensor: &Tensor<B, D>) -> GradTensor<'g, B, D> {
         self.create_node(tensor.clone(), false, true, ArrayVec::new(), None)
     }
 

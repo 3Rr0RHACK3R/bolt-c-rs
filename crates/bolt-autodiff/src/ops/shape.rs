@@ -86,7 +86,7 @@ where
         let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
 
         if !requires_grad {
-            return Ok(self.graph().tensor(&result));
+            return Ok(self.graph().input(&result));
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
@@ -112,7 +112,7 @@ where
         let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
 
         if !requires_grad {
-            return Ok(self.graph().tensor(&result));
+            return Ok(self.graph().input(&result));
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
