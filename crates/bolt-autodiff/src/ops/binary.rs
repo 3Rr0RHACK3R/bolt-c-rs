@@ -1,4 +1,7 @@
-use bolt_core::{Backend, Tensor, backend::{AddOp, CopyOp, FillOp, MatmulOp, MulOp, SubOp}};
+use bolt_core::{
+    Backend, Tensor,
+    backend::{AddOp, CopyOp, FillOp, MatmulOp, MulOp, SubOp},
+};
 use tinyvec::ArrayVec;
 
 use crate::{
@@ -15,7 +18,10 @@ pub struct AddBackward {
 
 impl AddBackward {
     pub fn new(lhs_shape: Vec<usize>, rhs_shape: Vec<usize>) -> Self {
-        Self { lhs_shape, rhs_shape }
+        Self {
+            lhs_shape,
+            rhs_shape,
+        }
     }
 }
 
@@ -49,7 +55,10 @@ pub struct SubBackward {
 
 impl SubBackward {
     pub fn new(lhs_shape: Vec<usize>, rhs_shape: Vec<usize>) -> Self {
-        Self { lhs_shape, rhs_shape }
+        Self {
+            lhs_shape,
+            rhs_shape,
+        }
     }
 }
 
@@ -65,8 +74,8 @@ where
     ) -> Result<ArrayVec<[Option<Tensor<B, D>>; MAX_INPUTS]>> {
         let grad_lhs = reduce_grad_to_shape(grad_output, &self.lhs_shape)?;
 
-        let neg_grad = Tensor::zeros(&grad_output.backend(), grad_output.shape())?
-            .sub(grad_output)?;
+        let neg_grad =
+            Tensor::zeros(&grad_output.backend(), grad_output.shape())?.sub(grad_output)?;
         let grad_rhs = reduce_grad_to_shape(&neg_grad, &self.rhs_shape)?;
 
         let mut result = ArrayVec::new();
@@ -92,7 +101,10 @@ pub struct MatmulBackward {
 
 impl MulBackward {
     pub fn new(lhs_shape: Vec<usize>, rhs_shape: Vec<usize>) -> Self {
-        Self { lhs_shape, rhs_shape }
+        Self {
+            lhs_shape,
+            rhs_shape,
+        }
     }
 }
 
@@ -128,7 +140,10 @@ where
 
 impl MatmulBackward {
     pub fn new(lhs_shape: Vec<usize>, rhs_shape: Vec<usize>) -> Self {
-        Self { lhs_shape, rhs_shape }
+        Self {
+            lhs_shape,
+            rhs_shape,
+        }
     }
 }
 
@@ -187,10 +202,8 @@ where
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = AddBackward::new(
-            self_tensor.shape().to_vec(),
-            other_tensor.shape().to_vec(),
-        );
+        let backward_op =
+            AddBackward::new(self_tensor.shape().to_vec(), other_tensor.shape().to_vec());
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());
@@ -231,10 +244,8 @@ where
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = SubBackward::new(
-            self_tensor.shape().to_vec(),
-            other_tensor.shape().to_vec(),
-        );
+        let backward_op =
+            SubBackward::new(self_tensor.shape().to_vec(), other_tensor.shape().to_vec());
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());
@@ -274,14 +285,11 @@ where
             return Ok(self.graph().input(&result));
         }
 
-        let saved_idx = self.graph().save_tensors_for_backward(vec![
-            self_tensor.clone(),
-            other_tensor.clone(),
-        ]);
-        let backward_op = MulBackward::new(
-            self_tensor.shape().to_vec(),
-            other_tensor.shape().to_vec(),
-        );
+        let saved_idx = self
+            .graph()
+            .save_tensors_for_backward(vec![self_tensor.clone(), other_tensor.clone()]);
+        let backward_op =
+            MulBackward::new(self_tensor.shape().to_vec(), other_tensor.shape().to_vec());
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());
@@ -321,14 +329,11 @@ where
             return Ok(self.graph().input(&result));
         }
 
-        let saved_idx = self.graph().save_tensors_for_backward(vec![
-            self_tensor.clone(),
-            other_tensor.clone(),
-        ]);
-        let backward_op = MatmulBackward::new(
-            self_tensor.shape().to_vec(),
-            other_tensor.shape().to_vec(),
-        );
+        let saved_idx = self
+            .graph()
+            .save_tensors_for_backward(vec![self_tensor.clone(), other_tensor.clone()]);
+        let backward_op =
+            MatmulBackward::new(self_tensor.shape().to_vec(), other_tensor.shape().to_vec());
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());

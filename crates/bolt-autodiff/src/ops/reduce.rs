@@ -1,4 +1,8 @@
-use bolt_core::{Backend, Tensor, backend::{AddOp, CopyOp, FillOp, MulOp}};
+use bolt_core::{
+    Backend, Tensor,
+    backend::{AddOp, CopyOp, FillOp, MulOp},
+    shape,
+};
 use tinyvec::ArrayVec;
 
 use crate::{
@@ -61,8 +65,8 @@ where
         _ctx: &BackwardContext<B, D>,
     ) -> Result<ArrayVec<[Option<Tensor<B, D>>; MAX_INPUTS]>> {
         let scale = D::one() / D::from_usize(self.count);
-        let scaled = Tensor::full(&grad_output.backend(), grad_output.shape(), scale)?
-            .mul(grad_output)?;
+        let scaled =
+            Tensor::full(&grad_output.backend(), grad_output.shape(), scale)?.mul(grad_output)?;
         let grad_input = broadcast_to(&scaled, &self.input_shape)?;
         let mut result = ArrayVec::new();
         result.push(Some(grad_input));
@@ -143,15 +147,20 @@ where
         let self_tensor = self.tensor()?;
         let input_shape = self_tensor.shape().to_vec();
 
-        let count = match axes {
+        let axes_canonical = match axes {
+            None => None,
+            Some(axes) => Some(shape::canonical_axes(axes, input_shape.len())?),
+        };
+
+        let count = match &axes_canonical {
             None => self_tensor.numel(),
             Some(axes) => axes.iter().map(|&a| input_shape[a]).product(),
         };
 
-        let sum_result = sum_impl(&self_tensor, axes)?;
+        let sum_result = sum_impl(&self_tensor, axes_canonical.as_deref())?;
         let scale = D::one() / D::from_usize(count);
-        let result = Tensor::full(&sum_result.backend(), sum_result.shape(), scale)?
-            .mul(&sum_result)?;
+        let result =
+            Tensor::full(&sum_result.backend(), sum_result.shape(), scale)?.mul(&sum_result)?;
 
         let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
 
@@ -160,7 +169,7 @@ where
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = MeanBackward::new(input_shape, axes.map(|a| a.to_vec()), count);
+        let backward_op = MeanBackward::new(input_shape, axes_canonical.clone(), count);
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());

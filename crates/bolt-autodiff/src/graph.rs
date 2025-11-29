@@ -1,6 +1,14 @@
-use std::{cell::{Cell, RefCell}, collections::HashMap, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::{HashMap, hash_map::Entry},
+    sync::Arc,
+};
 
-use bolt_core::{Backend, OneValue, Tensor, backend::{AddOp, FillOp}};
+use bolt_core::{
+    Backend, OneValue, Tensor,
+    backend::{AddOp, FillOp},
+    shape,
+};
 use tinyvec::ArrayVec;
 
 use crate::{
@@ -9,7 +17,7 @@ use crate::{
     error::{Error, Result},
 };
 
-pub(crate) const MAX_SHAPE_RANK: usize = 4;
+pub(crate) const MAX_SHAPE_RANK: usize = shape::MAX_RANK;
 
 pub(crate) struct Node {
     pub handle: Handle,
@@ -147,25 +155,37 @@ where
                 None => continue,
             };
 
-            let backward_entry = backward_ops
-                .get(backward_op_idx)
-                .ok_or(Error::BackwardOpNotFound { idx: backward_op_idx })?;
+            let backward_entry =
+                backward_ops
+                    .get(backward_op_idx)
+                    .ok_or(Error::BackwardOpNotFound {
+                        idx: backward_op_idx,
+                    })?;
 
-            let saved = saved_tensors
-                .get(backward_entry.saved_idx)
-                .ok_or(Error::SavedTensorsNotFound { idx: backward_entry.saved_idx })?;
+            let saved =
+                saved_tensors
+                    .get(backward_entry.saved_idx)
+                    .ok_or(Error::SavedTensorsNotFound {
+                        idx: backward_entry.saved_idx,
+                    })?;
 
             let ctx = BackwardContext::new(saved, &self.backend);
             let input_grads = backward_entry.op.backward(&grad_output, &ctx)?;
 
-            for (input_handle, input_grad) in node.inputs.as_slice().iter().zip(input_grads.into_iter()) {
+            for (input_handle, input_grad) in
+                node.inputs.as_slice().iter().zip(input_grads.into_iter())
+            {
                 if let Some(grad) = input_grad {
-                    grad_map
-                        .entry(*input_handle)
-                        .and_modify(|existing| {
-                            *existing = existing.add(&grad).expect("gradient accumulation failed");
-                        })
-                        .or_insert(grad);
+                    match grad_map.entry(*input_handle) {
+                        Entry::Occupied(mut entry) => {
+                            let existing = entry.get();
+                            let new_grad = existing.add(&grad)?;
+                            entry.insert(new_grad);
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(grad);
+                        }
+                    }
                 }
             }
         }
@@ -201,7 +221,10 @@ where
             .ok_or(Error::TensorNotFound { handle })
     }
 
-    pub(crate) fn get_node_shape(&self, handle: Handle) -> Result<ArrayVec<[usize; MAX_SHAPE_RANK]>> {
+    pub(crate) fn get_node_shape(
+        &self,
+        handle: Handle,
+    ) -> Result<ArrayVec<[usize; MAX_SHAPE_RANK]>> {
         self.validate_handle(handle)?;
         let nodes = self.nodes.borrow();
         Ok(nodes[handle.index as usize].shape.clone())

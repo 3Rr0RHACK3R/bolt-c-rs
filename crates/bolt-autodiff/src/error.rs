@@ -40,7 +40,10 @@ impl Error {
 
     pub fn handle_out_of_bounds(idx: u32, len: usize) -> Self {
         Self::InvalidHandle {
-            reason: format!("handle index {} out of bounds (graph has {} nodes)", idx, len),
+            reason: format!(
+                "handle index {} out of bounds (graph has {} nodes)",
+                idx, len
+            ),
         }
     }
 }

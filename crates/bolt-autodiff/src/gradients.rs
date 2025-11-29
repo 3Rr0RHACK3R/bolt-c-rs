@@ -64,12 +64,16 @@ where
         B: AddOp<D>,
     {
         for (handle, grad) in &other.grads {
-            self.grads
-                .entry(*handle)
-                .and_modify(|existing| {
-                    *existing = existing.add(grad).expect("accumulation failed");
-                })
-                .or_insert_with(|| grad.clone());
+            match self.grads.entry(*handle) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    let existing = entry.get();
+                    let new_grad = existing.add(grad)?;
+                    entry.insert(new_grad);
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(grad.clone());
+                }
+            }
         }
         Ok(())
     }

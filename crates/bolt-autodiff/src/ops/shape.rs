@@ -1,4 +1,7 @@
-use bolt_core::{Backend, Tensor, backend::{AddOp, CopyOp}};
+use bolt_core::{
+    Backend, Tensor,
+    backend::{AddOp, CopyOp},
+};
 use tinyvec::ArrayVec;
 
 use crate::{

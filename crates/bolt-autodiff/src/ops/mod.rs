@@ -6,7 +6,10 @@ pub use binary::{AddBackward, MulBackward, SubBackward};
 pub use reduce::{MeanBackward, SumBackward};
 pub use shape::{ReshapeBackward, TransposeBackward};
 
-use bolt_core::{Backend, Tensor, backend::{AddOp, CopyOp}};
+use bolt_core::{
+    Backend, Tensor,
+    backend::{AddOp, CopyOp},
+};
 
 use crate::{Float, error::Result};
 
@@ -148,15 +151,11 @@ where
         current = current.reshape(&new_shape)?;
     }
 
-    let layout = current.layout().broadcast_to(
-        &bolt_core::shape::ConcreteShape::from_slice(target_shape)?,
-    )?;
+    let layout = current
+        .layout()
+        .broadcast_to(&bolt_core::shape::ConcreteShape::from_slice(target_shape)?)?;
 
-    let result = Tensor::from_parts(
-        current.backend(),
-        current.storage().clone(),
-        layout,
-    );
+    let result = Tensor::from_parts(current.backend(), current.storage().clone(), layout);
 
     Ok(result.contiguous()?)
 }
