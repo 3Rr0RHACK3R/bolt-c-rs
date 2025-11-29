@@ -260,9 +260,9 @@ where
         B: MulOp<D>,
     {
         self.ensure_same_backend(other)?;
-        let parts =
-            self.backend
-                .mul(&self.storage, &other.storage, &self.layout, &other.layout)?;
+        let parts = self
+            .backend
+            .mul(&self.storage, &other.storage, &self.layout, &other.layout)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
@@ -324,7 +324,7 @@ where
         }
     }
 
-    fn from_parts(backend: Arc<B>, storage: B::Storage, layout: Layout) -> Self {
+    pub fn from_parts(backend: Arc<B>, storage: B::Storage, layout: Layout) -> Self {
         Self {
             backend,
             storage,

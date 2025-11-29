@@ -179,17 +179,42 @@ impl<D: NativeType> CpuStorage<D> {
     }
 }
 
+fn validate_layout_len<D: NativeType>(
+    layout: &TensorLayout,
+    len: usize,
+    storage: &CpuStorage<D>,
+) -> Result<()> {
+    if layout.num_elements() != len {
+        return Err(Error::SizeMismatch {
+            expected: layout.num_elements(),
+            actual: len,
+        });
+    }
+
+    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
+    Ok(())
+}
+
+fn for_each_offset<D: NativeType, F>(layout: &TensorLayout, mut f: F) -> Result<()>
+where
+    F: FnMut(usize, usize),
+{
+    let elem_size = D::DTYPE.size_in_bytes();
+    let iter = layout.iter_offsets(D::DTYPE)?;
+    for (logical_idx, byte_offset) in iter.enumerate() {
+        debug_assert_eq!(byte_offset % elem_size, 0);
+        let element_idx = byte_offset / elem_size;
+        f(logical_idx, element_idx);
+    }
+    Ok(())
+}
+
 pub unsafe fn read_into_slice<D: NativeType>(
     storage: &CpuStorage<D>,
     layout: &TensorLayout,
     dst: &mut [D],
 ) -> Result<()> {
-    if layout.num_elements() != dst.len() {
-        return Err(Error::SizeMismatch {
-            expected: layout.num_elements(),
-            actual: dst.len(),
-        });
-    }
+    validate_layout_len(layout, dst.len(), storage)?;
     let uninit_dst: &mut [MaybeUninit<D>] = unsafe {
         std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut MaybeUninit<D>, dst.len())
     };
@@ -201,14 +226,7 @@ pub unsafe fn read_into_uninit_slice<D: NativeType>(
     layout: &TensorLayout,
     dst: &mut [MaybeUninit<D>],
 ) -> Result<()> {
-    if layout.num_elements() != dst.len() {
-        return Err(Error::SizeMismatch {
-            expected: layout.num_elements(),
-            actual: dst.len(),
-        });
-    }
-
-    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
+    validate_layout_len(layout, dst.len(), storage)?;
 
     let data = storage.block.as_uninit_slice();
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
@@ -219,15 +237,11 @@ pub unsafe fn read_into_uninit_slice<D: NativeType>(
         }
         return Ok(());
     }
-    let elem_size = D::DTYPE.size_in_bytes();
-    let iter = layout.iter_offsets(D::DTYPE)?;
-    for (idx, src_bytes) in iter.enumerate() {
-        debug_assert_eq!(src_bytes % elem_size, 0);
-        let src = src_bytes / elem_size;
-        let value = unsafe { data[src].assume_init() };
-        dst[idx].write(value);
-    }
-    Ok(())
+
+    for_each_offset::<D, _>(layout, |logical_idx, src_idx| {
+        let value = unsafe { data[src_idx].assume_init() };
+        dst[logical_idx].write(value);
+    })
 }
 
 pub fn write_from_slice<D: NativeType>(
@@ -235,14 +249,7 @@ pub fn write_from_slice<D: NativeType>(
     layout: &TensorLayout,
     src: &[D],
 ) -> Result<()> {
-    if layout.num_elements() != src.len() {
-        return Err(Error::SizeMismatch {
-            expected: layout.num_elements(),
-            actual: src.len(),
-        });
-    }
-
-    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
+    validate_layout_len(layout, src.len(), storage)?;
 
     let dst = storage.try_as_uninit_slice_mut()?;
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
@@ -251,14 +258,10 @@ pub fn write_from_slice<D: NativeType>(
         }
         return Ok(());
     }
-    let elem_size = D::DTYPE.size_in_bytes();
-    let iter = layout.iter_offsets(D::DTYPE)?;
-    for (idx, dst_bytes) in iter.enumerate() {
-        debug_assert_eq!(dst_bytes % elem_size, 0);
-        let dst_idx = dst_bytes / elem_size;
-        dst[dst_idx].write(src[idx]);
-    }
-    Ok(())
+
+    for_each_offset::<D, _>(layout, |logical_idx, dst_idx| {
+        dst[dst_idx].write(src[logical_idx]);
+    })
 }
 
 pub fn fill_storage<D: NativeType>(
@@ -266,7 +269,7 @@ pub fn fill_storage<D: NativeType>(
     layout: &TensorLayout,
     value: D,
 ) -> Result<()> {
-    layout.validate_bounds(D::DTYPE, storage.len_bytes())?;
+    validate_layout_len(layout, layout.num_elements(), storage)?;
     let dst = storage.try_as_uninit_slice_mut()?;
     if layout.is_contiguous() && layout.offset_bytes() == 0 {
         let len = layout.num_elements();
@@ -275,14 +278,10 @@ pub fn fill_storage<D: NativeType>(
         }
         return Ok(());
     }
-    let elem_size = D::DTYPE.size_in_bytes();
-    let iter = layout.iter_offsets(D::DTYPE)?;
-    for dst_bytes in iter {
-        debug_assert_eq!(dst_bytes % elem_size, 0);
-        let dst_idx = dst_bytes / elem_size;
+
+    for_each_offset::<D, _>(layout, |_, dst_idx| {
         dst[dst_idx].write(value);
-    }
-    Ok(())
+    })
 }
 
 pub type CpuTensorView<'a, D> = TensorView<'a, CpuStorage<D>>;

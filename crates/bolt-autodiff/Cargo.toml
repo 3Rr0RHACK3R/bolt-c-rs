@@ -1,0 +1,15 @@
+[package]
+name = "bolt-autodiff"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+bolt-core = { path = "../bolt-core" }
+tinyvec = "1.10"
+num-traits = "0.2"
+thiserror.workspace = true
+
+[dev-dependencies]
+bolt-cpu = { path = "../bolt-cpu" }

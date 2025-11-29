@@ -22,29 +22,26 @@ where
             cast::<D, f32>(end) as f64,
             cast::<D, f32>(step) as f64,
         )
-        .and_then(|len| {
-            usize::try_from(len).map_err(|_| Error::TensorTooLarge {
-                limit: isize::MAX as usize,
-                requested: usize::MAX,
-            })
-        }),
+        .and_then(float_len_to_usize),
         DType::F64 => float_arange_len(
             cast::<D, f64>(start),
             cast::<D, f64>(end),
             cast::<D, f64>(step),
         )
-        .and_then(|len| {
-            usize::try_from(len).map_err(|_| Error::TensorTooLarge {
-                limit: isize::MAX as usize,
-                requested: usize::MAX,
-            })
-        }),
+        .and_then(float_len_to_usize),
         DType::I32 => int_arange_len(
             cast::<D, i32>(start),
             cast::<D, i32>(end),
             cast::<D, i32>(step),
         ),
     }
+}
+
+fn float_len_to_usize(len: u128) -> Result<usize> {
+    usize::try_from(len).map_err(|_| Error::TensorTooLarge {
+        limit: isize::MAX as usize,
+        requested: usize::MAX,
+    })
 }
 
 pub(crate) fn build_arange_values<D>(len: usize, start: D, step: D) -> Result<Vec<D>>

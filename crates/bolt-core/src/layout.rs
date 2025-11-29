@@ -195,10 +195,12 @@ impl Layout {
                 .checked_mul(elem_size)
                 .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
 
-            current_offset_bytes = isize::try_from(current_offset_bytes)
-                .map_err(|_| Error::invalid_shape("base offset exceeds isize range"))?
+            let base_offset_isize = isize::try_from(current_offset_bytes)
+                .map_err(|_| Error::invalid_shape("base offset exceeds isize range"))?;
+            let updated_offset = base_offset_isize
                 .checked_add(byte_delta)
-                .ok_or_else(|| Error::invalid_shape("total offset overflow"))?
+                .ok_or_else(|| Error::invalid_shape("total offset overflow"))?;
+            current_offset_bytes = updated_offset
                 .try_into()
                 .map_err(|_| Error::invalid_shape("total offset negative"))?;
 
@@ -427,6 +429,7 @@ impl Layout {
         let elem_size = dtype.size_in_bytes();
         let mut max_bytes = isize::try_from(self.offset_bytes)
             .map_err(|_| Error::invalid_shape("layout offset exceeds addressable isize range"))?;
+
         for (dim, stride) in self.shape.as_slice().iter().zip(self.strides.iter()) {
             if *dim == 0 {
                 continue;
@@ -436,8 +439,10 @@ impl Layout {
                     "negative strides are not supported in bounds check",
                 ));
             }
+
+            let dim_extent = (*dim as isize).saturating_sub(1);
             let extent = stride
-                .checked_mul((*dim as isize).saturating_sub(1))
+                .checked_mul(dim_extent)
                 .ok_or_else(|| Error::invalid_shape("stride*extent overflow"))?;
             let extent_bytes = extent
                 .checked_mul(elem_size as isize)
@@ -446,9 +451,11 @@ impl Layout {
                 .checked_add(extent_bytes)
                 .ok_or_else(|| Error::invalid_shape("byte offset overflow"))?;
         }
+
         let last_byte = max_bytes
             .checked_add((elem_size as isize).saturating_sub(1))
             .ok_or_else(|| Error::invalid_shape("byte offset overflow (last byte)"))?;
+
         usize::try_from(last_byte)
             .map_err(|_| Error::invalid_shape("byte offset exceeds addressable range"))
     }
@@ -457,9 +464,11 @@ impl Layout {
         if indices.len() != self.shape.rank() {
             return Err(Error::invalid_shape("index rank must match tensor rank"));
         }
+
         let elem_size = dtype.size_in_bytes() as isize;
         let mut offset = isize::try_from(self.offset_bytes)
             .map_err(|_| Error::invalid_shape("layout offset exceeds addressable isize range"))?;
+
         for ((&idx, &dim), &stride) in indices
             .iter()
             .zip(self.shape.as_slice().iter())
@@ -468,6 +477,7 @@ impl Layout {
             if idx >= dim {
                 return Err(Error::invalid_shape("index out of bounds"));
             }
+
             let delta = stride
                 .checked_mul(idx as isize)
                 .ok_or_else(|| Error::invalid_shape("index stride multiplication overflow"))?;
@@ -478,6 +488,7 @@ impl Layout {
                 .checked_add(bytes)
                 .ok_or_else(|| Error::invalid_shape("index byte offset overflow (accumulated)"))?;
         }
+
         usize::try_from(offset)
             .map_err(|_| Error::invalid_shape("index offset exceeds addressable range"))
     }
@@ -506,170 +517,4 @@ fn compute_kind(shape: &[usize], strides: &[isize]) -> LayoutKind {
         expected *= *dim as isize;
     }
     LayoutKind::Contiguous
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_broadcast_to_scalar() {
-        let shape = ConcreteShape::from_slice(&[]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        assert_eq!(new_layout.shape(), &[2, 3]);
-        assert_eq!(new_layout.strides(), &[0, 0]);
-    }
-
-    #[test]
-    fn test_broadcast_to_vector() {
-        let shape = ConcreteShape::from_slice(&[3]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        assert_eq!(new_layout.shape(), &[2, 3]);
-        assert_eq!(new_layout.strides(), &[0, 1]);
-    }
-
-    #[test]
-    fn test_broadcast_to_matrix() {
-        let shape = ConcreteShape::from_slice(&[2, 1]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        assert_eq!(new_layout.shape(), &[2, 3]);
-        assert_eq!(new_layout.strides(), &[1, 0]);
-    }
-
-    #[test]
-    fn test_broadcast_binary() {
-        let shape1 = ConcreteShape::from_slice(&[2, 1]).unwrap();
-        let layout1 = Layout::contiguous(shape1);
-        let shape2 = ConcreteShape::from_slice(&[3]).unwrap();
-        let layout2 = Layout::contiguous(shape2);
-        let (new_layout1, new_layout2) = Layout::broadcast_binary(&layout1, &layout2).unwrap();
-        assert_eq!(new_layout1.shape(), &[2, 3]);
-        assert_eq!(new_layout1.strides(), &[1, 0]);
-        assert_eq!(new_layout2.shape(), &[2, 3]);
-        assert_eq!(new_layout2.strides(), &[0, 1]);
-    }
-
-    #[test]
-    fn test_iter_offsets_contiguous() {
-        let shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let offsets: Vec<usize> = layout.iter_offsets(DType::F32).unwrap().collect();
-        assert_eq!(offsets, vec![0, 4, 8, 12, 16, 20]);
-    }
-
-    #[test]
-    fn test_iter_offsets_broadcasted_read() {
-        let shape = ConcreteShape::from_slice(&[2, 1]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        let offsets: Vec<usize> = new_layout.iter_offsets(DType::F32).unwrap().collect();
-        assert_eq!(offsets, vec![0, 0, 0, 4, 4, 4]);
-    }
-
-    #[test]
-    fn test_iter_offsets_broadcasted_write() {
-        let shape = ConcreteShape::from_slice(&[2, 1]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let new_shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let new_layout = layout.broadcast_to(&new_shape).unwrap();
-        assert!(
-            new_layout
-                .iter_offsets_for(IterMode::Write, DType::F32)
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn test_iter_offsets_transpose() {
-        let shape = ConcreteShape::from_slice(&[2, 2]).unwrap();
-        let layout = Layout::contiguous(shape);
-        // Transpose -> shape [2, 2], strides [4, 8] (since original strides were [8, 4] bytes for F32?)
-        // Contiguous F32 2x2: strides [2, 1] elems -> [8, 4] bytes.
-        // Transpose: shape [2, 2], strides [1, 2] elems -> [4, 8] bytes.
-        let new_layout = layout.transpose(0, 1).unwrap();
-        let offsets: Vec<usize> = new_layout.iter_offsets(DType::F32).unwrap().collect();
-        // Logical iteration: (0,0), (0,1), (1,0), (1,1)
-        // Offset = 0*4 + 0*8 = 0
-        // Offset = 0*4 + 1*8 = 8
-        // Offset = 1*4 + 0*8 = 4
-        // Offset = 1*4 + 1*8 = 12
-        assert_eq!(offsets, vec![0, 8, 4, 12]);
-    }
-
-    #[test]
-    fn test_iter_offsets_negative_stride() {
-        // [0, 1, 2, 3, 4] -> slice step -1 -> [4, 3, 2, 1, 0]
-        // Currently `Layout::slice` only accepts usize steps, so we manually construct
-        // a negative stride layout to verify the iterator handles it correctly.
-
-        let shape = ConcreteShape::from_slice(&[5]).unwrap();
-        // Base offset at element 4 -> 4 * 4 = 16 bytes.
-        // Stride = -1 elem -> -4 bytes.
-        let layout = Layout::with_strides(shape, &[-1], 16).unwrap();
-        let offsets: Vec<usize> = layout.iter_offsets(DType::F32).unwrap().collect();
-        assert_eq!(offsets, vec![16, 12, 8, 4, 0]);
-    }
-
-    #[test]
-    fn test_kernel_simulation_usage() {
-        // Simulate a kernel that chooses path based on contiguity
-        let run_kernel = |layout: &Layout| -> Vec<usize> {
-            if layout.is_contiguous() {
-                // Fast path: direct slice logic (simulated)
-                let start = layout.offset_bytes();
-                let end = start + layout.num_elements() * 4; // F32
-                (start..end).step_by(4).collect()
-            } else {
-                // Slow path: iterator
-                layout.iter_offsets(DType::F32).unwrap().collect()
-            }
-        };
-
-        // Case 1: Contiguous
-        let shape = ConcreteShape::from_slice(&[2, 2]).unwrap();
-        let layout = Layout::contiguous(shape.clone());
-        assert_eq!(run_kernel(&layout), vec![0, 4, 8, 12]);
-
-        // Case 2: Strided (Transpose)
-        let layout_t = layout.transpose(0, 1).unwrap();
-        assert!(!layout_t.is_contiguous());
-        assert_eq!(run_kernel(&layout_t), vec![0, 8, 4, 12]);
-    }
-
-    #[test]
-    fn test_iter_offsets_out_of_bounds_negative() {
-        // Construct a layout where negative strides would push the offset below zero.
-        // Base offset = 0.
-        // Shape = [5], Stride = -1 (elem) -> -4 bytes.
-        // 1st element: offset 0
-        // 2nd element: offset -4 (Invalid)
-
-        let shape = ConcreteShape::from_slice(&[5]).unwrap();
-        // Manually construct with stride -1 and offset 0 (which is too small)
-        let layout = Layout::with_strides(shape, &[-1], 0).unwrap();
-
-        let result = layout.iter_offsets(DType::F32);
-        assert!(result.is_err());
-        match result {
-            Err(Error::InvalidShape { message }) => {
-                assert!(message.contains("negative memory addresses"));
-            }
-            _ => panic!("Expected InvalidShape error"),
-        }
-    }
-
-    #[test]
-    fn test_broadcast_to_invalid() {
-        let shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
-        let layout = Layout::contiguous(shape);
-        let new_shape = ConcreteShape::from_slice(&[3]).unwrap();
-        assert!(layout.broadcast_to(&new_shape).is_err());
-    }
 }

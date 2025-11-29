@@ -1,3 +1,4 @@
+use std::mem::MaybeUninit;
 use std::time::Duration;
 
 #[cfg(target_os = "macos")]
@@ -72,8 +73,6 @@ fn get_thread_cpu_time() -> Duration {
 
 #[cfg(target_os = "macos")]
 fn get_thread_cpu_time() -> Duration {
-    use std::mem::MaybeUninit;
-
     let mut info = MaybeUninit::<libc::thread_basic_info>::uninit();
     let mut count = (std::mem::size_of::<libc::thread_basic_info>() / std::mem::size_of::<i32>())
         as libc::mach_msg_type_number_t;
