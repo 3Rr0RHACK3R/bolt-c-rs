@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/bolt-autodiff",
     "crates/bolt-core",
     "crates/bolt-cpu",
     "crates/bolt-examples",

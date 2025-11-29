@@ -324,7 +324,7 @@ where
         }
     }
 
-    fn from_parts(backend: Arc<B>, storage: B::Storage, layout: Layout) -> Self {
+    pub fn from_parts(backend: Arc<B>, storage: B::Storage, layout: Layout) -> Self {
         Self {
             backend,
             storage,
