@@ -1,7 +1,9 @@
 use bolt_core::{Backend, Tensor};
 use tinyvec::ArrayVec;
 
-use crate::{Float, Graph, Handle, error::Result, graph::MAX_SHAPE_RANK};
+use crate::error::Result;
+use crate::graph::MAX_SHAPE_RANK;
+use crate::{Float, Graph, Handle};
 
 #[derive(Clone, Copy)]
 pub struct GradTensor<'g, B, D>

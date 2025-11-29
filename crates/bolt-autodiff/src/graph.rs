@@ -1,21 +1,16 @@
-use std::{
-    cell::{Cell, RefCell},
-    collections::{HashMap, hash_map::Entry},
-    sync::Arc,
-};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use bolt_core::{
-    Backend, OneValue, Tensor,
-    backend::{AddOp, FillOp},
-    shape,
-};
+use bolt_core::backend::{AddOp, FillOp};
+use bolt_core::shape;
+use bolt_core::{Backend, OneValue, Tensor};
 use tinyvec::ArrayVec;
 
-use crate::{
-    Float, GradTensor, Gradients, Handle,
-    backward::{BackwardContext, BackwardOp, MAX_INPUTS},
-    error::{Error, Result},
-};
+use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
+use crate::error::{Error, Result};
+use crate::gradients::insert_or_accumulate;
+use crate::{Float, GradTensor, Gradients, Handle};
 
 pub(crate) const MAX_SHAPE_RANK: usize = shape::MAX_RANK;
 
@@ -176,16 +171,7 @@ where
                 node.inputs.as_slice().iter().zip(input_grads.into_iter())
             {
                 if let Some(grad) = input_grad {
-                    match grad_map.entry(*input_handle) {
-                        Entry::Occupied(mut entry) => {
-                            let existing = entry.get();
-                            let new_grad = existing.add(&grad)?;
-                            entry.insert(new_grad);
-                        }
-                        Entry::Vacant(entry) => {
-                            entry.insert(grad);
-                        }
-                    }
+                    insert_or_accumulate(&mut grad_map, *input_handle, grad)?;
                 }
             }
         }
@@ -262,6 +248,26 @@ where
         idx
     }
 
+    fn register_backward_op(
+        &self,
+        backward_op: Option<(Box<dyn BackwardOp<B, D>>, usize)>,
+    ) -> Option<usize> {
+        backward_op.map(|(op, saved_idx)| {
+            let mut ops = self.backward_ops.borrow_mut();
+            let idx = ops.len();
+            ops.push(BackwardEntry { op, saved_idx });
+            idx
+        })
+    }
+
+    fn collect_shape(tensor: &Tensor<B, D>) -> ArrayVec<[usize; MAX_SHAPE_RANK]> {
+        let mut shape = ArrayVec::new();
+        for &dim in tensor.shape() {
+            shape.push(dim);
+        }
+        shape
+    }
+
     pub(crate) fn create_node<'g>(
         &'g self,
         tensor: Tensor<B, D>,
@@ -275,17 +281,8 @@ where
         let generation = self.generation.get();
         let handle = Handle::new(index, generation);
 
-        let backward_op_idx = backward_op.map(|(op, saved_idx)| {
-            let mut ops = self.backward_ops.borrow_mut();
-            let idx = ops.len();
-            ops.push(BackwardEntry { op, saved_idx });
-            idx
-        });
-
-        let mut shape = ArrayVec::new();
-        for &dim in tensor.shape() {
-            shape.push(dim);
-        }
+        let backward_op_idx = self.register_backward_op(backward_op);
+        let shape = Self::collect_shape(&tensor);
 
         nodes.push(Node {
             handle,

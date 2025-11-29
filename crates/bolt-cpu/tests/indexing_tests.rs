@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bolt_core::Result;
+use bolt_core::layout::TensorIndexer;
 use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
 
@@ -162,8 +163,6 @@ fn test_range_full_in_tuple() -> Result<()> {
 
 #[test]
 fn test_vec_indexer() -> Result<()> {
-    use bolt_core::layout::TensorIndexer;
-
     let backend = Arc::new(CpuBackend::new());
     let data = vec![1.0, 2.0, 3.0, 4.0];
     let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 2])?;

@@ -1,16 +1,12 @@
-use bolt_core::{
-    Backend, Tensor,
-    backend::{AddOp, CopyOp, FillOp, MulOp},
-    shape,
-};
+use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp};
+use bolt_core::shape;
+use bolt_core::{Backend, Tensor};
 use tinyvec::ArrayVec;
 
-use crate::{
-    Float, GradTensor,
-    backward::{BackwardContext, BackwardOp, MAX_INPUTS},
-    error::Result,
-    ops::{broadcast_to, sum_axis},
-};
+use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
+use crate::error::Result;
+use crate::ops::{broadcast_to, sum_axis};
+use crate::{Float, GradTensor};
 
 pub struct SumBackward {
     input_shape: Vec<usize>,

@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use bolt_core::{Backend, Tensor};
+use bolt_core::Backend;
+use bolt_core::Tensor;
 use tinyvec::ArrayVec;
 
-use crate::{Float, error::Result};
+use crate::Float;
+use crate::error::Result;
 
 pub const MAX_INPUTS: usize = 2;
 

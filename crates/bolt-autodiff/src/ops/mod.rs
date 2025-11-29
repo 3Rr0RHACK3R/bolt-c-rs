@@ -6,12 +6,11 @@ pub use binary::{AddBackward, MulBackward, SubBackward};
 pub use reduce::{MeanBackward, SumBackward};
 pub use shape::{ReshapeBackward, TransposeBackward};
 
-use bolt_core::{
-    Backend, Tensor,
-    backend::{AddOp, CopyOp},
-};
+use bolt_core::backend::{AddOp, CopyOp};
+use bolt_core::{Backend, Tensor};
 
-use crate::{Float, error::Result};
+use crate::Float;
+use crate::error::Result;
 
 pub(crate) fn reduce_grad_to_shape<B, D>(
     grad: &Tensor<B, D>,

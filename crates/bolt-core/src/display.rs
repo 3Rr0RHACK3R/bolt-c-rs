@@ -69,43 +69,71 @@ where
         let len = self.tensor.shape()[dim];
         let entries = self.display_indices(len, truncated);
         let rank = self.tensor.shape().len();
-        for (i, entry) in entries.iter().enumerate() {
-            if rank == dim + 1 {
-                if i > 0 {
-                    out.push_str(", ");
-                }
-                match entry {
-                    DisplayIndex::Index(value_idx) => {
-                        indices.push(*value_idx);
-                        let value = self.read_value(indices)?;
-                        out.push_str(&self.format_value(value));
-                        indices.pop();
-                    }
-                    DisplayIndex::Ellipsis => out.push_str("..."),
-                }
-            } else {
-                if i > 0 {
-                    out.push(',');
-                }
-                if depth > 0 || i > 0 {
-                    out.push('\n');
-                    out.push_str(&indent(depth + 1));
-                }
-                match entry {
-                    DisplayIndex::Index(value_idx) => {
-                        indices.push(*value_idx);
-                        self.format_dim(dim + 1, indices, truncated, depth + 1, out)?;
-                        indices.pop();
-                    }
-                    DisplayIndex::Ellipsis => out.push_str("..."),
-                }
-            }
+        let is_leaf = rank == dim + 1;
+
+        if is_leaf {
+            self.format_leaf_entries(&entries, indices, out)?;
+        } else {
+            self.format_inner_entries(dim, &entries, indices, truncated, depth, out)?;
         }
-        if rank != dim + 1 {
+
+        if !is_leaf {
             out.push('\n');
             out.push_str(&indent(depth));
         }
         out.push(']');
+        Ok(())
+    }
+
+    fn format_leaf_entries(
+        &mut self,
+        entries: &[DisplayIndex],
+        indices: &mut Vec<usize>,
+        out: &mut String,
+    ) -> Result<()> {
+        for (i, entry) in entries.iter().enumerate() {
+            if i > 0 {
+                out.push_str(", ");
+            }
+            match entry {
+                DisplayIndex::Index(value_idx) => {
+                    indices.push(*value_idx);
+                    let value = self.read_value(indices)?;
+                    out.push_str(&self.format_value(value));
+                    indices.pop();
+                }
+                DisplayIndex::Ellipsis => out.push_str("..."),
+            }
+        }
+        Ok(())
+    }
+
+    fn format_inner_entries(
+        &mut self,
+        dim: usize,
+        entries: &[DisplayIndex],
+        indices: &mut Vec<usize>,
+        truncated: bool,
+        depth: usize,
+        out: &mut String,
+    ) -> Result<()> {
+        for (i, entry) in entries.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            if depth > 0 || i > 0 {
+                out.push('\n');
+                out.push_str(&indent(depth + 1));
+            }
+            match entry {
+                DisplayIndex::Index(value_idx) => {
+                    indices.push(*value_idx);
+                    self.format_dim(dim + 1, indices, truncated, depth + 1, out)?;
+                    indices.pop();
+                }
+                DisplayIndex::Ellipsis => out.push_str("..."),
+            }
+        }
         Ok(())
     }
 
