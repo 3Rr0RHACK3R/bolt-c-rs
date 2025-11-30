@@ -12,6 +12,14 @@ where
     D::one()
 }
 
+pub(crate) fn ensure_float_dtype(dtype: DType) -> Result<()> {
+    if dtype.is_float() {
+        Ok(())
+    } else {
+        Err(Error::invalid_shape("operation requires floating point dtype"))
+    }
+}
+
 pub(crate) fn compute_arange_len<D>(start: D, end: D, step: D) -> Result<usize>
 where
     D: NativeType,
@@ -85,6 +93,63 @@ where
     }
 }
 
+pub(crate) fn build_linspace_values<D>(start: D, end: D, steps: usize) -> Result<Vec<D>>
+where
+    D: NativeType,
+{
+    ensure_float_dtype(D::DTYPE)?;
+    if steps < 2 {
+        return Err(Error::invalid_shape("linspace steps must be >= 2"));
+    }
+    match D::DTYPE {
+        DType::F32 => {
+            let values = build_linspace_f32(cast::<D, f32>(start), cast::<D, f32>(end), steps);
+            Ok(values.into_iter().map(cast).collect())
+        }
+        DType::F64 => {
+            let values = build_linspace_f64(cast::<D, f64>(start), cast::<D, f64>(end), steps);
+            Ok(values.into_iter().map(cast).collect())
+        }
+        DType::I32 => unreachable!(),
+    }
+}
+
+pub(crate) fn build_logspace_values<D>(
+    start: D,
+    end: D,
+    steps: usize,
+    base: D,
+) -> Result<Vec<D>>
+where
+    D: NativeType,
+{
+    ensure_float_dtype(D::DTYPE)?;
+    if steps < 2 {
+        return Err(Error::invalid_shape("logspace steps must be >= 2"));
+    }
+    match D::DTYPE {
+        DType::F32 => {
+            let values = build_logspace_f32(
+                cast::<D, f32>(start),
+                cast::<D, f32>(end),
+                steps,
+                cast::<D, f32>(base),
+            )?;
+            Ok(values.into_iter().map(cast).collect())
+        }
+        DType::F64 => {
+            let values = build_logspace_f64(
+                cast::<D, f64>(start),
+                cast::<D, f64>(end),
+                steps,
+                cast::<D, f64>(base),
+            )?;
+            Ok(values.into_iter().map(cast).collect())
+        }
+        DType::I32 => unreachable!(),
+    }
+}
+
 fn float_arange_len(start: f64, end: f64, step: f64) -> Result<u128> {
     if step == 0.0 || step.is_nan() {
         return Err(Error::invalid_shape(
@@ -141,4 +206,60 @@ fn int_arange_len(start: i32, end: i32, step: i32) -> Result<usize> {
         limit: isize::MAX as usize,
         requested: usize::MAX,
     })
+}
+
+fn build_linspace_f32(start: f32, end: f32, steps: usize) -> Vec<f32> {
+    if steps == 1 {
+        return vec![end];
+    }
+    let step = (end - start) / (steps as f32 - 1.0);
+    let mut values = Vec::with_capacity(steps);
+    for idx in 0..steps {
+        if idx + 1 == steps {
+            values.push(end);
+        } else {
+            values.push(start + step * idx as f32);
+        }
+    }
+    values
+}
+
+fn build_linspace_f64(start: f64, end: f64, steps: usize) -> Vec<f64> {
+    if steps == 1 {
+        return vec![end];
+    }
+    let step = (end - start) / (steps as f64 - 1.0);
+    let mut values = Vec::with_capacity(steps);
+    for idx in 0..steps {
+        if idx + 1 == steps {
+            values.push(end);
+        } else {
+            values.push(start + step * idx as f64);
+        }
+    }
+    values
+}
+
+fn build_logspace_f32(start: f32, end: f32, steps: usize, base: f32) -> Result<Vec<f32>> {
+    if !base.is_finite() || base <= 0.0 || base == 1.0 {
+        return Err(Error::invalid_shape("logspace base must be finite, > 0, and != 1"));
+    }
+    let exponents = build_linspace_f32(start, end, steps);
+    let mut values = Vec::with_capacity(steps);
+    for exponent in exponents {
+        values.push(base.powf(exponent));
+    }
+    Ok(values)
+}
+
+fn build_logspace_f64(start: f64, end: f64, steps: usize, base: f64) -> Result<Vec<f64>> {
+    if !base.is_finite() || base <= 0.0 || base == 1.0 {
+        return Err(Error::invalid_shape("logspace base must be finite, > 0, and != 1"));
+    }
+    let exponents = build_linspace_f64(start, end, steps);
+    let mut values = Vec::with_capacity(steps);
+    for exponent in exponents {
+        values.push(base.powf(exponent));
+    }
+    Ok(values)
 }
