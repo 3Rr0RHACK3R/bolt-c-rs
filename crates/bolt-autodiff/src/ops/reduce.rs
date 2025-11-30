@@ -5,7 +5,7 @@ use tinyvec::ArrayVec;
 
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
-use crate::ops::{broadcast_to, sum_axis};
+use crate::ops::sum_axis;
 use crate::{Float, GradTensor};
 
 pub struct SumBackward {
@@ -28,7 +28,7 @@ where
         grad_output: &Tensor<B, D>,
         _ctx: &BackwardContext<B, D>,
     ) -> Result<ArrayVec<[Option<Tensor<B, D>>; MAX_INPUTS]>> {
-        let grad_input = broadcast_to(grad_output, &self.input_shape)?;
+        let grad_input = grad_output.broadcast_to(&self.input_shape)?;
         let mut result = ArrayVec::new();
         result.push(Some(grad_input));
         Ok(result)
@@ -63,7 +63,7 @@ where
         let scale = D::one() / D::from_usize(self.count);
         let scaled =
             Tensor::full(&grad_output.backend(), grad_output.shape(), scale)?.mul(grad_output)?;
-        let grad_input = broadcast_to(&scaled, &self.input_shape)?;
+        let grad_input = scaled.broadcast_to(&self.input_shape)?;
         let mut result = ArrayVec::new();
         result.push(Some(grad_input));
         Ok(result)
