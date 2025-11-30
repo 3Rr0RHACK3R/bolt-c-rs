@@ -11,5 +11,4 @@ bytemuck.workspace = true
 tinyvec = "1.10.0"
 bitflags = "2"
 
-[dev-dependencies]
-bolt-cpu = { path = "../bolt-cpu" }
+
