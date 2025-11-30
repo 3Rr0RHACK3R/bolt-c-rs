@@ -44,6 +44,22 @@ where
         Ok(tensor)
     }
 
+    pub fn from_vec(backend: &Arc<B>, data: Vec<D>, shape: &[usize]) -> Result<Self> {
+        let shape = ConcreteShape::from_slice(shape)?;
+        if shape.num_elements() != data.len() {
+            return Err(Error::SizeMismatch {
+                expected: shape.num_elements(),
+                actual: data.len(),
+            });
+        }
+        let layout = Layout::contiguous(shape);
+        let mut storage = backend.allocator().allocate(data.len())?;
+        backend.write(&mut storage, &layout, &data)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
     pub fn zeros(backend: &Arc<B>, shape: &[usize]) -> Result<Self>
     where
         B: FillOp<D>,
@@ -95,6 +111,15 @@ where
         Ok(tensor)
     }
 
+    pub fn zeros_like(other: &Tensor<B, D>) -> Result<Self> {
+        let layout = Layout::contiguous(other.layout.concrete_shape().clone());
+        let numel = layout.num_elements();
+        let storage = other.backend.allocator().allocate_zeroed(numel)?;
+        let tensor = Self::from_parts(other.backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
     pub fn full_like(other: &Tensor<B, D>, value: D) -> Result<Self>
     where
         B: FillOp<D>,
@@ -116,6 +141,59 @@ where
         let layout = Layout::contiguous(shape);
         let mut storage = backend.allocator().allocate(len)?;
         let values = tensor_creation::build_arange_values(len, start, step)?;
+        backend.write(&mut storage, &layout, &values)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn eye(backend: &Arc<B>, rows: usize, cols: usize) -> Result<Self>
+    where
+        D: OneValue,
+    {
+        let shape = ConcreteShape::from_slice(&[rows, cols])?;
+        let numel = shape.num_elements();
+        let mut values = vec![D::default(); numel];
+        let diag = rows.min(cols);
+        if cols > 0 {
+            let stride = cols;
+            let diag_value = tensor_creation::one_value::<D>();
+            for idx in 0..diag {
+                values[idx * stride + idx] = diag_value;
+            }
+        }
+        Self::from_vec(backend, values, &[rows, cols])
+    }
+
+    pub fn identity(backend: &Arc<B>, size: usize) -> Result<Self>
+    where
+        D: OneValue,
+    {
+        Self::eye(backend, size, size)
+    }
+
+    pub fn linspace(backend: &Arc<B>, start: D, end: D, steps: usize) -> Result<Self> {
+        let values = tensor_creation::build_linspace_values(start, end, steps)?;
+        let shape = ConcreteShape::from_slice(&[values.len()])?;
+        let layout = Layout::contiguous(shape);
+        let mut storage = backend.allocator().allocate(values.len())?;
+        backend.write(&mut storage, &layout, &values)?;
+        let tensor = Self::from_parts(backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn logspace(
+        backend: &Arc<B>,
+        start: D,
+        end: D,
+        steps: usize,
+        base: D,
+    ) -> Result<Self> {
+        let values = tensor_creation::build_logspace_values(start, end, steps, base)?;
+        let shape = ConcreteShape::from_slice(&[values.len()])?;
+        let layout = Layout::contiguous(shape);
+        let mut storage = backend.allocator().allocate(values.len())?;
         backend.write(&mut storage, &layout, &values)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -148,6 +226,21 @@ where
 
     pub fn numel(&self) -> usize {
         self.layout.num_elements()
+    }
+
+    pub fn into_vec(self) -> Result<Vec<D>>
+    where
+        B: CopyOp<D>,
+    {
+        if self.layout.is_contiguous() && self.layout.offset_bytes() == 0 {
+            let mut values = vec![D::default(); self.numel()];
+            self
+                .backend
+                .read(&self.storage, &self.layout, &mut values)?;
+            return Ok(values);
+        }
+        let tensor = self.contiguous()?;
+        tensor.into_vec()
     }
 
     pub fn to_vec(&self) -> Result<Vec<D>>
