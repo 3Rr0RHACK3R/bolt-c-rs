@@ -203,6 +203,56 @@ where
         Ok(self.with_layout(layout))
     }
 
+    /// Returns a broadcast view sharing the same storage as `self`.
+    ///
+    /// Broadcasting follows NumPy semantics: dimensions must be compatible (size 1 or matching).
+    /// If the source tensor has lower rank than the target shape, it is reshaped by prepending
+    /// dimensions of size 1.
+    ///
+    /// The result is a view with zero-copy: broadcasted dimensions have stride 0.
+    /// Call `.contiguous()` explicitly if you need a contiguous copy for performance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use bolt_core::{Tensor, Backend, Result};
+    /// # use bolt_cpu::CpuBackend;
+    /// # use std::sync::Arc;
+    /// # fn example<B: Backend<f32>>(backend: &Arc<B>) -> Result<()> {
+    /// let tensor = Tensor::from_slice(backend, &[1.0, 2.0], &[2])?;
+    /// let broadcasted = tensor.broadcast_to(&[3, 2])?;
+    /// assert_eq!(broadcasted.shape(), &[3, 2]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::ShapeMismatch` if the shapes are incompatible for broadcasting.
+    pub fn broadcast_to(&self, shape: &[usize]) -> Result<Self> {
+        let target_shape = ConcreteShape::from_slice(shape)?;
+        let src_shape = self.layout.concrete_shape().as_slice();
+        let src_rank = src_shape.len();
+        let target_rank = target_shape.as_slice().len();
+
+        let mut current = self.clone();
+
+        if src_rank < target_rank {
+            let mut reshaped = vec![1; target_rank - src_rank];
+            reshaped.extend_from_slice(src_shape);
+            current = current.reshape(&reshaped)?;
+        }
+
+        let layout = current.layout().broadcast_to(&target_shape)?;
+        current.validate_layout_for_storage(&current.storage, &layout)?;
+
+        Ok(Self::from_parts(
+            current.backend.clone(),
+            current.storage.clone(),
+            layout,
+        ))
+    }
+
     pub fn transpose(&self, axis_a: usize, axis_b: usize) -> Result<Self> {
         let layout = self.layout.transpose(axis_a, axis_b)?;
         self.validate_layout_for_storage(&self.storage, &layout)?;
