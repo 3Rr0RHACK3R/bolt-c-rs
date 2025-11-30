@@ -75,6 +75,19 @@ where
     fn attach(self, graph: &'g Graph<B, D>) -> AttachBuilder<'g, B, D>;
 }
 
+impl<'g, B, D> Attach<'g, B, D> for &Tensor<B, D>
+where
+    B: Backend<D>,
+    D: Float,
+{
+    fn attach(self, graph: &'g Graph<B, D>) -> AttachBuilder<'g, B, D> {
+        AttachBuilder {
+            graph,
+            tensor: self.clone(),
+        }
+    }
+}
+
 pub struct AttachBuilder<'g, B, D>
 where
     B: Backend<D>,
@@ -125,16 +138,6 @@ where
 {
     fn into_node(self, graph: &'g Graph<B, D>) -> GradTensor<'g, B, D> {
         graph.input(&self)
-    }
-}
-
-impl<'g, B, D> TensorLike<'g, B, D> for &Tensor<B, D>
-where
-    B: Backend<D>,
-    D: Float,
-{
-    fn into_node(self, graph: &'g Graph<B, D>) -> GradTensor<'g, B, D> {
-        graph.input(self)
     }
 }
 

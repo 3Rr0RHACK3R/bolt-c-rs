@@ -277,7 +277,10 @@ where
         backward_op: Option<(Box<dyn BackwardOp<B, D>>, usize)>,
     ) -> GradTensor<'g, B, D> {
         let mut nodes = self.nodes.borrow_mut();
-        let index: u32 = nodes.len().try_into().expect("graph node count exceeded u32::MAX");
+        let index: u32 = nodes
+            .len()
+            .try_into()
+            .expect("graph node count exceeded u32::MAX");
         let generation = self.generation.get();
         let handle = Handle::new(index, generation);
 
