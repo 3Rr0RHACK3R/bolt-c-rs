@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 bolt-core = { path = "../bolt-core" }
 tinyvec = "1.10"
+num-traits.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
