@@ -323,6 +323,31 @@ fn sum_non_contiguous_transposed() -> Result<()> {
 }
 
 #[test]
+fn sum_axis_specific_on_transposed() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        &[2, 3],
+    )?;
+    let transposed = tensor.transpose(0, 1)?;
+
+    let result_axis0 = transposed.sum(Some(&[0]), false)?;
+    assert_eq!(result_axis0.shape(), &[2]);
+    let result_vec_axis0 = result_axis0.to_vec()?;
+    assert!((result_vec_axis0[0] - 6.0).abs() < 1e-6, "Expected 6.0, got {}", result_vec_axis0[0]);
+    assert!((result_vec_axis0[1] - 15.0).abs() < 1e-6, "Expected 15.0, got {}", result_vec_axis0[1]);
+
+    let result_axis1 = transposed.sum(Some(&[1]), false)?;
+    assert_eq!(result_axis1.shape(), &[3]);
+    let result_vec_axis1 = result_axis1.to_vec()?;
+    assert!((result_vec_axis1[0] - 5.0).abs() < 1e-6);
+    assert!((result_vec_axis1[1] - 7.0).abs() < 1e-6);
+    assert!((result_vec_axis1[2] - 9.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
 fn prod_negative_values_f32() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[2.0, -3.0, 4.0], &[3])?;

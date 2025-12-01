@@ -107,19 +107,12 @@ where
         let mut min_vals: Vec<Option<D>> = vec![None; output_numel];
         let mut min_indices: Vec<i32> = vec![0; output_numel];
 
+        let mut logical_idx = 0;
         for byte_offset in input.layout.iter_offsets(D::DTYPE)? {
             let idx = byte_offset / elem_size;
             let value = unsafe { input_data[idx].assume_init() };
 
-            let input_linear_idx = if input.layout.is_contiguous()
-                && input.layout.offset_bytes() == 0
-            {
-                idx
-            } else {
-                (byte_offset - input.layout.offset_bytes()) / elem_size
-            };
-
-            let input_indices = compute_multi_index_from_linear(input_linear_idx, input_shape);
+            let input_indices = compute_multi_index_from_linear(logical_idx, input_shape);
 
             let output_linear_idx =
                 compute_output_linear_index(&input_indices, &canonical, &output_shape, keepdims);
@@ -138,6 +131,8 @@ where
                     }
                 }
             }
+
+            logical_idx += 1;
         }
 
         for (i, idx_val) in min_indices.iter().enumerate() {
