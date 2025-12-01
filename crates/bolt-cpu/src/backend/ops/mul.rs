@@ -42,12 +42,14 @@ where
     let rhs_data = rhs.storage.as_uninit_slice();
     let elem_size = D::DTYPE.size_in_bytes();
 
-    let no_broadcast = lhs.layout.shape() == rhs.layout.shape();
+    let no_broadcast = lhs_layout.shape() == rhs_layout.shape()
+        && lhs_layout.shape() == lhs.layout.shape()
+        && rhs_layout.shape() == rhs.layout.shape();
     if no_broadcast
-        && lhs_layout.is_contiguous()
-        && rhs_layout.is_contiguous()
-        && lhs_layout.offset_bytes() == 0
-        && rhs_layout.offset_bytes() == 0
+        && lhs.layout.is_contiguous()
+        && rhs.layout.is_contiguous()
+        && lhs.layout.offset_bytes() == 0
+        && rhs.layout.offset_bytes() == 0
     {
         for (dst, (&lhs_val, &rhs_val)) in out_slice
             .iter_mut()

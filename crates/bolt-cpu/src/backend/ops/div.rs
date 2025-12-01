@@ -53,13 +53,42 @@ impl DivValidate for i32 {
     }
 }
 
+pub(crate) trait DivOverflowCheck: DivValidate {
+    fn check_division(lhs: Self, rhs: Self) -> Result<()>;
+}
+
+impl DivOverflowCheck for f32 {
+    #[inline(always)]
+    fn check_division(_lhs: Self, rhs: Self) -> Result<()> {
+        Self::check_divisor(rhs)
+    }
+}
+
+impl DivOverflowCheck for f64 {
+    #[inline(always)]
+    fn check_division(_lhs: Self, rhs: Self) -> Result<()> {
+        Self::check_divisor(rhs)
+    }
+}
+
+impl DivOverflowCheck for i32 {
+    #[inline(always)]
+    fn check_division(lhs: Self, rhs: Self) -> Result<()> {
+        Self::check_divisor(rhs)?;
+        if lhs == i32::MIN && rhs == -1 {
+            return Err(Error::OpError("integer overflow: i32::MIN / -1".to_string()));
+        }
+        Ok(())
+    }
+}
+
 pub fn div<D>(
     lhs: CpuTensorView<'_, D>,
     rhs: CpuTensorView<'_, D>,
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
 where
-    D: NativeType + Copy + Div<Output = D> + DivValidate,
+    D: NativeType + Copy + Div<Output = D> + DivOverflowCheck,
 {
     let (lhs_layout, rhs_layout) = Layout::broadcast_binary(lhs.layout, rhs.layout)?;
     let shape = lhs_layout.shape();
@@ -71,12 +100,14 @@ where
     let rhs_data = rhs.storage.as_uninit_slice();
     let elem_size = D::DTYPE.size_in_bytes();
 
-    let no_broadcast = lhs.layout.shape() == rhs.layout.shape();
+    let no_broadcast = lhs_layout.shape() == rhs_layout.shape()
+        && lhs_layout.shape() == lhs.layout.shape()
+        && rhs_layout.shape() == rhs.layout.shape();
     if no_broadcast
-        && lhs_layout.is_contiguous()
-        && rhs_layout.is_contiguous()
-        && lhs_layout.offset_bytes() == 0
-        && rhs_layout.offset_bytes() == 0
+        && lhs.layout.is_contiguous()
+        && rhs.layout.is_contiguous()
+        && lhs.layout.offset_bytes() == 0
+        && rhs.layout.offset_bytes() == 0
     {
         for (dst, (&lhs_val, &rhs_val)) in out_slice
             .iter_mut()
@@ -84,7 +115,7 @@ where
         {
             let lhs_val = unsafe { lhs_val.assume_init() };
             let rhs_val = unsafe { rhs_val.assume_init() };
-            D::check_divisor(rhs_val)?;
+            D::check_division(lhs_val, rhs_val)?;
             dst.write(lhs_val / rhs_val);
         }
     } else {
@@ -99,7 +130,7 @@ where
             let rhs_idx = rhs_idx_bytes / elem_size;
             let lhs_val = unsafe { lhs_data[lhs_idx].assume_init() };
             let rhs_val = unsafe { rhs_data[rhs_idx].assume_init() };
-            D::check_divisor(rhs_val)?;
+            D::check_division(lhs_val, rhs_val)?;
             dst.write(lhs_val / rhs_val);
         }
     }

@@ -151,3 +151,47 @@ fn pow_broadcast_2d() -> Result<()> {
     assert_eq!(result, vec![4.0, 27.0, 16.0, 125.0]);
     Ok(())
 }
+
+#[test]
+fn div_i32_min_overflow() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let lhs = Tensor::<CpuBackend, i32>::from_slice(&backend, &[i32::MIN, 10], &[2])?;
+    let rhs = Tensor::<CpuBackend, i32>::from_slice(&backend, &[-1, 2], &[2])?;
+
+    let result = lhs.div(&rhs);
+    assert!(matches!(result, Err(Error::OpError(_))));
+    Ok(())
+}
+
+#[test]
+fn add_broadcast_2d() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let lhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
+    let rhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[10.0, 20.0], &[2])?;
+
+    let result = lhs.add(&rhs)?.to_vec()?;
+    assert_eq!(result, vec![11.0, 22.0, 13.0, 24.0]);
+    Ok(())
+}
+
+#[test]
+fn sub_broadcast_2d() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let lhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[10.0, 20.0, 30.0, 40.0], &[2, 2])?;
+    let rhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0], &[2])?;
+
+    let result = lhs.sub(&rhs)?.to_vec()?;
+    assert_eq!(result, vec![9.0, 18.0, 29.0, 38.0]);
+    Ok(())
+}
+
+#[test]
+fn mul_broadcast_2d() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let lhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[2.0, 3.0, 4.0, 5.0], &[2, 2])?;
+    let rhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[10.0, 100.0], &[2])?;
+
+    let result = lhs.mul(&rhs)?.to_vec()?;
+    assert_eq!(result, vec![20.0, 300.0, 40.0, 500.0]);
+    Ok(())
+}
