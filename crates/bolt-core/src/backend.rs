@@ -141,3 +141,65 @@ pub trait PowOp<D: FloatType>: Backend<D> {
         rhs_layout: &Layout,
     ) -> Result<TensorParts<Self::Storage>>;
 }
+
+pub trait SumOp<D: NativeType>: Backend<D> {
+    fn sum(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait ProdOp<D: NativeType>: Backend<D> {
+    fn prod(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait MinOp<D: NativeType>: Backend<D> {
+    fn min(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait MaxOp<D: NativeType>: Backend<D> {
+    fn max(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait ArgminOp<D: NativeType>: Backend<D> {
+    type I32Storage: Clone + Send + Sync + 'static;
+    fn argmin(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::I32Storage>>;
+}
+
+pub trait ArgmaxOp<D: NativeType>: Backend<D> {
+    type I32Storage: Clone + Send + Sync + 'static;
+    fn argmax(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::I32Storage>>;
+}

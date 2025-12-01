@@ -6,7 +6,7 @@ pub use binary::{AddBackward, MulBackward, SubBackward};
 pub use reduce::{MeanBackward, SumBackward};
 pub use shape::{ReshapeBackward, TransposeBackward};
 
-use bolt_core::backend::{AddOp, CopyOp};
+use bolt_core::backend::{AddOp, SumOp};
 use bolt_core::{Backend, Tensor};
 
 use crate::Float;
@@ -17,7 +17,7 @@ pub(crate) fn reduce_grad_to_shape<B, D>(
     target_shape: &[usize],
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend<D> + AddOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + SumOp<D>,
     D: Float,
 {
     let grad_shape = grad.shape();
@@ -27,7 +27,7 @@ where
     }
 
     if target_shape.is_empty() {
-        return sum_all(grad);
+        return Ok(grad.sum(None, false)?);
     }
 
     let grad_rank = grad_shape.len();
@@ -44,83 +44,14 @@ where
     let mut result = grad.clone();
 
     for i in 0..rank_diff {
-        result = sum_axis(&result, 0)?;
+        result = result.sum(Some(&[0]), false)?;
         let _ = i;
     }
 
     for i in 0..target_rank {
         if target_shape[i] == 1 && result.shape()[i] != 1 {
-            result = sum_axis(&result, i)?;
-            let new_shape: Vec<usize> = result
-                .shape()
-                .iter()
-                .enumerate()
-                .map(|(j, &d)| if j == i { 1 } else { d })
-                .collect();
-            result = result.reshape(&new_shape)?;
+            result = result.sum(Some(&[i]), true)?;
         }
-    }
-
-    Ok(result)
-}
-
-fn sum_all<B, D>(tensor: &Tensor<B, D>) -> Result<Tensor<B, D>>
-where
-    B: Backend<D> + AddOp<D> + CopyOp<D>,
-    D: Float,
-{
-    let mut result = tensor.clone();
-    while result.rank() > 0 {
-        result = sum_axis(&result, 0)?;
-    }
-    Ok(result)
-}
-
-pub(crate) fn sum_axis<B, D>(tensor: &Tensor<B, D>, axis: usize) -> Result<Tensor<B, D>>
-where
-    B: Backend<D> + AddOp<D> + CopyOp<D>,
-    D: Float,
-{
-    let shape = tensor.shape();
-    if axis >= shape.len() {
-        return Err(crate::error::Error::Core(bolt_core::Error::InvalidAxes(
-            format!("axis {} out of bounds for rank {}", axis, shape.len()),
-        )));
-    }
-
-    let axis_size = shape[axis];
-    if axis_size == 0 {
-        return Err(crate::error::Error::Core(bolt_core::Error::invalid_shape(
-            "cannot reduce empty axis",
-        )));
-    }
-
-    if axis_size == 1 {
-        let new_shape: Vec<usize> = shape
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i != axis)
-            .map(|(_, &d)| d)
-            .collect();
-        let contiguous = tensor.contiguous()?;
-        return Ok(contiguous.reshape(&new_shape)?);
-    }
-
-    let first_slice = tensor.slice(axis, 0, 1, 1)?;
-    let reduced_shape: Vec<usize> = shape
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| *i != axis)
-        .map(|(_, &d)| d)
-        .collect();
-    let first_contiguous = first_slice.contiguous()?;
-    let mut result = first_contiguous.reshape(&reduced_shape)?;
-
-    for i in 1..axis_size {
-        let slice = tensor.slice(axis, i, i + 1, 1)?;
-        let slice_contiguous = slice.contiguous()?;
-        let slice = slice_contiguous.reshape(&reduced_shape)?;
-        result = result.add(&slice)?;
     }
 
     Ok(result)
