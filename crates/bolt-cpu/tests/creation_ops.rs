@@ -111,7 +111,8 @@ fn from_vec_size_mismatch_errors() {
 #[test]
 fn zeros_like_resets_offset_and_values() {
     let backend = Arc::new(CpuBackend::new());
-    let base = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+    let base =
+        Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
     let view = base.slice(0, 1, 2, 1).unwrap();
     assert!(view.layout().offset_bytes() > 0);
 

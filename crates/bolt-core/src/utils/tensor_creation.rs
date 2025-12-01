@@ -16,7 +16,9 @@ pub(crate) fn ensure_float_dtype(dtype: DType) -> Result<()> {
     if dtype.is_float() {
         Ok(())
     } else {
-        Err(Error::invalid_shape("operation requires floating point dtype"))
+        Err(Error::invalid_shape(
+            "operation requires floating point dtype",
+        ))
     }
 }
 
@@ -114,12 +116,7 @@ where
     }
 }
 
-pub(crate) fn build_logspace_values<D>(
-    start: D,
-    end: D,
-    steps: usize,
-    base: D,
-) -> Result<Vec<D>>
+pub(crate) fn build_logspace_values<D>(start: D, end: D, steps: usize, base: D) -> Result<Vec<D>>
 where
     D: NativeType,
 {
@@ -242,7 +239,9 @@ fn build_linspace_f64(start: f64, end: f64, steps: usize) -> Vec<f64> {
 
 fn build_logspace_f32(start: f32, end: f32, steps: usize, base: f32) -> Result<Vec<f32>> {
     if !base.is_finite() || base <= 0.0 || base == 1.0 {
-        return Err(Error::invalid_shape("logspace base must be finite, > 0, and != 1"));
+        return Err(Error::invalid_shape(
+            "logspace base must be finite, > 0, and != 1",
+        ));
     }
     let exponents = build_linspace_f32(start, end, steps);
     let mut values = Vec::with_capacity(steps);
@@ -254,7 +253,9 @@ fn build_logspace_f32(start: f32, end: f32, steps: usize, base: f32) -> Result<V
 
 fn build_logspace_f64(start: f64, end: f64, steps: usize, base: f64) -> Result<Vec<f64>> {
     if !base.is_finite() || base <= 0.0 || base == 1.0 {
-        return Err(Error::invalid_shape("logspace base must be finite, > 0, and != 1"));
+        return Err(Error::invalid_shape(
+            "logspace base must be finite, > 0, and != 1",
+        ));
     }
     let exponents = build_linspace_f64(start, end, steps);
     let mut values = Vec::with_capacity(steps);

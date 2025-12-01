@@ -2,8 +2,11 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     allocator::StorageAllocator,
-    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, MulOp, SubOp},
-    dtype::{NativeType, OneValue, ToF32},
+    backend::{
+        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp, NegOp,
+        ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+    },
+    dtype::{FloatType, NativeType, OneValue, ToF32},
     error::{Error, Result},
     index::TensorIndex,
     layout::Layout,
@@ -183,13 +186,7 @@ where
         Ok(tensor)
     }
 
-    pub fn logspace(
-        backend: &Arc<B>,
-        start: D,
-        end: D,
-        steps: usize,
-        base: D,
-    ) -> Result<Self> {
+    pub fn logspace(backend: &Arc<B>, start: D, end: D, steps: usize, base: D) -> Result<Self> {
         let values = tensor_creation::build_logspace_values(start, end, steps, base)?;
         let shape = ConcreteShape::from_slice(&[values.len()])?;
         let layout = Layout::contiguous(shape);
@@ -234,8 +231,7 @@ where
     {
         if self.layout.is_contiguous() && self.layout.offset_bytes() == 0 {
             let mut values = vec![D::default(); self.numel()];
-            self
-                .backend
+            self.backend
                 .read(&self.storage, &self.layout, &mut values)?;
             return Ok(values);
         }
@@ -435,6 +431,120 @@ where
     {
         let parts = MeanOp::<D>::mean_f32(self.backend.as_ref(), &self.storage, &self.layout)?;
         Ok(Tensor::<B, f32>::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn neg(&self) -> Result<Self>
+    where
+        B: NegOp<D>,
+    {
+        let parts = self.backend.neg(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn abs(&self) -> Result<Self>
+    where
+        B: AbsOp<D>,
+    {
+        let parts = self.backend.abs(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn exp(&self) -> Result<Self>
+    where
+        B: ExpOp<D>,
+        D: FloatType,
+    {
+        let parts = self.backend.exp(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn log(&self) -> Result<Self>
+    where
+        B: LogOp<D>,
+        D: FloatType,
+    {
+        let parts = self.backend.log(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn sqrt(&self) -> Result<Self>
+    where
+        B: SqrtOp<D>,
+        D: FloatType,
+    {
+        let parts = self.backend.sqrt(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn sin(&self) -> Result<Self>
+    where
+        B: SinOp<D>,
+        D: FloatType,
+    {
+        let parts = self.backend.sin(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn cos(&self) -> Result<Self>
+    where
+        B: CosOp<D>,
+        D: FloatType,
+    {
+        let parts = self.backend.cos(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn tanh(&self) -> Result<Self>
+    where
+        B: TanhOp<D>,
+        D: FloatType,
+    {
+        let parts = self.backend.tanh(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn relu(&self) -> Result<Self>
+    where
+        B: ReluOp<D>,
+    {
+        let parts = self.backend.relu(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
             parts.layout,

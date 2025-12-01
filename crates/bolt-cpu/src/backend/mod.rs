@@ -9,7 +9,10 @@ use std::sync::Arc;
 use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
-    backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, MulOp, SubOp},
+    backend::{
+        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp, NegOp,
+        ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+    },
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
     layout::Layout,
@@ -22,7 +25,10 @@ use allocator::CpuAllocTelemetry;
 use allocator::CpuAllocator;
 use context::CpuContext;
 use memory_pool::MemoryPool;
-use ops::{AddKernel, CopyKernel, CpuScalar, MatmulKernel, MeanKernel, MulKernel, SubKernel};
+use ops::{
+    AbsKernel, AddKernel, CopyKernel, CosKernel, CpuScalar, ExpKernel, LogKernel, MatmulKernel,
+    MeanKernel, MulKernel, NegKernel, ReluKernel, SinKernel, SqrtKernel, SubKernel, TanhKernel,
+};
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
 #[derive(Clone)]
@@ -233,5 +239,86 @@ where
     ) -> Result<TensorParts<Self::F32Storage>> {
         let allocator = <Self as Backend<f32>>::allocator(self);
         <D as MeanKernel>::mean_f32_kernel(TensorView::new(storage, layout), &allocator)
+    }
+}
+
+impl<D> NegOp<D> for CpuBackend
+where
+    D: CpuScalar + NegKernel,
+{
+    fn neg(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as NegKernel>::neg_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> AbsOp<D> for CpuBackend
+where
+    D: CpuScalar + AbsKernel,
+{
+    fn abs(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as AbsKernel>::abs_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> ExpOp<D> for CpuBackend
+where
+    D: CpuScalar + ExpKernel,
+{
+    fn exp(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as ExpKernel>::exp_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> LogOp<D> for CpuBackend
+where
+    D: CpuScalar + LogKernel,
+{
+    fn log(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as LogKernel>::log_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> SqrtOp<D> for CpuBackend
+where
+    D: CpuScalar + SqrtKernel,
+{
+    fn sqrt(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as SqrtKernel>::sqrt_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> SinOp<D> for CpuBackend
+where
+    D: CpuScalar + SinKernel,
+{
+    fn sin(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as SinKernel>::sin_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> CosOp<D> for CpuBackend
+where
+    D: CpuScalar + CosKernel,
+{
+    fn cos(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as CosKernel>::cos_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> TanhOp<D> for CpuBackend
+where
+    D: CpuScalar + TanhKernel,
+{
+    fn tanh(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as TanhKernel>::tanh_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> ReluOp<D> for CpuBackend
+where
+    D: CpuScalar + ReluKernel,
+{
+    fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+        <D as ReluKernel>::relu_kernel(TensorView::new(storage, layout), &self.allocator())
     }
 }

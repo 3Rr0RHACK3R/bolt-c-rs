@@ -1,7 +1,7 @@
 use crate::{
     allocator::StorageAllocator,
     device::{BackendDevice, DeviceKind},
-    dtype::NativeType,
+    dtype::{FloatType, NativeType},
     error::Result,
     layout::Layout,
 };
@@ -84,4 +84,40 @@ pub trait MeanOp<D: NativeType>: Backend<D> {
         storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
     ) -> Result<TensorParts<Self::F32Storage>>;
+}
+
+pub trait NegOp<D: NativeType>: Backend<D> {
+    fn neg(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait AbsOp<D: NativeType>: Backend<D> {
+    fn abs(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait ExpOp<D: FloatType>: Backend<D> {
+    fn exp(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait LogOp<D: FloatType>: Backend<D> {
+    fn log(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait SqrtOp<D: FloatType>: Backend<D> {
+    fn sqrt(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait SinOp<D: FloatType>: Backend<D> {
+    fn sin(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait CosOp<D: FloatType>: Backend<D> {
+    fn cos(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait TanhOp<D: FloatType>: Backend<D> {
+    fn tanh(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait ReluOp<D: NativeType>: Backend<D> {
+    fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
 }
