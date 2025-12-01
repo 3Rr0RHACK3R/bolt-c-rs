@@ -402,3 +402,59 @@ fn max_i32() -> Result<()> {
     assert_eq!(result_vec[0], 8);
     Ok(())
 }
+
+#[test]
+fn prod_multi_axis_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (1..=24).map(|x| x as f32).collect();
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 3, 4])?;
+
+    let result = tensor.prod(Some(&[0, 2]), false)?;
+    assert_eq!(result.shape(), &[3]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 1.0483200e+06).abs() < 1.0);
+    assert!((result_vec[1] - 1.9535040e+08).abs() < 1000.0);
+    assert!((result_vec[2] - 3.0296852e+09).abs() < 100000.0);
+    Ok(())
+}
+
+#[test]
+fn prod_multi_axis_keepdims_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (1..=24).map(|x| x as f32).collect();
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 3, 4])?;
+
+    let result = tensor.prod(Some(&[0, 2]), true)?;
+    assert_eq!(result.shape(), &[1, 3, 1]);
+    Ok(())
+}
+
+#[test]
+fn min_multi_axis_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (1..=24).map(|x| x as f32).collect();
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 3, 4])?;
+
+    let result = tensor.min(Some(&[0, 2]), false)?;
+    assert_eq!(result.shape(), &[3]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 1.0).abs() < 1e-6);
+    assert!((result_vec[1] - 5.0).abs() < 1e-6);
+    assert!((result_vec[2] - 9.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn max_multi_axis_keepdims_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (1..=24).map(|x| x as f32).collect();
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 3, 4])?;
+
+    let result = tensor.max(Some(&[0, 2]), true)?;
+    assert_eq!(result.shape(), &[1, 3, 1]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 16.0).abs() < 1e-6);
+    assert!((result_vec[1] - 20.0).abs() < 1e-6);
+    assert!((result_vec[2] - 24.0).abs() < 1e-6);
+    Ok(())
+}
