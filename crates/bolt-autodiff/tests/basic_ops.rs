@@ -406,10 +406,7 @@ fn test_sum_multi_axis_backward() -> Result<()> {
 
     let x_data = Tensor::from_slice(
         &backend,
-        &[
-            1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
-            16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
-        ],
+        &(1..=24).map(|x| x as f32).collect::<Vec<_>>(),
         &[2, 3, 4],
     )?;
     let x = graph.param(&x_data);
@@ -432,10 +429,7 @@ fn test_mean_multi_axis_backward() -> Result<()> {
 
     let x_data = Tensor::from_slice(
         &backend,
-        &[
-            1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
-            16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
-        ],
+        &(1..=24).map(|x| x as f32).collect::<Vec<_>>(),
         &[2, 3, 4],
     )?;
     let x = graph.param(&x_data);
