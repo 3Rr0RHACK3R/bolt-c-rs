@@ -398,3 +398,55 @@ fn test_dynamic_loop_iterations() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_sum_multi_axis_backward() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let graph = Graph::<CpuBackend, f32>::new(backend.clone());
+
+    let x_data = Tensor::from_slice(
+        &backend,
+        &[
+            1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+            16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
+        ],
+        &[2, 3, 4],
+    )?;
+    let x = graph.param(&x_data);
+
+    let y = x.sum(Some(&[0, 2]))?;
+
+    let grads = graph.backward(&y)?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    let expected_grad = vec![1.0_f32; 24];
+    assert_vec_approx_eq(&dx, &expected_grad, 1e-6);
+
+    Ok(())
+}
+
+#[test]
+fn test_mean_multi_axis_backward() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let graph = Graph::<CpuBackend, f32>::new(backend.clone());
+
+    let x_data = Tensor::from_slice(
+        &backend,
+        &[
+            1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+            16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
+        ],
+        &[2, 3, 4],
+    )?;
+    let x = graph.param(&x_data);
+
+    let y = x.mean(Some(&[0, 2]))?;
+
+    let grads = graph.backward(&y)?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    let expected_grad = vec![0.125_f32; 24];
+    assert_vec_approx_eq(&dx, &expected_grad, 1e-6);
+
+    Ok(())
+}
