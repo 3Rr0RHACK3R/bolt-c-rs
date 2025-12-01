@@ -1,11 +1,10 @@
-use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp};
+use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, SumOp};
 use bolt_core::shape;
 use bolt_core::{Backend, Tensor};
 use tinyvec::ArrayVec;
 
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
-use crate::ops::sum_axis;
 use crate::{Float, GradTensor};
 
 pub struct SumBackward {
@@ -76,34 +75,15 @@ where
 
 fn sum_impl<B, D>(tensor: &Tensor<B, D>, axes: Option<&[usize]>) -> Result<Tensor<B, D>>
 where
-    B: Backend<D> + AddOp<D> + CopyOp<D>,
+    B: Backend<D> + SumOp<D>,
     D: Float,
 {
-    match axes {
-        None => {
-            let mut result = tensor.clone();
-            while result.rank() > 0 {
-                result = sum_axis(&result, 0)?;
-            }
-            Ok(result)
-        }
-        Some(axes) => {
-            let mut sorted_axes = axes.to_vec();
-            sorted_axes.sort_unstable();
-            sorted_axes.reverse();
-
-            let mut result = tensor.clone();
-            for &axis in &sorted_axes {
-                result = sum_axis(&result, axis)?;
-            }
-            Ok(result)
-        }
-    }
+    Ok(tensor.sum(axes, false)?)
 }
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     pub fn sum(&self, axes: Option<&[usize]>) -> Result<GradTensor<'g, B, D>> {
@@ -136,7 +116,7 @@ where
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     pub fn mean(&self, axes: Option<&[usize]>) -> Result<GradTensor<'g, B, D>> {

@@ -10,8 +10,9 @@ use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp,
-        NegOp, PowOp, ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp,
+        MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, SinOp, SqrtOp, SubOp,
+        SumOp, TanhOp,
     },
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
@@ -26,9 +27,9 @@ use allocator::CpuAllocator;
 use context::CpuContext;
 use memory_pool::MemoryPool;
 use ops::{
-    AbsKernel, AddKernel, CopyKernel, CosKernel, CpuScalar, DivKernel, ExpKernel, LogKernel,
-    MatmulKernel, MeanKernel, MulKernel, NegKernel, PowKernel, ReluKernel, SinKernel, SqrtKernel,
-    SubKernel, TanhKernel,
+    AbsKernel, AddKernel, ArgmaxKernel, ArgminKernel, CopyKernel, CosKernel, CpuScalar, DivKernel,
+    ExpKernel, LogKernel, MatmulKernel, MaxKernel, MeanKernel, MinKernel, MulKernel, NegKernel,
+    PowKernel, ProdKernel, ReluKernel, SinKernel, SqrtKernel, SubKernel, SumKernel, TanhKernel,
 };
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
@@ -358,6 +359,132 @@ where
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
             &self.allocator(),
+        )
+    }
+}
+
+impl<D> SumOp<D> for CpuBackend
+where
+    D: CpuScalar + SumKernel,
+{
+    fn sum(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as SumKernel>::sum_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &self.allocator(),
+        )
+    }
+}
+
+impl<D> ProdOp<D> for CpuBackend
+where
+    D: CpuScalar + ProdKernel,
+{
+    fn prod(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as ProdKernel>::prod_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &self.allocator(),
+        )
+    }
+}
+
+impl<D> MinOp<D> for CpuBackend
+where
+    D: CpuScalar + MinKernel,
+{
+    fn min(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as MinKernel>::min_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &self.allocator(),
+        )
+    }
+}
+
+impl<D> MaxOp<D> for CpuBackend
+where
+    D: CpuScalar + MaxKernel,
+{
+    fn max(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as MaxKernel>::max_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &self.allocator(),
+        )
+    }
+}
+
+impl<D> ArgminOp<D> for CpuBackend
+where
+    D: CpuScalar + ArgminKernel,
+{
+    type I32Storage = CpuStorage<i32>;
+
+    fn argmin(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::I32Storage>> {
+        let alloc_i32 = <Self as Backend<i32>>::allocator(self);
+        <D as ArgminKernel>::argmin_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &alloc_i32,
+        )
+    }
+}
+
+impl<D> ArgmaxOp<D> for CpuBackend
+where
+    D: CpuScalar + ArgmaxKernel,
+{
+    type I32Storage = CpuStorage<i32>;
+
+    fn argmax(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::I32Storage>> {
+        let alloc_i32 = <Self as Backend<i32>>::allocator(self);
+        <D as ArgmaxKernel>::argmax_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &alloc_i32,
         )
     }
 }

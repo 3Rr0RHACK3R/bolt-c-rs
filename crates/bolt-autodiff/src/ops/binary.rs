@@ -1,6 +1,6 @@
 use bolt_core::{
     Backend, Tensor,
-    backend::{AddOp, CopyOp, FillOp, MatmulOp, MulOp, SubOp},
+    backend::{AddOp, CopyOp, FillOp, MatmulOp, MulOp, SubOp, SumOp},
 };
 use tinyvec::ArrayVec;
 
@@ -27,7 +27,7 @@ impl AddBackward {
 
 impl<B, D> BackwardOp<B, D> for AddBackward
 where
-    B: Backend<D> + AddOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn backward(
@@ -64,7 +64,7 @@ impl SubBackward {
 
 impl<B, D> BackwardOp<B, D> for SubBackward
 where
-    B: Backend<D> + AddOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn backward(
@@ -110,7 +110,7 @@ impl MulBackward {
 
 impl<B, D> BackwardOp<B, D> for MulBackward
 where
-    B: Backend<D> + AddOp<D> + MulOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + MulOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn backward(
@@ -149,7 +149,7 @@ impl MatmulBackward {
 
 impl<B, D> BackwardOp<B, D> for MatmulBackward
 where
-    B: Backend<D> + AddOp<D> + MatmulOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + MatmulOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn backward(
@@ -179,7 +179,7 @@ where
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     pub fn add<T>(&self, other: T) -> Result<GradTensor<'g, B, D>>
@@ -221,7 +221,7 @@ where
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     pub fn sub<T>(&self, other: T) -> Result<GradTensor<'g, B, D>>
@@ -263,7 +263,7 @@ where
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + MulOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + MulOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     pub fn mul<T>(&self, other: T) -> Result<GradTensor<'g, B, D>>
@@ -307,7 +307,7 @@ where
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + MatmulOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + MatmulOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     pub fn matmul<T>(&self, other: T) -> Result<GradTensor<'g, B, D>>

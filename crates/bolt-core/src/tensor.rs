@@ -3,8 +3,9 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp,
-        NegOp, PowOp, ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp,
+        MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, SinOp, SqrtOp, SubOp,
+        SumOp, TanhOp,
     },
     dtype::{FloatType, NativeType, OneValue, ToF32},
     error::{Error, Result},
@@ -576,6 +577,90 @@ where
             .backend
             .pow(&self.storage, &other.storage, &self.layout, &other.layout)?;
         Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn sum(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    where
+        B: SumOp<D>,
+    {
+        let parts = self.backend.sum(&self.layout, &self.storage, axes, keepdims)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn prod(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    where
+        B: ProdOp<D>,
+    {
+        let parts = self.backend.prod(&self.layout, &self.storage, axes, keepdims)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn min(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    where
+        B: MinOp<D>,
+    {
+        let parts = self.backend.min(&self.layout, &self.storage, axes, keepdims)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn max(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    where
+        B: MaxOp<D>,
+    {
+        let parts = self.backend.max(&self.layout, &self.storage, axes, keepdims)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn argmin(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Tensor<B, i32>>
+    where
+        B: ArgminOp<D, I32Storage = <B as Backend<i32>>::Storage> + Backend<i32>,
+    {
+        let parts = ArgminOp::<D>::argmin(
+            self.backend.as_ref(),
+            &self.layout,
+            &self.storage,
+            axes,
+            keepdims,
+        )?;
+        Ok(Tensor::<B, i32>::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn argmax(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Tensor<B, i32>>
+    where
+        B: ArgmaxOp<D, I32Storage = <B as Backend<i32>>::Storage> + Backend<i32>,
+    {
+        let parts = ArgmaxOp::<D>::argmax(
+            self.backend.as_ref(),
+            &self.layout,
+            &self.storage,
+            axes,
+            keepdims,
+        )?;
+        Ok(Tensor::<B, i32>::from_parts(
             self.backend.clone(),
             parts.storage,
             parts.layout,
