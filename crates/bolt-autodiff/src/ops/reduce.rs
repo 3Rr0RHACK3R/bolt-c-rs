@@ -9,11 +9,12 @@ use crate::{Float, GradTensor};
 
 pub struct SumBackward {
     input_shape: Vec<usize>,
+    axes: Option<Vec<usize>>,
 }
 
 impl SumBackward {
-    pub fn new(input_shape: Vec<usize>, _axes: Option<Vec<usize>>) -> Self {
-        Self { input_shape }
+    pub fn new(input_shape: Vec<usize>, axes: Option<Vec<usize>>) -> Self {
+        Self { input_shape, axes }
     }
 }
 
@@ -27,7 +28,18 @@ where
         grad_output: &Tensor<B, D>,
         _ctx: &BackwardContext<B, D>,
     ) -> Result<ArrayVec<[Option<Tensor<B, D>>; MAX_INPUTS]>> {
-        let grad_input = grad_output.broadcast_to(&self.input_shape)?;
+        let mut shape_with_ones = self.input_shape.clone();
+
+        if let Some(ref axes) = self.axes {
+            for &axis in axes {
+                shape_with_ones[axis] = 1;
+            }
+        } else {
+            shape_with_ones.fill(1);
+        }
+
+        let grad_reshaped = grad_output.reshape(&shape_with_ones)?;
+        let grad_input = grad_reshaped.broadcast_to(&self.input_shape)?;
         let mut result = ArrayVec::new();
         result.push(Some(grad_input));
         Ok(result)
@@ -40,12 +52,17 @@ where
 
 pub struct MeanBackward {
     input_shape: Vec<usize>,
+    axes: Option<Vec<usize>>,
     count: usize,
 }
 
 impl MeanBackward {
-    pub fn new(input_shape: Vec<usize>, _axes: Option<Vec<usize>>, count: usize) -> Self {
-        Self { input_shape, count }
+    pub fn new(input_shape: Vec<usize>, axes: Option<Vec<usize>>, count: usize) -> Self {
+        Self {
+            input_shape,
+            axes,
+            count,
+        }
     }
 }
 
@@ -62,7 +79,19 @@ where
         let scale = D::one() / D::from_usize(self.count);
         let scaled =
             Tensor::full(&grad_output.backend(), grad_output.shape(), scale)?.mul(grad_output)?;
-        let grad_input = scaled.broadcast_to(&self.input_shape)?;
+
+        let mut shape_with_ones = self.input_shape.clone();
+
+        if let Some(ref axes) = self.axes {
+            for &axis in axes {
+                shape_with_ones[axis] = 1;
+            }
+        } else {
+            shape_with_ones.fill(1);
+        }
+
+        let grad_reshaped = scaled.reshape(&shape_with_ones)?;
+        let grad_input = grad_reshaped.broadcast_to(&self.input_shape)?;
         let mut result = ArrayVec::new();
         result.push(Some(grad_input));
         Ok(result)
