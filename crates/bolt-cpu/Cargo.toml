@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
+num-traits = "0.2"
 
 [features]
 default = ["diagnostics"]

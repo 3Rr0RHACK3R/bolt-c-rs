@@ -55,9 +55,13 @@ pub trait ToF32 {
     fn to_f32(self) -> f32;
 }
 
+pub trait FloatType: NativeType {}
+
 impl NativeType for f32 {
     const DTYPE: DType = DType::F32;
 }
+
+impl FloatType for f32 {}
 
 impl ToF32 for f32 {
     fn to_f32(self) -> f32 {
@@ -74,6 +78,8 @@ impl OneValue for f32 {
 impl NativeType for f64 {
     const DTYPE: DType = DType::F64;
 }
+
+impl FloatType for f64 {}
 
 impl ToF32 for f64 {
     fn to_f32(self) -> f32 {
