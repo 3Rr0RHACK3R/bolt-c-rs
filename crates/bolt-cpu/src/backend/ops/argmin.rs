@@ -124,15 +124,17 @@ where
             let output_linear_idx =
                 compute_output_linear_index(&input_indices, &canonical, &output_shape, keepdims);
 
+            let axis_index = input_indices[canonical[0]] as i32;
+
             match min_vals[output_linear_idx] {
                 None => {
                     min_vals[output_linear_idx] = Some(value);
-                    min_indices[output_linear_idx] = input_linear_idx as i32;
+                    min_indices[output_linear_idx] = axis_index;
                 }
                 Some(current) => {
                     if value < current {
                         min_vals[output_linear_idx] = Some(value);
-                        min_indices[output_linear_idx] = input_linear_idx as i32;
+                        min_indices[output_linear_idx] = axis_index;
                     }
                 }
             }
