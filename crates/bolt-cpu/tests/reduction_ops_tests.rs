@@ -458,3 +458,35 @@ fn max_multi_axis_keepdims_f32() -> Result<()> {
     assert!((result_vec[2] - 24.0).abs() < 1e-6);
     Ok(())
 }
+
+#[test]
+fn argmin_multi_axis_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (1..=24).map(|x| x as f32).collect();
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 3, 4])?;
+
+    let result = tensor.argmin(Some(&[0, 2]), false)?;
+    assert_eq!(result.shape(), &[3]);
+    let result_vec = result.to_vec()?;
+
+    assert_eq!(result_vec[0], 0);
+    assert_eq!(result_vec[1], 0);
+    assert_eq!(result_vec[2], 0);
+    Ok(())
+}
+
+#[test]
+fn argmax_multi_axis_keepdims_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (1..=24).map(|x| x as f32).collect();
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &data, &[2, 3, 4])?;
+
+    let result = tensor.argmax(Some(&[0, 2]), true)?;
+    assert_eq!(result.shape(), &[1, 3, 1]);
+    let result_vec = result.to_vec()?;
+
+    assert_eq!(result_vec[0], 1);
+    assert_eq!(result_vec[1], 1);
+    assert_eq!(result_vec[2], 1);
+    Ok(())
+}
