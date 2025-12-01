@@ -10,8 +10,8 @@ use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp, NegOp,
-        ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+        AbsOp, AddOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp,
+        NegOp, PowOp, ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
     },
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
@@ -26,8 +26,9 @@ use allocator::CpuAllocator;
 use context::CpuContext;
 use memory_pool::MemoryPool;
 use ops::{
-    AbsKernel, AddKernel, CopyKernel, CosKernel, CpuScalar, ExpKernel, LogKernel, MatmulKernel,
-    MeanKernel, MulKernel, NegKernel, ReluKernel, SinKernel, SqrtKernel, SubKernel, TanhKernel,
+    AbsKernel, AddKernel, CopyKernel, CosKernel, CpuScalar, DivKernel, ExpKernel, LogKernel,
+    MatmulKernel, MeanKernel, MulKernel, NegKernel, PowKernel, ReluKernel, SinKernel, SqrtKernel,
+    SubKernel, TanhKernel,
 };
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
@@ -320,5 +321,43 @@ where
 {
     fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
         <D as ReluKernel>::relu_kernel(TensorView::new(storage, layout), &self.allocator())
+    }
+}
+
+impl<D> DivOp<D> for CpuBackend
+where
+    D: CpuScalar + DivKernel,
+{
+    fn div(
+        &self,
+        lhs: &Self::Storage,
+        rhs: &Self::Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as DivKernel>::div_kernel(
+            TensorView::new(lhs, lhs_layout),
+            TensorView::new(rhs, rhs_layout),
+            &self.allocator(),
+        )
+    }
+}
+
+impl<D> PowOp<D> for CpuBackend
+where
+    D: CpuScalar + PowKernel,
+{
+    fn pow(
+        &self,
+        lhs: &Self::Storage,
+        rhs: &Self::Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as PowKernel>::pow_kernel(
+            TensorView::new(lhs, lhs_layout),
+            TensorView::new(rhs, rhs_layout),
+            &self.allocator(),
+        )
     }
 }

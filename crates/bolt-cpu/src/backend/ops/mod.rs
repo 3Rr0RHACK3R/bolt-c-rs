@@ -2,12 +2,14 @@ pub mod abs;
 pub mod add;
 pub mod copy;
 pub mod cos;
+pub mod div;
 pub mod exp;
 pub mod log;
 pub mod matmul;
 pub mod mean;
 pub mod mul;
 pub mod neg;
+pub mod pow;
 pub mod relu;
 pub mod sin;
 pub mod sqrt;
@@ -18,12 +20,14 @@ pub use abs::AbsKernel;
 pub use add::AddKernel;
 pub use copy::CopyKernel;
 pub use cos::CosKernel;
+pub use div::DivKernel;
 pub use exp::ExpKernel;
 pub use log::LogKernel;
 pub use matmul::MatmulKernel;
 pub use mean::MeanKernel;
 pub use mul::MulKernel;
 pub use neg::NegKernel;
+pub use pow::PowKernel;
 pub use relu::ReluKernel;
 pub use sin::SinKernel;
 pub use sqrt::SqrtKernel;
@@ -47,6 +51,7 @@ pub trait CpuScalar:
     + NegKernel
     + AbsKernel
     + ReluKernel
+    + DivKernel
 {
 }
 
@@ -65,5 +70,6 @@ impl<T> CpuScalar for T where
         + NegKernel
         + AbsKernel
         + ReluKernel
+        + DivKernel
 {
 }
