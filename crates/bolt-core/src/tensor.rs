@@ -3,8 +3,8 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp, NegOp,
-        ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+        AbsOp, AddOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp,
+        NegOp, PowOp, ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
     },
     dtype::{FloatType, NativeType, OneValue, ToF32},
     error::{Error, Result},
@@ -544,6 +544,37 @@ where
         B: ReluOp<D>,
     {
         let parts = self.backend.relu(&self.layout, &self.storage)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn div(&self, other: &Self) -> Result<Self>
+    where
+        B: DivOp<D>,
+    {
+        self.ensure_same_backend(other)?;
+        let parts = self
+            .backend
+            .div(&self.storage, &other.storage, &self.layout, &other.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
+    }
+
+    pub fn pow(&self, other: &Self) -> Result<Self>
+    where
+        B: PowOp<D>,
+        D: FloatType,
+    {
+        self.ensure_same_backend(other)?;
+        let parts = self
+            .backend
+            .pow(&self.storage, &other.storage, &self.layout, &other.layout)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,

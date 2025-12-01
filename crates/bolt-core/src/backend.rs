@@ -121,3 +121,23 @@ pub trait TanhOp<D: FloatType>: Backend<D> {
 pub trait ReluOp<D: NativeType>: Backend<D> {
     fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
 }
+
+pub trait DivOp<D: NativeType>: Backend<D> {
+    fn div(
+        &self,
+        lhs: &Self::Storage,
+        rhs: &Self::Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
+
+pub trait PowOp<D: FloatType>: Backend<D> {
+    fn pow(
+        &self,
+        lhs: &Self::Storage,
+        rhs: &Self::Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>>;
+}
