@@ -3,8 +3,8 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp,
-        NegOp, ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp, NegOp,
+        ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
     },
     dtype::{FloatType, NativeType, OneValue, ToF32},
     error::{Error, Result},
@@ -186,13 +186,7 @@ where
         Ok(tensor)
     }
 
-    pub fn logspace(
-        backend: &Arc<B>,
-        start: D,
-        end: D,
-        steps: usize,
-        base: D,
-    ) -> Result<Self> {
+    pub fn logspace(backend: &Arc<B>, start: D, end: D, steps: usize, base: D) -> Result<Self> {
         let values = tensor_creation::build_logspace_values(start, end, steps, base)?;
         let shape = ConcreteShape::from_slice(&[values.len()])?;
         let layout = Layout::contiguous(shape);
@@ -237,8 +231,7 @@ where
     {
         if self.layout.is_contiguous() && self.layout.offset_bytes() == 0 {
             let mut values = vec![D::default(); self.numel()];
-            self
-                .backend
+            self.backend
                 .read(&self.storage, &self.layout, &mut values)?;
             return Ok(values);
         }

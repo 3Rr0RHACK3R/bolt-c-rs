@@ -10,8 +10,8 @@ use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp,
-        NegOp, ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
+        AbsOp, AddOp, Backend, CopyOp, CosOp, ExpOp, FillOp, LogOp, MatmulOp, MeanOp, MulOp, NegOp,
+        ReluOp, SinOp, SqrtOp, SubOp, TanhOp,
     },
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},

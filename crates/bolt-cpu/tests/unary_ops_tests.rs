@@ -69,7 +69,8 @@ fn exp_f32() -> Result<()> {
 #[test]
 fn log_f32() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.718281828, 7.389056099], &[3])?;
+    let tensor =
+        Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.718281828, 7.389056099], &[3])?;
 
     let result = tensor.log()?.to_vec()?;
     assert!((result[0] - 0.0).abs() < 1e-6);
@@ -114,7 +115,7 @@ fn sin_f32() -> Result<()> {
     let tensor = Tensor::<CpuBackend, f32>::from_slice(
         &backend,
         &[0.0, std::f32::consts::PI / 2.0, std::f32::consts::PI],
-        &[3]
+        &[3],
     )?;
 
     let result = tensor.sin()?.to_vec()?;
@@ -130,7 +131,7 @@ fn cos_f32() -> Result<()> {
     let tensor = Tensor::<CpuBackend, f32>::from_slice(
         &backend,
         &[0.0, std::f32::consts::PI / 2.0, std::f32::consts::PI],
-        &[3]
+        &[3],
     )?;
 
     let result = tensor.cos()?.to_vec()?;
@@ -155,7 +156,8 @@ fn tanh_f32() -> Result<()> {
 #[test]
 fn relu_f32() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[-2.0, -1.0, 0.0, 1.0, 2.0], &[5])?;
+    let tensor =
+        Tensor::<CpuBackend, f32>::from_slice(&backend, &[-2.0, -1.0, 0.0, 1.0, 2.0], &[5])?;
 
     let result = tensor.relu()?.to_vec()?;
     assert_eq!(result, vec![0.0, 0.0, 0.0, 1.0, 2.0]);
@@ -175,7 +177,8 @@ fn relu_i32() -> Result<()> {
 #[test]
 fn unary_ops_on_non_contiguous() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let base = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
+    let base =
+        Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
 
     let permuted = base.permute(&[1, 0])?;
     let result = permuted.neg()?.to_vec()?;
@@ -219,7 +222,8 @@ fn unary_ops_on_scalar() -> Result<()> {
 #[test]
 fn unary_ops_preserve_shape() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
+    let tensor =
+        Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
 
     let result = tensor.neg()?;
     assert_eq!(result.shape(), &[2, 3]);
