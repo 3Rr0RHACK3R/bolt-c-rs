@@ -39,7 +39,7 @@ fn test_f32_autodiff_gradients() -> Result<()> {
 
     let a = graph.param(&a_data);
     let b = graph.param(&b_data);
-    let loss = a.add(&b)?.sum(None)?;
+    let loss = a.add(&b)?.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let expected = vec![1.0_f32; 3];
@@ -63,7 +63,7 @@ fn test_f64_autodiff_gradients() -> Result<()> {
 
     let a = graph.param(&a_data);
     let b = graph.param(&b_data);
-    let loss = a.add(&b)?.sum(None)?;
+    let loss = a.add(&b)?.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let expected = vec![1.0_f64; 3];

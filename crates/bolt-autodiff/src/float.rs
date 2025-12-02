@@ -1,6 +1,6 @@
-use bolt_core::dtype::NativeType;
+use bolt_core::dtype::FloatType;
 
-pub trait Float: NativeType + num_traits::Float + Default + Send + Sync {
+pub trait Float: FloatType + num_traits::Float + Default + Send + Sync {
     fn from_usize(n: usize) -> Self;
 }
 

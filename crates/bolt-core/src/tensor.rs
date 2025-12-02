@@ -7,7 +7,7 @@ use crate::{
         MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, SinOp, SqrtOp, SubOp,
         SumOp, TanhOp,
     },
-    dtype::{FloatType, NativeType, OneValue, ToF32},
+    dtype::{FloatType, NativeType, OneValue},
     error::{Error, Result},
     index::TensorIndex,
     layout::Layout,
@@ -293,32 +293,6 @@ where
         Ok(self.with_layout(layout))
     }
 
-    /// Returns a broadcast view sharing the same storage as `self`.
-    ///
-    /// Broadcasting follows NumPy semantics: dimensions must be compatible (size 1 or matching).
-    /// If the source tensor has lower rank than the target shape, it is reshaped by prepending
-    /// dimensions of size 1.
-    ///
-    /// The result is a view with zero-copy: broadcasted dimensions have stride 0.
-    /// Call `.contiguous()` explicitly if you need a contiguous copy for performance.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bolt_core::{Tensor, Backend, Result};
-    /// # use bolt_cpu::CpuBackend;
-    /// # use std::sync::Arc;
-    /// # fn example<B: Backend<f32>>(backend: &Arc<B>) -> Result<()> {
-    /// let tensor = Tensor::from_slice(backend, &[1.0, 2.0], &[2])?;
-    /// let broadcasted = tensor.broadcast_to(&[3, 2])?;
-    /// assert_eq!(broadcasted.shape(), &[3, 2]);
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns `Error::ShapeMismatch` if the shapes are incompatible for broadcasting.
     pub fn broadcast_to(&self, shape: &[usize]) -> Result<Self> {
         let target_shape = ConcreteShape::from_slice(shape)?;
         let src_shape = self.layout.concrete_shape().as_slice();
@@ -425,13 +399,15 @@ where
         ))
     }
 
-    pub fn mean_f32(&self) -> Result<Tensor<B, f32>>
+    pub fn mean(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
     where
-        B: Backend<f32> + MeanOp<D, F32Storage = <B as Backend<f32>>::Storage>,
-        D: ToF32,
+        B: MeanOp<D>,
+        D: FloatType,
     {
-        let parts = MeanOp::<D>::mean_f32(self.backend.as_ref(), &self.storage, &self.layout)?;
-        Ok(Tensor::<B, f32>::from_parts(
+        let parts = self
+            .backend
+            .mean(&self.layout, &self.storage, axes, keepdims)?;
+        Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
             parts.layout,
@@ -587,7 +563,9 @@ where
     where
         B: SumOp<D>,
     {
-        let parts = self.backend.sum(&self.layout, &self.storage, axes, keepdims)?;
+        let parts = self
+            .backend
+            .sum(&self.layout, &self.storage, axes, keepdims)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
@@ -599,7 +577,9 @@ where
     where
         B: ProdOp<D>,
     {
-        let parts = self.backend.prod(&self.layout, &self.storage, axes, keepdims)?;
+        let parts = self
+            .backend
+            .prod(&self.layout, &self.storage, axes, keepdims)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
@@ -611,7 +591,9 @@ where
     where
         B: MinOp<D>,
     {
-        let parts = self.backend.min(&self.layout, &self.storage, axes, keepdims)?;
+        let parts = self
+            .backend
+            .min(&self.layout, &self.storage, axes, keepdims)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,
@@ -623,7 +605,9 @@ where
     where
         B: MaxOp<D>,
     {
-        let parts = self.backend.max(&self.layout, &self.storage, axes, keepdims)?;
+        let parts = self
+            .backend
+            .max(&self.layout, &self.storage, axes, keepdims)?;
         Ok(Self::from_parts(
             self.backend.clone(),
             parts.storage,

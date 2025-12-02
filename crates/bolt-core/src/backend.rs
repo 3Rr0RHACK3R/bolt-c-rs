@@ -76,14 +76,14 @@ pub trait MatmulOp<D: NativeType>: Backend<D> {
     ) -> Result<TensorParts<Self::Storage>>;
 }
 
-pub trait MeanOp<D: NativeType>: Backend<D> {
-    type F32Storage: Clone + Send + Sync + 'static;
-
-    fn mean_f32(
+pub trait MeanOp<D: FloatType>: Backend<D> {
+    fn mean(
         &self,
-        storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
-    ) -> Result<TensorParts<Self::F32Storage>>;
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>>;
 }
 
 pub trait NegOp<D: NativeType>: Backend<D> {

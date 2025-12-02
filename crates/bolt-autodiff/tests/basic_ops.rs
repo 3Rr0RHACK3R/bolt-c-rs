@@ -39,7 +39,7 @@ fn test_add_grad_simple() -> Result<()> {
     let a = graph.param(&a_data);
     let b = graph.param(&b_data);
     let c = a.add(&b)?;
-    let loss = c.sum(None)?;
+    let loss = c.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -63,7 +63,7 @@ fn test_mul_grad_simple() -> Result<()> {
     let a = graph.param(&a_data);
     let b = graph.param(&b_data);
     let c = a.mul(&b)?;
-    let loss = c.sum(None)?;
+    let loss = c.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -87,7 +87,7 @@ fn test_sub_grad_simple() -> Result<()> {
     let a = graph.param(&a_data);
     let b = graph.param(&b_data);
     let c = a.sub(&b)?;
-    let loss = c.sum(None)?;
+    let loss = c.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -109,7 +109,7 @@ fn test_chain_rule() -> Result<()> {
     let x = graph.param(&x_data);
 
     let y = x.mul(&x)?;
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
@@ -128,7 +128,7 @@ fn test_multiple_use_accumulation() -> Result<()> {
     let x = graph.param(&x_data);
 
     let y = x.add(&x)?;
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
@@ -146,7 +146,7 @@ fn test_mean_grad() -> Result<()> {
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0], &[4])?;
     let x = graph.param(&x_data);
 
-    let loss = x.mean(None)?;
+    let loss = x.mean(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
@@ -168,7 +168,7 @@ fn test_no_grad_tensor() -> Result<()> {
     let y = graph.param(&y_data);
 
     let z = x.add(&y)?;
-    let loss = z.sum(None)?;
+    let loss = z.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -195,7 +195,7 @@ fn test_detach() -> Result<()> {
     let y = x.mul(&x)?;
     let y_detached = y.detach()?;
     let z = y_detached.add(&w)?;
-    let loss = z.sum(None)?;
+    let loss = z.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -214,7 +214,7 @@ fn test_reshape_backward() -> Result<()> {
     let x = graph.param(&x_data);
 
     let y = x.reshape(&[4])?;
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
@@ -233,7 +233,7 @@ fn test_transpose_backward() -> Result<()> {
     let x = graph.param(&x_data);
 
     let y = x.transpose(0, 1)?;
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
@@ -256,7 +256,7 @@ fn test_graph_clear_invalidates_handles() -> Result<()> {
 
     let y_data = Tensor::from_slice(&backend, &[2.0_f32], &[1])?;
     let y = graph.param(&y_data);
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -297,7 +297,7 @@ fn test_complex_expression() -> Result<()> {
 
     let a = x.mul(&y)?;
     let b = a.add(&x)?;
-    let loss = b.sum(None)?;
+    let loss = b.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -326,9 +326,9 @@ fn test_dynamic_control_flow_branch_true() -> Result<()> {
     let condition_value = x.tensor()?.item()?;
 
     let loss = if condition_value > 2.0 {
-        x.mul(&w1)?.sum(None)?
+        x.mul(&w1)?.sum(None, false)?
     } else {
-        x.mul(&w2)?.sum(None)?
+        x.mul(&w2)?.sum(None, false)?
     };
 
     let grads = graph.backward(&loss)?;
@@ -357,9 +357,9 @@ fn test_dynamic_control_flow_branch_false() -> Result<()> {
     let condition_value = x.tensor()?.item()?;
 
     let loss = if condition_value > 2.0 {
-        x.mul(&w1)?.sum(None)?
+        x.mul(&w1)?.sum(None, false)?
     } else {
-        x.mul(&w2)?.sum(None)?
+        x.mul(&w2)?.sum(None, false)?
     };
 
     let grads = graph.backward(&loss)?;
@@ -389,7 +389,7 @@ fn test_dynamic_loop_iterations() -> Result<()> {
     for _ in 1..iterations {
         result = result.mul(&w)?;
     }
-    let loss = result.sum(None)?;
+    let loss = result.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -411,7 +411,7 @@ fn test_sum_multi_axis_backward() -> Result<()> {
     )?;
     let x = graph.param(&x_data);
 
-    let y = x.sum(Some(&[0, 2]))?;
+    let y = x.sum(Some(&[0, 2]), false)?;
 
     let grads = graph.backward(&y)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
@@ -434,7 +434,7 @@ fn test_mean_multi_axis_backward() -> Result<()> {
     )?;
     let x = graph.param(&x_data);
 
-    let y = x.mean(Some(&[0, 2]))?;
+    let y = x.mean(Some(&[0, 2]), false)?;
 
     let grads = graph.backward(&y)?;
     let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;

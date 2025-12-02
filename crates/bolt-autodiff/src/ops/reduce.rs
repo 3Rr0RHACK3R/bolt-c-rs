@@ -1,4 +1,4 @@
-use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, SumOp};
+use bolt_core::backend::{AddOp, CopyOp, FillOp, MeanOp, MulOp, SumOp};
 use bolt_core::shape;
 use bolt_core::{Backend, Tensor};
 use tinyvec::ArrayVec;
@@ -102,24 +102,16 @@ where
     }
 }
 
-fn sum_impl<B, D>(tensor: &Tensor<B, D>, axes: Option<&[usize]>) -> Result<Tensor<B, D>>
-where
-    B: Backend<D> + SumOp<D>,
-    D: Float,
-{
-    Ok(tensor.sum(axes, false)?)
-}
-
 impl<'g, B, D> GradTensor<'g, B, D>
 where
     B: Backend<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
-    pub fn sum(&self, axes: Option<&[usize]>) -> Result<GradTensor<'g, B, D>> {
+    pub fn sum(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
         let self_tensor = self.tensor()?;
         let input_shape = self_tensor.shape().to_vec();
 
-        let result = sum_impl(&self_tensor, axes)?;
+        let result = self_tensor.sum(axes, keepdims)?;
 
         let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
 
@@ -145,27 +137,24 @@ where
 
 impl<'g, B, D> GradTensor<'g, B, D>
 where
-    B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + SumOp<D> + CopyOp<D>,
+    B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + MeanOp<D> + CopyOp<D>,
     D: Float,
 {
-    pub fn mean(&self, axes: Option<&[usize]>) -> Result<GradTensor<'g, B, D>> {
+    pub fn mean(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
         let self_tensor = self.tensor()?;
         let input_shape = self_tensor.shape().to_vec();
 
-        let axes_canonical = match axes {
-            None => None,
-            Some(axes) => Some(shape::canonical_axes(axes, input_shape.len())?),
-        };
-
-        let count = match &axes_canonical {
+        // Compute count for backward pass
+        let count = match axes {
             None => self_tensor.numel(),
-            Some(axes) => axes.iter().map(|&a| input_shape[a]).product(),
+            Some(ax) => {
+                let canonical = shape::canonical_axes(ax, input_shape.len())?;
+                canonical.iter().map(|&a| input_shape[a]).product()
+            }
         };
 
-        let sum_result = sum_impl(&self_tensor, axes_canonical.as_deref())?;
-        let scale = D::one() / D::from_usize(count);
-        let result =
-            Tensor::full(&sum_result.backend(), sum_result.shape(), scale)?.mul(&sum_result)?;
+        // Clean delegation to Tensor API
+        let result = self_tensor.mean(axes, keepdims)?;
 
         let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
 
@@ -174,7 +163,7 @@ where
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = MeanBackward::new(input_shape, axes_canonical.clone(), count);
+        let backward_op = MeanBackward::new(input_shape, axes.map(|a| a.to_vec()), count);
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());

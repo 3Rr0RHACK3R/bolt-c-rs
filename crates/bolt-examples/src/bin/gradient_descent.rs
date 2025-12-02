@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let y_pred = x.matmul(&w)?;
         let diff = y_pred.sub(&y)?;
-        let loss = diff.mul(&diff)?.mean(None)?;
+        let loss = diff.mul(&diff)?.mean(None, false)?;
 
         let grads = graph.backward(&loss)?;
         let dw = grads.wrt(&w).unwrap();
