@@ -347,6 +347,133 @@ fn sum_axis_specific_on_transposed() -> Result<()> {
     Ok(())
 }
 
+fn non_contiguous_strided_fixture(
+    backend: &Arc<CpuBackend>,
+) -> Result<Tensor<CpuBackend, f32>> {
+    let base = Tensor::<CpuBackend, f32>::from_slice(
+        backend,
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        &[2, 3],
+    )?;
+    let transposed = base.transpose(0, 1)?;
+    transposed.slice(0, 0, 3, 2)
+}
+
+#[test]
+fn sum_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.sum(Some(&[0]), false)?;
+    let axis0_vec = axis0.to_vec()?;
+    assert!((axis0_vec[0] - 4.0).abs() < 1e-6);
+    assert!((axis0_vec[1] - 10.0).abs() < 1e-6);
+
+    let axis1 = view.sum(Some(&[1]), false)?;
+    let axis1_vec = axis1.to_vec()?;
+    assert!((axis1_vec[0] - 5.0).abs() < 1e-6);
+    assert!((axis1_vec[1] - 9.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn prod_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.prod(Some(&[0]), false)?;
+    let axis0_vec = axis0.to_vec()?;
+    assert!((axis0_vec[0] - 3.0).abs() < 1e-6);
+    assert!((axis0_vec[1] - 24.0).abs() < 1e-6);
+
+    let axis1 = view.prod(Some(&[1]), false)?;
+    let axis1_vec = axis1.to_vec()?;
+    assert!((axis1_vec[0] - 4.0).abs() < 1e-6);
+    assert!((axis1_vec[1] - 18.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn max_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.max(Some(&[0]), false)?;
+    let axis0_vec = axis0.to_vec()?;
+    assert!((axis0_vec[0] - 3.0).abs() < 1e-6);
+    assert!((axis0_vec[1] - 6.0).abs() < 1e-6);
+
+    let axis1 = view.max(Some(&[1]), false)?;
+    let axis1_vec = axis1.to_vec()?;
+    assert!((axis1_vec[0] - 4.0).abs() < 1e-6);
+    assert!((axis1_vec[1] - 6.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn min_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.min(Some(&[0]), false)?;
+    let axis0_vec = axis0.to_vec()?;
+    assert!((axis0_vec[0] - 1.0).abs() < 1e-6);
+    assert!((axis0_vec[1] - 4.0).abs() < 1e-6);
+
+    let axis1 = view.min(Some(&[1]), false)?;
+    let axis1_vec = axis1.to_vec()?;
+    assert!((axis1_vec[0] - 1.0).abs() < 1e-6);
+    assert!((axis1_vec[1] - 3.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn mean_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.mean(Some(&[0]), false)?;
+    let axis0_vec = axis0.to_vec()?;
+    assert!((axis0_vec[0] - 2.0).abs() < 1e-6);
+    assert!((axis0_vec[1] - 5.0).abs() < 1e-6);
+
+    let axis1 = view.mean(Some(&[1]), false)?;
+    let axis1_vec = axis1.to_vec()?;
+    assert!((axis1_vec[0] - 2.5).abs() < 1e-6);
+    assert!((axis1_vec[1] - 4.5).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn argmax_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.argmax(Some(&[0]), false)?;
+    let axis0_vec: Vec<i32> = axis0.to_vec()?;
+    assert_eq!(axis0_vec, vec![1, 1]);
+
+    let axis1 = view.argmax(Some(&[1]), false)?;
+    let axis1_vec: Vec<i32> = axis1.to_vec()?;
+    assert_eq!(axis1_vec, vec![1, 1]);
+    Ok(())
+}
+
+#[test]
+fn argmin_non_contiguous_axis_reduction() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let view = non_contiguous_strided_fixture(&backend)?;
+
+    let axis0 = view.argmin(Some(&[0]), false)?;
+    let axis0_vec: Vec<i32> = axis0.to_vec()?;
+    assert_eq!(axis0_vec, vec![0, 0]);
+
+    let axis1 = view.argmin(Some(&[1]), false)?;
+    let axis1_vec: Vec<i32> = axis1.to_vec()?;
+    assert_eq!(axis1_vec, vec![0, 0]);
+    Ok(())
+}
+
 #[test]
 fn prod_negative_values_f32() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
