@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bolt_autodiff::{Attach, Graph};
+use bolt_autodiff::Graph;
 use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
 
@@ -19,9 +19,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for step in 0..steps {
         let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
-        let x = x_tensor.clone().attach(&graph).no_grad();
-        let y = y_tensor.clone().attach(&graph).no_grad();
-        let w = w_tensor.clone().attach(&graph).with_grad();
+        let x = graph.constant(&x_tensor);
+        let y = graph.constant(&y_tensor);
+        let w = graph.variable(&w_tensor);
 
         let y_pred = x.matmul(&w)?;
         let diff = y_pred.sub(&y)?;

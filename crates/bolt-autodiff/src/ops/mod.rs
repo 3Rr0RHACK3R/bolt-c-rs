@@ -2,7 +2,7 @@ mod binary;
 mod reduce;
 mod shape;
 
-pub use binary::{AddBackward, MulBackward, SubBackward};
+pub use binary::{AddBackward, MatmulBackward, MulBackward, SubBackward};
 pub use reduce::{MeanBackward, SumBackward};
 pub use shape::{ReshapeBackward, TransposeBackward};
 

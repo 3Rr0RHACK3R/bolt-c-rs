@@ -36,8 +36,8 @@ fn test_add_grad_simple() -> Result<()> {
     let a_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0], &[3])?;
     let b_data = Tensor::from_slice(&backend, &[4.0_f32, 5.0, 6.0], &[3])?;
 
-    let a = graph.param(&a_data);
-    let b = graph.param(&b_data);
+    let a = graph.variable(&a_data);
+    let b = graph.variable(&b_data);
     let c = a.add(&b)?;
     let loss = c.sum(None, false)?;
 
@@ -60,8 +60,8 @@ fn test_mul_grad_simple() -> Result<()> {
     let a_data = Tensor::from_slice(&backend, &[2.0_f32, 3.0], &[2])?;
     let b_data = Tensor::from_slice(&backend, &[4.0_f32, 5.0], &[2])?;
 
-    let a = graph.param(&a_data);
-    let b = graph.param(&b_data);
+    let a = graph.variable(&a_data);
+    let b = graph.variable(&b_data);
     let c = a.mul(&b)?;
     let loss = c.sum(None, false)?;
 
@@ -84,8 +84,8 @@ fn test_sub_grad_simple() -> Result<()> {
     let a_data = Tensor::from_slice(&backend, &[5.0_f32, 6.0], &[2])?;
     let b_data = Tensor::from_slice(&backend, &[2.0_f32, 1.0], &[2])?;
 
-    let a = graph.param(&a_data);
-    let b = graph.param(&b_data);
+    let a = graph.variable(&a_data);
+    let b = graph.variable(&b_data);
     let c = a.sub(&b)?;
     let loss = c.sum(None, false)?;
 
@@ -106,7 +106,7 @@ fn test_chain_rule() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[2.0_f32, 3.0], &[2])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = x.mul(&x)?;
     let loss = y.sum(None, false)?;
@@ -125,7 +125,7 @@ fn test_multiple_use_accumulation() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0], &[2])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = x.add(&x)?;
     let loss = y.sum(None, false)?;
@@ -144,7 +144,7 @@ fn test_mean_grad() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0], &[4])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let loss = x.mean(None, false)?;
 
@@ -164,8 +164,8 @@ fn test_no_grad_tensor() -> Result<()> {
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0], &[2])?;
     let y_data = Tensor::from_slice(&backend, &[3.0_f32, 4.0], &[2])?;
 
-    let x = graph.input(&x_data);
-    let y = graph.param(&y_data);
+    let x = graph.constant(&x_data);
+    let y = graph.variable(&y_data);
 
     let z = x.add(&y)?;
     let loss = z.sum(None, false)?;
@@ -182,19 +182,19 @@ fn test_no_grad_tensor() -> Result<()> {
 }
 
 #[test]
-fn test_detach() -> Result<()> {
+fn test_as_constant() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[2.0_f32, 3.0], &[2])?;
     let w_data = Tensor::from_slice(&backend, &[1.0_f32, 1.0], &[2])?;
 
-    let x = graph.param(&x_data);
-    let w = graph.param(&w_data);
+    let x = graph.variable(&x_data);
+    let w = graph.variable(&w_data);
 
     let y = x.mul(&x)?;
-    let y_detached = y.detach()?;
-    let z = y_detached.add(&w)?;
+    let y_const = y.as_constant()?;
+    let z = y_const.add(&w)?;
     let loss = z.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
@@ -211,7 +211,7 @@ fn test_reshape_backward() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0], &[2, 2])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = x.reshape(&[4])?;
     let loss = y.sum(None, false)?;
@@ -230,7 +230,7 @@ fn test_transpose_backward() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = x.transpose(0, 1)?;
     let loss = y.sum(None, false)?;
@@ -249,13 +249,13 @@ fn test_graph_clear_invalidates_handles() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[1.0_f32], &[1])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
     let handle_before = x.handle();
 
     graph.clear();
 
     let y_data = Tensor::from_slice(&backend, &[2.0_f32], &[1])?;
-    let y = graph.param(&y_data);
+    let y = graph.variable(&y_data);
     let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
@@ -272,7 +272,7 @@ fn test_no_grad_guard() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0], &[2])?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = {
         let _guard = graph.no_grad();
@@ -292,8 +292,8 @@ fn test_complex_expression() -> Result<()> {
     let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0], &[2])?;
     let y_data = Tensor::from_slice(&backend, &[3.0_f32, 4.0], &[2])?;
 
-    let x = graph.param(&x_data);
-    let y = graph.param(&y_data);
+    let x = graph.variable(&x_data);
+    let y = graph.variable(&y_data);
 
     let a = x.mul(&y)?;
     let b = a.add(&x)?;
@@ -319,9 +319,9 @@ fn test_dynamic_control_flow_branch_true() -> Result<()> {
     let w1_data = Tensor::from_slice(&backend, &[2.0_f32], &[1])?;
     let w2_data = Tensor::from_slice(&backend, &[5.0_f32], &[1])?;
 
-    let x = graph.param(&x_data);
-    let w1 = graph.param(&w1_data);
-    let w2 = graph.param(&w2_data);
+    let x = graph.variable(&x_data);
+    let w1 = graph.variable(&w1_data);
+    let w2 = graph.variable(&w2_data);
 
     let condition_value = x.tensor()?.item()?;
 
@@ -350,9 +350,9 @@ fn test_dynamic_control_flow_branch_false() -> Result<()> {
     let w1_data = Tensor::from_slice(&backend, &[2.0_f32], &[1])?;
     let w2_data = Tensor::from_slice(&backend, &[5.0_f32], &[1])?;
 
-    let x = graph.param(&x_data);
-    let w1 = graph.param(&w1_data);
-    let w2 = graph.param(&w2_data);
+    let x = graph.variable(&x_data);
+    let w1 = graph.variable(&w1_data);
+    let w2 = graph.variable(&w2_data);
 
     let condition_value = x.tensor()?.item()?;
 
@@ -380,8 +380,8 @@ fn test_dynamic_loop_iterations() -> Result<()> {
     let x_data = Tensor::from_slice(&backend, &[2.0_f32], &[1])?;
     let w_data = Tensor::from_slice(&backend, &[3.0_f32], &[1])?;
 
-    let x = graph.param(&x_data);
-    let w = graph.param(&w_data);
+    let x = graph.variable(&x_data);
+    let w = graph.variable(&w_data);
 
     let iterations = x.tensor()?.item()? as usize;
 
@@ -409,7 +409,7 @@ fn test_sum_multi_axis_backward() -> Result<()> {
         &(1..=24).map(|x| x as f32).collect::<Vec<_>>(),
         &[2, 3, 4],
     )?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = x.sum(Some(&[0, 2]), false)?;
 
@@ -432,7 +432,7 @@ fn test_mean_multi_axis_backward() -> Result<()> {
         &(1..=24).map(|x| x as f32).collect::<Vec<_>>(),
         &[2, 3, 4],
     )?;
-    let x = graph.param(&x_data);
+    let x = graph.variable(&x_data);
 
     let y = x.mean(Some(&[0, 2]), false)?;
 

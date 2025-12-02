@@ -34,7 +34,7 @@ fn test_backward_on_intermediate_tensor() -> Result<()> {
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
 
     let w_data = Tensor::from_slice(&backend, &[2.0_f32, 3.0], &[2])?;
-    let w = graph.param(&w_data);
+    let w = graph.variable(&w_data);
     let y = w.mul(&w)?;
 
     // z is the final tensor, but we won't use it for backward
@@ -60,8 +60,8 @@ fn test_backward_on_non_scalar_tensor() -> Result<()> {
 
     let w_data = Tensor::from_slice(&backend, &[2.0_f32, 3.0], &[2])?;
     let c_data = Tensor::from_slice(&backend, &[10.0_f32, 100.0], &[2])?;
-    let w = graph.param(&w_data);
-    let c = graph.input(&c_data);
+    let w = graph.variable(&w_data);
+    let c = graph.constant(&c_data);
 
     // y is a non-scalar tensor [20.0, 300.0]
     let y = w.mul(&c)?;

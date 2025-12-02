@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bolt_autodiff::{Attach, Graph, Result};
+use bolt_autodiff::{Graph, Result};
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 
@@ -36,8 +36,8 @@ fn test_fluent_api_param_input() -> Result<()> {
     let a_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0], &[3])?;
     let b_data = Tensor::from_slice(&backend, &[4.0_f32, 5.0, 6.0], &[3])?;
 
-    let a = a_data.attach(&graph).with_grad();
-    let b = b_data.attach(&graph).no_grad();
+    let a = graph.variable(&a_data);
+    let b = graph.constant(&b_data);
 
     assert!(a.requires_grad()?);
     assert!(!b.requires_grad()?);
@@ -63,7 +63,7 @@ fn test_tensor_like_mixing_gradtensor_and_tensor() -> Result<()> {
     let w_data = Tensor::from_slice(&backend, &[2.0_f32, 3.0], &[2])?;
     let x_data = Tensor::from_slice(&backend, &[4.0_f32, 5.0], &[2])?;
 
-    let w = graph.param(&w_data);
+    let w = graph.variable(&w_data);
 
     // This should work: GradTensor.add(Tensor)
     let y = w.add(&x_data)?;
@@ -84,7 +84,7 @@ fn test_matmul_tensor_like() -> Result<()> {
     let w_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0], &[2, 2])?;
     let x_data = Tensor::from_slice(&backend, &[5.0_f32, 6.0, 7.0, 8.0], &[2, 2])?;
 
-    let w = graph.param(&w_data);
+    let w = graph.variable(&w_data);
 
     let y = w.matmul(&x_data)?;
     let loss = y.sum(None, false)?;

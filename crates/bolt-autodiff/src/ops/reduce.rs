@@ -1,11 +1,10 @@
-use bolt_core::backend::{AddOp, CopyOp, FillOp, MeanOp, MulOp, SumOp};
-use bolt_core::shape;
+use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp};
 use bolt_core::{Backend, Tensor};
 use tinyvec::ArrayVec;
 
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
-use crate::{Float, GradTensor};
+use crate::Float;
 
 pub struct SumBackward {
     input_shape: Vec<usize>,
@@ -99,83 +98,5 @@ where
 
     fn name(&self) -> &'static str {
         "MeanBackward"
-    }
-}
-
-impl<'g, B, D> GradTensor<'g, B, D>
-where
-    B: Backend<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
-    D: Float,
-{
-    pub fn sum(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
-        let self_tensor = self.tensor()?;
-        let input_shape = self_tensor.shape().to_vec();
-
-        let result = self_tensor.sum(axes, keepdims)?;
-
-        let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
-
-        if !requires_grad {
-            return Ok(self.graph().input(&result));
-        }
-
-        let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let normalized_axes = axes.map(|a| bolt_core::shape::canonical_axes(a, input_shape.len())).transpose()?;
-        let backward_op = SumBackward::new(input_shape, normalized_axes);
-
-        let mut inputs = ArrayVec::new();
-        inputs.push(self.handle());
-
-        Ok(self.graph().create_node(
-            result,
-            true,
-            false,
-            inputs,
-            Some((Box::new(backward_op), saved_idx)),
-        ))
-    }
-}
-
-impl<'g, B, D> GradTensor<'g, B, D>
-where
-    B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + MeanOp<D> + CopyOp<D>,
-    D: Float,
-{
-    pub fn mean(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
-        let self_tensor = self.tensor()?;
-        let input_shape = self_tensor.shape().to_vec();
-
-        // Compute count for backward pass
-        let count = match axes {
-            None => self_tensor.numel(),
-            Some(ax) => {
-                let canonical = shape::canonical_axes(ax, input_shape.len())?;
-                canonical.iter().map(|&a| input_shape[a]).product()
-            }
-        };
-
-        // Clean delegation to Tensor API
-        let result = self_tensor.mean(axes, keepdims)?;
-
-        let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
-
-        if !requires_grad {
-            return Ok(self.graph().input(&result));
-        }
-
-        let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let normalized_axes = axes.map(|a| bolt_core::shape::canonical_axes(a, input_shape.len())).transpose()?;
-        let backward_op = MeanBackward::new(input_shape, normalized_axes, count);
-
-        let mut inputs = ArrayVec::new();
-        inputs.push(self.handle());
-
-        Ok(self.graph().create_node(
-            result,
-            true,
-            false,
-            inputs,
-            Some((Box::new(backward_op), saved_idx)),
-        ))
     }
 }
