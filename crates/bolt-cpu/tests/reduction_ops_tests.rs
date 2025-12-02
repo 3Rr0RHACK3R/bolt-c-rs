@@ -630,3 +630,104 @@ fn mean_f64() -> Result<()> {
     assert!((result_vec[0] - 2.5).abs() < 1e-10);
     Ok(())
 }
+
+#[test]
+fn sum_negative_axis() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
+    
+    let result = tensor.sum(Some(&[-1]), false)?;
+    assert_eq!(result.shape(), &[2]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 6.0).abs() < 1e-6);
+    assert!((result_vec[1] - 15.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn sum_negative_multi_axis() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], &[2, 2, 2])?;
+    
+    let result = tensor.sum(Some(&[-2, -1]), false)?;
+    assert_eq!(result.shape(), &[2]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 10.0).abs() < 1e-6);
+    assert!((result_vec[1] - 26.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn mean_negative_axis_keepdims() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
+    
+    let result = tensor.mean(Some(&[-1]), true)?;
+    assert_eq!(result.shape(), &[2, 1]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 1.5).abs() < 1e-6);
+    assert!((result_vec[1] - 3.5).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn max_negative_axis() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 4.0, 2.0, 3.0, 6.0, 5.0], &[2, 3])?;
+    
+    let result = tensor.max(Some(&[-2]), false)?;
+    assert_eq!(result.shape(), &[3]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 3.0).abs() < 1e-6);
+    assert!((result_vec[1] - 6.0).abs() < 1e-6);
+    assert!((result_vec[2] - 5.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn min_negative_axis() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, i32>::from_slice(&backend, &[5, 2, 9, 1, 7, 3], &[2, 3])?;
+    
+    let result = tensor.min(Some(&[-1]), false)?;
+    assert_eq!(result.shape(), &[2]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec[0], 2);
+    assert_eq!(result_vec[1], 1);
+    Ok(())
+}
+
+#[test]
+fn transpose_negative_both_axes() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
+    
+    let result = tensor.transpose(-2, -1)?;
+    assert_eq!(result.shape(), &[3, 2]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 1.0).abs() < 1e-6);
+    assert!((result_vec[1] - 4.0).abs() < 1e-6);
+    assert!((result_vec[2] - 2.0).abs() < 1e-6);
+    assert!((result_vec[3] - 5.0).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn permute_all_negative() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], &[2, 2, 2])?;
+    
+    let result = tensor.permute(&[-1, -2, -3])?;
+    assert_eq!(result.shape(), &[2, 2, 2]);
+    Ok(())
+}
+
+#[test]
+fn negative_axis_out_of_bounds() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
+    
+    assert!(tensor.sum(Some(&[-3]), false).is_err());
+    assert!(tensor.transpose(-3, 0).is_err());
+    Ok(())
+}

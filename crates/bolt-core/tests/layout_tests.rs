@@ -135,3 +135,53 @@ fn test_broadcast_to_invalid() {
     let new_shape = ConcreteShape::from_slice(&[3]).unwrap();
     assert!(layout.broadcast_to(&new_shape).is_err());
 }
+
+#[test]
+fn test_transpose_negative_axes() {
+    let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
+    let layout = Layout::contiguous(shape);
+    
+    let transposed = layout.transpose(-2, -1).unwrap();
+    assert_eq!(transposed.shape(), &[2, 4, 3]);
+    
+    let transposed2 = layout.transpose(0, -1).unwrap();
+    assert_eq!(transposed2.shape(), &[4, 3, 2]);
+}
+
+#[test]
+fn test_transpose_negative_out_of_bounds() {
+    let shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
+    let layout = Layout::contiguous(shape);
+    
+    assert!(layout.transpose(-3, 0).is_err());
+    assert!(layout.transpose(0, -3).is_err());
+}
+
+#[test]
+fn test_permute_negative_axes() {
+    let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
+    let layout = Layout::contiguous(shape);
+    
+    let permuted = layout.permute(&[-1, -2, -3]).unwrap();
+    assert_eq!(permuted.shape(), &[4, 3, 2]);
+    
+    let permuted2 = layout.permute(&[0, -1, 1]).unwrap();
+    assert_eq!(permuted2.shape(), &[2, 4, 3]);
+}
+
+#[test]
+fn test_permute_mixed_negative_positive() {
+    let shape = ConcreteShape::from_slice(&[2, 3, 4, 5]).unwrap();
+    let layout = Layout::contiguous(shape);
+    
+    let permuted = layout.permute(&[0, -1, 1, 2]).unwrap();
+    assert_eq!(permuted.shape(), &[2, 5, 3, 4]);
+}
+
+#[test]
+fn test_permute_duplicate_after_normalization() {
+    let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
+    let layout = Layout::contiguous(shape);
+    
+    assert!(layout.permute(&[1, -2, 0]).is_err());
+}

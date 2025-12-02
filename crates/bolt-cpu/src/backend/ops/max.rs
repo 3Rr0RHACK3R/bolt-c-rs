@@ -15,7 +15,7 @@ use super::reduction_helpers::{
 pub trait MaxKernel: NativeType {
     fn max_kernel(
         _view: CpuTensorView<'_, Self>,
-        _axes: Option<&[usize]>,
+        _axes: Option<&[isize]>,
         _keepdims: bool,
         _allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -28,7 +28,7 @@ pub trait MaxKernel: NativeType {
 
 fn reduce_max<D>(
     input: CpuTensorView<'_, D>,
-    axes: Option<&[usize]>,
+    axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
@@ -116,7 +116,7 @@ where
 impl MaxKernel for f32 {
     fn max_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -127,7 +127,7 @@ impl MaxKernel for f32 {
 impl MaxKernel for f64 {
     fn max_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -138,7 +138,7 @@ impl MaxKernel for f64 {
 impl MaxKernel for i32 {
     fn max_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {

@@ -236,7 +236,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         <D as MeanKernel>::mean_kernel(
@@ -375,7 +375,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         <D as SumKernel>::sum_kernel(
@@ -395,7 +395,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         <D as ProdKernel>::prod_kernel(
@@ -415,7 +415,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         <D as MinKernel>::min_kernel(
@@ -435,7 +435,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         <D as MaxKernel>::max_kernel(
@@ -457,7 +457,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>> {
         let alloc_i32 = <Self as Backend<i32>>::allocator(self);
@@ -480,7 +480,7 @@ where
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>> {
         let alloc_i32 = <Self as Backend<i32>>::allocator(self);

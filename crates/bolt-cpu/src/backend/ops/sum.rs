@@ -17,7 +17,7 @@ use super::reduction_helpers::{
 pub trait SumKernel: NativeType {
     fn sum_kernel(
         _view: CpuTensorView<'_, Self>,
-        _axes: Option<&[usize]>,
+        _axes: Option<&[isize]>,
         _keepdims: bool,
         _allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -30,7 +30,7 @@ pub trait SumKernel: NativeType {
 
 fn reduce_sum<D>(
     input: CpuTensorView<'_, D>,
-    axes: Option<&[usize]>,
+    axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
@@ -105,7 +105,7 @@ where
 impl SumKernel for f32 {
     fn sum_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -116,7 +116,7 @@ impl SumKernel for f32 {
 impl SumKernel for f64 {
     fn sum_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -127,7 +127,7 @@ impl SumKernel for f64 {
 impl SumKernel for i32 {
     fn sum_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {

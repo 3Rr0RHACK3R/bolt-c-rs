@@ -63,7 +63,7 @@ where
         grad_output: &Tensor<B, D>,
         _ctx: &BackwardContext<B, D>,
     ) -> Result<ArrayVec<[Option<Tensor<B, D>>; MAX_INPUTS]>> {
-        let grad_transposed = grad_output.transpose(self.axis_a, self.axis_b)?;
+        let grad_transposed = grad_output.transpose(self.axis_a as isize, self.axis_b as isize)?;
         let grad_input = grad_transposed.contiguous()?;
         let mut result = ArrayVec::new();
         result.push(Some(grad_input));
@@ -107,8 +107,9 @@ where
         ))
     }
 
-    pub fn transpose(&self, axis_a: usize, axis_b: usize) -> Result<GradTensor<'g, B, D>> {
+    pub fn transpose(&self, axis_a: isize, axis_b: isize) -> Result<GradTensor<'g, B, D>> {
         let self_tensor = self.tensor()?;
+        let rank = self_tensor.shape().len();
 
         let result = self_tensor.transpose(axis_a, axis_b)?;
 
@@ -118,8 +119,10 @@ where
             return Ok(self.graph().input(&result));
         }
 
+        let norm_a = bolt_core::shape::normalize_axis(axis_a, rank)?;
+        let norm_b = bolt_core::shape::normalize_axis(axis_b, rank)?;
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = TransposeBackward::new(axis_a, axis_b);
+        let backward_op = TransposeBackward::new(norm_a, norm_b);
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());

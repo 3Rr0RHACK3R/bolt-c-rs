@@ -107,7 +107,7 @@ where
     B: Backend<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
-    pub fn sum(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
+    pub fn sum(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
         let self_tensor = self.tensor()?;
         let input_shape = self_tensor.shape().to_vec();
 
@@ -120,7 +120,8 @@ where
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = SumBackward::new(input_shape, axes.map(|a| a.to_vec()));
+        let normalized_axes = axes.map(|a| bolt_core::shape::canonical_axes(a, input_shape.len())).transpose()?;
+        let backward_op = SumBackward::new(input_shape, normalized_axes);
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());
@@ -140,7 +141,7 @@ where
     B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + MeanOp<D> + CopyOp<D>,
     D: Float,
 {
-    pub fn mean(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
+    pub fn mean(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<GradTensor<'g, B, D>> {
         let self_tensor = self.tensor()?;
         let input_shape = self_tensor.shape().to_vec();
 
@@ -163,7 +164,8 @@ where
         }
 
         let saved_idx = self.graph().save_tensors_for_backward(vec![]);
-        let backward_op = MeanBackward::new(input_shape, axes.map(|a| a.to_vec()), count);
+        let normalized_axes = axes.map(|a| bolt_core::shape::canonical_axes(a, input_shape.len())).transpose()?;
+        let backward_op = MeanBackward::new(input_shape, normalized_axes, count);
 
         let mut inputs = ArrayVec::new();
         inputs.push(self.handle());

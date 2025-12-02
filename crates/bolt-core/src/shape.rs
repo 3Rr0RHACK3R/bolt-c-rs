@@ -136,7 +136,29 @@ pub fn broadcast_shapes(lhs: &[usize], rhs: &[usize]) -> Result<Vec<usize>> {
     Ok(shape)
 }
 
-pub fn canonical_axes(axes: &[usize], rank: usize) -> Result<Vec<usize>> {
+pub fn normalize_axis(axis: isize, rank: usize) -> Result<usize> {
+    let normalized = if axis < 0 {
+        let candidate = rank as isize + axis;
+        if candidate < 0 {
+            return Err(Error::InvalidAxes(format!(
+                "axis {axis} out of bounds for rank {rank}"
+            )));
+        }
+        candidate as usize
+    } else {
+        axis as usize
+    };
+
+    if normalized >= rank {
+        return Err(Error::InvalidAxes(format!(
+            "axis {axis} out of bounds for rank {rank}"
+        )));
+    }
+
+    Ok(normalized)
+}
+
+pub fn canonical_axes(axes: &[isize], rank: usize) -> Result<Vec<usize>> {
     if rank == 0 {
         if !axes.is_empty() {
             return Err(Error::InvalidAxes("axis out of bounds for rank 0".into()));
@@ -146,24 +168,26 @@ pub fn canonical_axes(axes: &[usize], rank: usize) -> Result<Vec<usize>> {
     if axes.is_empty() {
         return Ok((0..rank).collect());
     }
-    let mut seen = vec![false; rank];
+
+    let mut normalized = Vec::with_capacity(axes.len());
     for &axis in axes {
-        if axis >= rank {
-            return Err(Error::InvalidAxes(format!(
-                "axis {axis} out of bounds for rank {rank}"
-            )));
-        }
+        normalized.push(normalize_axis(axis, rank)?);
+    }
+
+    let mut seen = vec![false; rank];
+    for &axis in &normalized {
         if seen[axis] {
             return Err(Error::InvalidAxes(format!("axis {axis} provided twice")));
         }
         seen[axis] = true;
     }
-    let mut out = axes.to_vec();
+
+    let mut out = normalized;
     out.sort_unstable();
     Ok(out)
 }
 
-pub fn reduced_shape(shape: &[usize], axes: &[usize]) -> Result<Vec<usize>> {
+pub fn reduced_shape(shape: &[usize], axes: &[isize]) -> Result<Vec<usize>> {
     let canonical = canonical_axes(axes, shape.len())?;
     let mut result = Vec::with_capacity(shape.len().saturating_sub(canonical.len()));
     for (idx, dim) in shape.iter().enumerate() {
