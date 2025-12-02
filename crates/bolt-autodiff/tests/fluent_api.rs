@@ -43,7 +43,7 @@ fn test_fluent_api_param_input() -> Result<()> {
     assert!(!b.requires_grad()?);
 
     let c = a.add(&b)?;
-    let loss = c.sum(None)?;
+    let loss = c.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
 
@@ -67,7 +67,7 @@ fn test_tensor_like_mixing_gradtensor_and_tensor() -> Result<()> {
 
     // This should work: GradTensor.add(Tensor)
     let y = w.add(&x_data)?;
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dw = grads.wrt(&w).expect("gradient for w").to_vec()?;
@@ -87,7 +87,7 @@ fn test_matmul_tensor_like() -> Result<()> {
     let w = graph.param(&w_data);
 
     let y = w.matmul(&x_data)?;
-    let loss = y.sum(None)?;
+    let loss = y.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
     let dw = grads.wrt(&w).expect("gradient for w").to_vec()?;

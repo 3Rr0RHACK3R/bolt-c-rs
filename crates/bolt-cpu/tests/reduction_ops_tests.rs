@@ -515,3 +515,118 @@ fn argmax_multi_axis_keepdims_f32() -> Result<()> {
     assert_eq!(result_vec[2], 1);
     Ok(())
 }
+
+// Mean reduction tests
+#[test]
+fn mean_all_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
+
+    let result = tensor.mean(None, false)?;
+    assert_eq!(result.shape(), &[]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec.len(), 1);
+    assert!((result_vec[0] - 2.5).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn mean_all_keepdims_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
+
+    let result = tensor.mean(None, true)?;
+    assert_eq!(result.shape(), &[1, 1]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec.len(), 1);
+    assert!((result_vec[0] - 2.5).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn mean_axis_0_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        &[3, 2],
+    )?;
+
+    let result = tensor.mean(Some(&[0]), false)?;
+    assert_eq!(result.shape(), &[2]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec.len(), 2);
+    assert!((result_vec[0] - 3.0).abs() < 1e-6);  // (1+3+5)/3 = 3
+    assert!((result_vec[1] - 4.0).abs() < 1e-6);  // (2+4+6)/3 = 4
+    Ok(())
+}
+
+#[test]
+fn mean_axis_1_keepdims_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        &[3, 2],
+    )?;
+
+    let result = tensor.mean(Some(&[1]), true)?;
+    assert_eq!(result.shape(), &[3, 1]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec.len(), 3);
+    assert!((result_vec[0] - 1.5).abs() < 1e-6);  // (1+2)/2 = 1.5
+    assert!((result_vec[1] - 3.5).abs() < 1e-6);  // (3+4)/2 = 3.5
+    assert!((result_vec[2] - 5.5).abs() < 1e-6);  // (5+6)/2 = 5.5
+    Ok(())
+}
+
+#[test]
+fn mean_multi_axis_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+        &[2, 2, 2],
+    )?;
+
+    let result = tensor.mean(Some(&[0, 2]), false)?;
+    assert_eq!(result.shape(), &[2]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec.len(), 2);
+    // Mean over axes 0 and 2 for a [2,2,2] tensor
+    // For position [0] in result: mean of [1,2,5,6] = 3.5
+    // For position [1] in result: mean of [3,4,7,8] = 5.5
+    assert!((result_vec[0] - 3.5).abs() < 1e-6);
+    assert!((result_vec[1] - 5.5).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn mean_multi_axis_keepdims_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+        &[2, 2, 2],
+    )?;
+
+    let result = tensor.mean(Some(&[0, 2]), true)?;
+    assert_eq!(result.shape(), &[1, 2, 1]);
+    let result_vec = result.to_vec()?;
+    assert_eq!(result_vec.len(), 2);
+    assert!((result_vec[0] - 3.5).abs() < 1e-6);
+    assert!((result_vec[1] - 5.5).abs() < 1e-6);
+    Ok(())
+}
+
+#[test]
+fn mean_f64() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f64>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
+
+    let result = tensor.mean(None, false)?;
+    assert_eq!(result.shape(), &[]);
+    let result_vec = result.to_vec()?;
+    assert!((result_vec[0] - 2.5).abs() < 1e-10);
+    Ok(())
+}

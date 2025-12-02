@@ -60,7 +60,6 @@ pub trait CpuScalar:
     + SubKernel
     + MatmulKernel
     + MulKernel
-    + MeanKernel
     + NegKernel
     + AbsKernel
     + ReluKernel
@@ -85,7 +84,6 @@ impl<T> CpuScalar for T where
         + SubKernel
         + MatmulKernel
         + MulKernel
-        + MeanKernel
         + NegKernel
         + AbsKernel
         + ReluKernel

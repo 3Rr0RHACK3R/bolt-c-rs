@@ -232,15 +232,19 @@ impl<D> MeanOp<D> for CpuBackend
 where
     D: CpuScalar + MeanKernel,
 {
-    type F32Storage = CpuStorage<f32>;
-
-    fn mean_f32(
+    fn mean(
         &self,
-        storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
-    ) -> Result<TensorParts<Self::F32Storage>> {
-        let allocator = <Self as Backend<f32>>::allocator(self);
-        <D as MeanKernel>::mean_f32_kernel(TensorView::new(storage, layout), &allocator)
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>> {
+        <D as MeanKernel>::mean_kernel(
+            TensorView::new(storage, layout),
+            axes,
+            keepdims,
+            &self.allocator(),
+        )
     }
 }
 

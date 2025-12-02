@@ -67,7 +67,7 @@ fn run_mean_reduction(backend: &Arc<ProfiledBackend<CpuBackend>>) -> AnyResult<(
     let len = shape.iter().product();
     let data = make_data(len, 0.0001);
     let tensor = Tensor::from_slice(backend, &data, &shape)?;
-    let _ = tensor.mean_f32()?;
+    let _ = tensor.mean(None, false)?;
     Ok(())
 }
 

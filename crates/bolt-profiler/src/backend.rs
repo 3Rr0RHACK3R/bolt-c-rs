@@ -1,5 +1,5 @@
 use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp, TensorParts};
-use bolt_core::dtype::NativeType;
+use bolt_core::dtype::{FloatType, NativeType};
 use bolt_core::error::Result;
 use bolt_core::layout::Layout;
 
@@ -209,20 +209,20 @@ impl<D: NativeType, B: MatmulOp<D> + Backend<D>> MatmulOp<D> for ProfiledBackend
     }
 }
 
-impl<D: NativeType, B: MeanOp<D> + Backend<D>> MeanOp<D> for ProfiledBackend<B> {
-    type F32Storage = B::F32Storage;
-
-    fn mean_f32(
+impl<D: FloatType, B: MeanOp<D> + Backend<D>> MeanOp<D> for ProfiledBackend<B> {
+    fn mean(
         &self,
-        storage: &<Self as Backend<D>>::Storage,
         layout: &Layout,
-    ) -> Result<TensorParts<Self::F32Storage>> {
+        storage: &Self::Storage,
+        axes: Option<&[usize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage>> {
         profile_op(
             self,
-            "mean_f32",
+            "mean",
             OpCategory::Compute,
             vec![shapes_from_layout(layout)],
-            |inner| inner.mean_f32(storage, layout),
+            |inner| inner.mean(layout, storage, axes, keepdims),
         )
     }
 }

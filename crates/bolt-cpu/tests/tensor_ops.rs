@@ -53,10 +53,10 @@ fn non_contiguous_view_ops() -> Result<()> {
 }
 
 #[test]
-fn mean_returns_f32() -> Result<()> {
+fn mean_full_reduction() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let tensor = Tensor::<CpuBackend, i32>::from_slice(&backend, &[1, 3, 5, 7], &[2, 2])?;
-    let mean = tensor.mean_f32()?.to_vec()?; // mean_f32 should return tensor of dtype f32
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 3.0, 5.0, 7.0], &[2, 2])?;
+    let mean = tensor.mean(None, false)?.to_vec()?;
     assert_eq!(mean, vec![4.0]);
     Ok(())
 }
@@ -65,7 +65,7 @@ fn mean_returns_f32() -> Result<()> {
 fn mean_handles_f64_inputs() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let tensor = Tensor::<CpuBackend, f64>::from_slice(&backend, &[1.0, 3.0, 5.0, 7.0], &[2, 2])?;
-    let mean = tensor.mean_f32()?.to_vec()?;
+    let mean = tensor.mean(None, false)?.to_vec()?;
     assert_eq!(mean, vec![4.0]);
     Ok(())
 }
