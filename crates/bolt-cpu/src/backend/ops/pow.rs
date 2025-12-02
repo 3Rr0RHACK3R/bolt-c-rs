@@ -70,9 +70,9 @@ impl PowKernel for f32 {
     fn pow_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        pow(lhs, rhs, alloc)
+        pow(lhs, rhs, allocator)
     }
 }
 
@@ -80,8 +80,8 @@ impl PowKernel for f64 {
     fn pow_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        pow(lhs, rhs, alloc)
+        pow(lhs, rhs, allocator)
     }
 }

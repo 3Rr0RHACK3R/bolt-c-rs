@@ -1,14 +1,14 @@
 use bolt_core::{
     error::Result,
-    shape::{canonical_axes, reduced_shape},
+    shape::reduced_shape,
 };
 
 pub(super) fn compute_reduction_shape(
     shape: &[usize],
-    axes: Option<&[isize]>,
+    canonical_axes: Option<&[usize]>,
     keepdims: bool,
 ) -> Result<Vec<usize>> {
-    match axes {
+    match canonical_axes {
         None => {
             if keepdims {
                 Ok(vec![1; shape.len()])
@@ -16,16 +16,15 @@ pub(super) fn compute_reduction_shape(
                 Ok(vec![])
             }
         }
-        Some(ax) => {
-            let canonical = canonical_axes(ax, shape.len())?;
+        Some(canonical) => {
             if keepdims {
                 let mut result = shape.to_vec();
-                for &axis in &canonical {
+                for &axis in canonical {
                     result[axis] = 1;
                 }
                 Ok(result)
             } else {
-                reduced_shape(shape, ax)
+                reduced_shape(shape, &canonical.iter().map(|&x| x as isize).collect::<Vec<_>>())
             }
         }
     }

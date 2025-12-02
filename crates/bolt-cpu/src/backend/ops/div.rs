@@ -132,9 +132,9 @@ impl DivKernel for f32 {
     fn div_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        div(lhs, rhs, alloc)
+        div(lhs, rhs, allocator)
     }
 }
 
@@ -142,9 +142,9 @@ impl DivKernel for f64 {
     fn div_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        div(lhs, rhs, alloc)
+        div(lhs, rhs, allocator)
     }
 }
 
@@ -152,8 +152,8 @@ impl DivKernel for i32 {
     fn div_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        div(lhs, rhs, alloc)
+        div(lhs, rhs, allocator)
     }
 }

@@ -72,9 +72,9 @@ impl AddKernel for f32 {
     fn add_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        add(lhs, rhs, alloc)
+        add(lhs, rhs, allocator)
     }
 }
 
@@ -82,9 +82,9 @@ impl AddKernel for f64 {
     fn add_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        add(lhs, rhs, alloc)
+        add(lhs, rhs, allocator)
     }
 }
 
@@ -92,8 +92,8 @@ impl AddKernel for i32 {
     fn add_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        add(lhs, rhs, alloc)
+        add(lhs, rhs, allocator)
     }
 }

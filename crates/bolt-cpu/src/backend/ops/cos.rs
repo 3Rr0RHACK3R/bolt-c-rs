@@ -29,7 +29,7 @@ where
     D: FloatType + num_traits::Float,
 {
     let shape = view.layout.shape();
-    let numel: usize = shape.iter().product();
+    let numel = view.layout.num_elements();
     let mut out_storage: CpuStorage<D> = allocator.allocate(numel)?;
     let out_data = out_storage.try_as_uninit_slice_mut()?;
     let view_data = view.storage.as_uninit_slice();

@@ -72,9 +72,9 @@ impl SubKernel for f32 {
     fn sub_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        sub(lhs, rhs, alloc)
+        sub(lhs, rhs, allocator)
     }
 }
 
@@ -82,9 +82,9 @@ impl SubKernel for f64 {
     fn sub_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        sub(lhs, rhs, alloc)
+        sub(lhs, rhs, allocator)
     }
 }
 
@@ -92,8 +92,8 @@ impl SubKernel for i32 {
     fn sub_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        sub(lhs, rhs, alloc)
+        sub(lhs, rhs, allocator)
     }
 }

@@ -72,9 +72,9 @@ impl MulKernel for f32 {
     fn mul_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        mul(lhs, rhs, alloc)
+        mul(lhs, rhs, allocator)
     }
 }
 
@@ -82,9 +82,9 @@ impl MulKernel for f64 {
     fn mul_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        mul(lhs, rhs, alloc)
+        mul(lhs, rhs, allocator)
     }
 }
 
@@ -92,8 +92,8 @@ impl MulKernel for i32 {
     fn mul_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        mul(lhs, rhs, alloc)
+        mul(lhs, rhs, allocator)
     }
 }
