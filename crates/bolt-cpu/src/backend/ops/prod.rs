@@ -29,7 +29,7 @@ pub trait ProdKernel: NativeType {
 }
 
 fn reduce_prod<D>(
-    input: CpuTensorView<'_, D>,
+    view: CpuTensorView<'_, D>,
     axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<D>,
@@ -37,12 +37,10 @@ fn reduce_prod<D>(
 where
     D: NativeType + Copy + Mul<Output = D> + OneValue,
 {
-    let input_shape = input.layout.shape();
-    let output_shape = compute_reduction_shape(input_shape, axes, keepdims)?;
-
-    if let Some(ax) = axes {
-        canonical_axes(ax, input_shape.len())?;
-    }
+    let view_shape = view.layout.shape();
+    
+    let canonical = axes.map(|ax| canonical_axes(ax, view_shape.len())).transpose()?;
+    let output_shape = compute_reduction_shape(view_shape, axes, keepdims)?;
 
     let output_numel: usize = if output_shape.is_empty() {
         1
@@ -57,32 +55,29 @@ where
         slot.write(D::one());
     }
 
-    let input_data = input.storage.as_uninit_slice();
-    let elem_size = D::DTYPE.size_in_bytes();
+    let view_data = view.storage.as_uninit_slice();
 
     if axes.is_none() {
         let mut prod = D::one();
-        if input.layout.is_contiguous() && input.layout.offset_bytes() == 0 {
-            let numel: usize = input_shape.iter().product();
-            for slot in input_data.iter().take(numel) {
+        if view.layout.is_contiguous() && view.layout.offset_bytes() == 0 {
+            let numel: usize = view_shape.iter().product();
+            for slot in view_data.iter().take(numel) {
                 prod = prod * unsafe { slot.assume_init() };
             }
         } else {
-            for byte_offset in input.layout.iter_offsets(D::DTYPE)? {
-                let idx = byte_offset / elem_size;
-                prod = prod * unsafe { input_data[idx].assume_init() };
+            for idx in view.layout.iter_element_indices(D::DTYPE)? {
+                prod = prod * unsafe { view_data[idx].assume_init() };
             }
         }
         out_data[0].write(prod);
     } else {
-        let canonical = canonical_axes(axes.unwrap(), input_shape.len())?;
+        let canonical = canonical.unwrap();
 
         let mut logical_idx = 0;
-        for byte_offset in input.layout.iter_offsets(D::DTYPE)? {
-            let idx = byte_offset / elem_size;
-            let value = unsafe { input_data[idx].assume_init() };
+        for idx in view.layout.iter_element_indices(D::DTYPE)? {
+            let value = unsafe { view_data[idx].assume_init() };
 
-            let input_indices = compute_multi_index_from_linear(logical_idx, input_shape);
+            let input_indices = compute_multi_index_from_linear(logical_idx, view_shape);
 
             let output_linear_idx =
                 compute_output_linear_index(&input_indices, &canonical, &output_shape, keepdims);

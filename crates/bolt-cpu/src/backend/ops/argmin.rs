@@ -27,7 +27,7 @@ pub trait ArgminKernel: NativeType {
 }
 
 fn reduce_argmin<D>(
-    input: CpuTensorView<'_, D>,
+    view: CpuTensorView<'_, D>,
     axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<i32>,
@@ -35,12 +35,10 @@ fn reduce_argmin<D>(
 where
     D: NativeType + Copy + PartialOrd,
 {
-    let input_shape = input.layout.shape();
-    let output_shape = compute_reduction_shape(input_shape, axes, keepdims)?;
-
-    if let Some(ax) = axes {
-        canonical_axes(ax, input_shape.len())?;
-    }
+    let view_shape = view.layout.shape();
+    
+    let canonical = axes.map(|ax| canonical_axes(ax, view_shape.len())).transpose()?;
+    let output_shape = compute_reduction_shape(view_shape, axes, keepdims)?;
 
     let output_numel: usize = if output_shape.is_empty() {
         1
@@ -51,17 +49,16 @@ where
     let mut out_storage = allocator.allocate(output_numel)?;
     let out_data = out_storage.try_as_uninit_slice_mut()?;
 
-    let input_data = input.storage.as_uninit_slice();
-    let elem_size = D::DTYPE.size_in_bytes();
+    let view_data = view.storage.as_uninit_slice();
 
     if axes.is_none() {
         let mut min_val = None;
         let mut min_idx = 0i32;
         let mut curr_idx = 0i32;
 
-        if input.layout.is_contiguous() && input.layout.offset_bytes() == 0 {
-            let numel: usize = input_shape.iter().product();
-            for slot in input_data.iter().take(numel) {
+        if view.layout.is_contiguous() && view.layout.offset_bytes() == 0 {
+            let numel: usize = view_shape.iter().product();
+            for slot in view_data.iter().take(numel) {
                 let val = unsafe { slot.assume_init() };
                 match min_val {
                     None => {
@@ -78,9 +75,8 @@ where
                 curr_idx += 1;
             }
         } else {
-            for byte_offset in input.layout.iter_offsets(D::DTYPE)? {
-                let idx = byte_offset / elem_size;
-                let val = unsafe { input_data[idx].assume_init() };
+            for idx in view.layout.iter_element_indices(D::DTYPE)? {
+                let val = unsafe { view_data[idx].assume_init() };
                 match min_val {
                     None => {
                         min_val = Some(val);
@@ -102,17 +98,16 @@ where
         }
         out_data[0].write(min_idx);
     } else {
-        let canonical = canonical_axes(axes.unwrap(), input_shape.len())?;
+        let canonical = canonical.unwrap();
 
         let mut min_vals: Vec<Option<D>> = vec![None; output_numel];
         let mut min_indices: Vec<i32> = vec![0; output_numel];
 
         let mut logical_idx = 0;
-        for byte_offset in input.layout.iter_offsets(D::DTYPE)? {
-            let idx = byte_offset / elem_size;
-            let value = unsafe { input_data[idx].assume_init() };
+        for idx in view.layout.iter_element_indices(D::DTYPE)? {
+            let value = unsafe { view_data[idx].assume_init() };
 
-            let input_indices = compute_multi_index_from_linear(logical_idx, input_shape);
+            let input_indices = compute_multi_index_from_linear(logical_idx, view_shape);
 
             let output_linear_idx =
                 compute_output_linear_index(&input_indices, &canonical, &output_shape, keepdims);

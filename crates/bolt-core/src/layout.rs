@@ -344,6 +344,16 @@ impl Layout {
         self.iter_offsets_for(IterMode::Read, dtype)
     }
 
+    pub fn iter_element_indices(&self, dtype: DType) -> Result<impl Iterator<Item = usize> + '_> {
+        let elem_size = dtype.size_in_bytes();
+        self.iter_offsets(dtype).map(move |iter| {
+            iter.map(move |byte_offset| {
+                debug_assert_eq!(byte_offset % elem_size, 0);
+                byte_offset / elem_size
+            })
+        })
+    }
+
     pub fn iter_offsets_for(&self, mode: IterMode, dtype: DType) -> Result<LayoutIter> {
         let elem_size = dtype.size_in_bytes() as isize;
         let mut shape = ArrayVec::<[usize; MAX_RANK]>::new();

@@ -15,11 +15,11 @@ pub trait MatmulKernel: NativeType {
     fn matmul_kernel(
         _lhs: CpuTensorView<'_, Self>,
         _rhs: CpuTensorView<'_, Self>,
-        _alloc: &CpuAllocator<Self>,
+        _allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
         Err(Error::OpError(format!(
             "matmul not implemented for {}",
-            std::any::type_name::<Self>()
+            Self::DTYPE
         )))
     }
 }
@@ -120,30 +120,30 @@ where
 
 impl MatmulKernel for f32 {
     fn matmul_kernel(
-        _lhs: CpuTensorView<'_, Self>,
-        _rhs: CpuTensorView<'_, Self>,
-        _alloc: &CpuAllocator<Self>,
+        lhs: CpuTensorView<'_, Self>,
+        rhs: CpuTensorView<'_, Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        matmul(_lhs, _rhs, _alloc)
+        matmul(lhs, rhs, allocator)
     }
 }
 
 impl MatmulKernel for f64 {
     fn matmul_kernel(
-        _lhs: CpuTensorView<'_, Self>,
-        _rhs: CpuTensorView<'_, Self>,
-        _alloc: &CpuAllocator<Self>,
+        lhs: CpuTensorView<'_, Self>,
+        rhs: CpuTensorView<'_, Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        matmul(_lhs, _rhs, _alloc)
+        matmul(lhs, rhs, allocator)
     }
 }
 
 impl MatmulKernel for i32 {
     fn matmul_kernel(
-        _lhs: CpuTensorView<'_, Self>,
-        _rhs: CpuTensorView<'_, Self>,
-        _alloc: &CpuAllocator<Self>,
+        lhs: CpuTensorView<'_, Self>,
+        rhs: CpuTensorView<'_, Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        matmul(_lhs, _rhs, _alloc)
+        matmul(lhs, rhs, allocator)
     }
 }
