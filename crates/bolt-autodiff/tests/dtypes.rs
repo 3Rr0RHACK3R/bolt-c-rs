@@ -37,8 +37,8 @@ fn test_f32_autodiff_gradients() -> Result<()> {
     let a_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0], &[3])?;
     let b_data = Tensor::from_slice(&backend, &[4.0_f32, 5.0, 6.0], &[3])?;
 
-    let a = graph.param(&a_data);
-    let b = graph.param(&b_data);
+    let a = graph.variable(&a_data);
+    let b = graph.variable(&b_data);
     let loss = a.add(&b)?.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
@@ -61,8 +61,8 @@ fn test_f64_autodiff_gradients() -> Result<()> {
     let a_data = Tensor::from_slice(&backend, &[1.0_f64, -2.5, 3.25], &[3])?;
     let b_data = Tensor::from_slice(&backend, &[0.5_f64, 4.75, -1.25], &[3])?;
 
-    let a = graph.param(&a_data);
-    let b = graph.param(&b_data);
+    let a = graph.variable(&a_data);
+    let b = graph.variable(&b_data);
     let loss = a.add(&b)?.sum(None, false)?;
 
     let grads = graph.backward(&loss)?;
