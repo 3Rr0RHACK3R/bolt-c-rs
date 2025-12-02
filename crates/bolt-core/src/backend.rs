@@ -81,7 +81,7 @@ pub trait MeanOp<D: FloatType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>>;
 }
@@ -147,7 +147,7 @@ pub trait SumOp<D: NativeType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>>;
 }
@@ -157,7 +157,7 @@ pub trait ProdOp<D: NativeType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>>;
 }
@@ -167,7 +167,7 @@ pub trait MinOp<D: NativeType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>>;
 }
@@ -177,7 +177,7 @@ pub trait MaxOp<D: NativeType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>>;
 }
@@ -188,7 +188,7 @@ pub trait ArgminOp<D: NativeType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>>;
 }
@@ -199,7 +199,7 @@ pub trait ArgmaxOp<D: NativeType>: Backend<D> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>>;
 }

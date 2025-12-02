@@ -244,26 +244,30 @@ impl Layout {
         self.perform_indexing(&indexers, dtype)
     }
 
-    pub fn permute(&self, axes: &[usize]) -> Result<Self> {
-        if axes.len() != self.shape.rank() {
+    pub fn permute(&self, axes: &[isize]) -> Result<Self> {
+        let rank = self.shape.rank();
+        if axes.len() != rank {
             return Err(Error::invalid_shape(
                 "permute axes length must match tensor rank",
             ));
         }
-        let mut seen = vec![false; axes.len()];
-        let rank = self.shape.rank();
+        
+        let mut normalized = Vec::with_capacity(axes.len());
         for &axis in axes {
-            if axis >= rank {
-                return Err(Error::invalid_shape("permute axis out of bounds"));
-            }
+            normalized.push(crate::shape::normalize_axis(axis, rank)?);
+        }
+        
+        let mut seen = vec![false; rank];
+        for &axis in &normalized {
             if seen[axis] {
                 return Err(Error::invalid_shape("duplicate axis in permute"));
             }
             seen[axis] = true;
         }
+        
         let mut new_shape = Vec::with_capacity(axes.len());
         let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
-        for &axis in axes {
+        for &axis in &normalized {
             new_shape.push(self.shape()[axis]);
             new_strides.push(self.strides()[axis]);
         }
@@ -271,12 +275,12 @@ impl Layout {
         Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
-    pub fn transpose(&self, axis_a: usize, axis_b: usize) -> Result<Self> {
-        if axis_a >= self.shape.rank() || axis_b >= self.shape.rank() {
-            return Err(Error::invalid_shape("transpose axis out of bounds"));
-        }
-        let mut axes: Vec<usize> = (0..self.shape.rank()).collect();
-        axes.swap(axis_a, axis_b);
+    pub fn transpose(&self, axis_a: isize, axis_b: isize) -> Result<Self> {
+        let rank = self.shape.rank();
+        let norm_a = crate::shape::normalize_axis(axis_a, rank)?;
+        let norm_b = crate::shape::normalize_axis(axis_b, rank)?;
+        let mut axes: Vec<isize> = (0..rank).map(|i| i as isize).collect();
+        axes.swap(norm_a, norm_b);
         self.permute(&axes)
     }
 

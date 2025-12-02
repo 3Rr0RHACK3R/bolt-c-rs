@@ -15,7 +15,7 @@ use super::reduction_helpers::{
 pub trait ArgmaxKernel: NativeType {
     fn argmax_kernel(
         _view: CpuTensorView<'_, Self>,
-        _axes: Option<&[usize]>,
+        _axes: Option<&[isize]>,
         _keepdims: bool,
         _allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {
@@ -28,7 +28,7 @@ pub trait ArgmaxKernel: NativeType {
 
 fn reduce_argmax<D>(
     input: CpuTensorView<'_, D>,
-    axes: Option<&[usize]>,
+    axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<i32>,
 ) -> Result<TensorParts<CpuStorage<i32>>>
@@ -151,7 +151,7 @@ where
 impl ArgmaxKernel for f32 {
     fn argmax_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {
@@ -162,7 +162,7 @@ impl ArgmaxKernel for f32 {
 impl ArgmaxKernel for f64 {
     fn argmax_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {
@@ -173,7 +173,7 @@ impl ArgmaxKernel for f64 {
 impl ArgmaxKernel for i32 {
     fn argmax_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {

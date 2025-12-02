@@ -15,7 +15,7 @@ use super::reduction_helpers::{
 pub trait MeanKernel: FloatType {
     fn mean_kernel(
         _view: CpuTensorView<'_, Self>,
-        _axes: Option<&[usize]>,
+        _axes: Option<&[isize]>,
         _keepdims: bool,
         _allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -28,7 +28,7 @@ pub trait MeanKernel: FloatType {
 
 fn reduce_mean<D>(
     input: CpuTensorView<'_, D>,
-    axes: Option<&[usize]>,
+    axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
@@ -123,7 +123,7 @@ where
 impl MeanKernel for f32 {
     fn mean_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
@@ -134,7 +134,7 @@ impl MeanKernel for f32 {
 impl MeanKernel for f64 {
     fn mean_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {

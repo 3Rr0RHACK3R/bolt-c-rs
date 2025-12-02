@@ -15,7 +15,7 @@ use super::reduction_helpers::{
 pub trait ArgminKernel: NativeType {
     fn argmin_kernel(
         _view: CpuTensorView<'_, Self>,
-        _axes: Option<&[usize]>,
+        _axes: Option<&[isize]>,
         _keepdims: bool,
         _allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {
@@ -28,7 +28,7 @@ pub trait ArgminKernel: NativeType {
 
 fn reduce_argmin<D>(
     input: CpuTensorView<'_, D>,
-    axes: Option<&[usize]>,
+    axes: Option<&[isize]>,
     keepdims: bool,
     allocator: &CpuAllocator<i32>,
 ) -> Result<TensorParts<CpuStorage<i32>>>
@@ -151,7 +151,7 @@ where
 impl ArgminKernel for f32 {
     fn argmin_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {
@@ -162,7 +162,7 @@ impl ArgminKernel for f32 {
 impl ArgminKernel for f64 {
     fn argmin_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {
@@ -173,7 +173,7 @@ impl ArgminKernel for f64 {
 impl ArgminKernel for i32 {
     fn argmin_kernel(
         view: CpuTensorView<'_, Self>,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
         allocator: &CpuAllocator<i32>,
     ) -> Result<TensorParts<CpuStorage<i32>>> {

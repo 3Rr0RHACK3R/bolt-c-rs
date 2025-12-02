@@ -287,7 +287,7 @@ where
         Ok(self.with_layout(layout))
     }
 
-    pub fn permute(&self, axes: &[usize]) -> Result<Self> {
+    pub fn permute(&self, axes: &[isize]) -> Result<Self> {
         let layout = self.layout.permute(axes)?;
         self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
@@ -317,7 +317,7 @@ where
         ))
     }
 
-    pub fn transpose(&self, axis_a: usize, axis_b: usize) -> Result<Self> {
+    pub fn transpose(&self, axis_a: isize, axis_b: isize) -> Result<Self> {
         let layout = self.layout.transpose(axis_a, axis_b)?;
         self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
@@ -399,7 +399,7 @@ where
         ))
     }
 
-    pub fn mean(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    pub fn mean(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Self>
     where
         B: MeanOp<D>,
         D: FloatType,
@@ -559,7 +559,7 @@ where
         ))
     }
 
-    pub fn sum(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    pub fn sum(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Self>
     where
         B: SumOp<D>,
     {
@@ -573,7 +573,7 @@ where
         ))
     }
 
-    pub fn prod(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    pub fn prod(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Self>
     where
         B: ProdOp<D>,
     {
@@ -587,7 +587,7 @@ where
         ))
     }
 
-    pub fn min(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    pub fn min(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Self>
     where
         B: MinOp<D>,
     {
@@ -601,7 +601,7 @@ where
         ))
     }
 
-    pub fn max(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Self>
+    pub fn max(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Self>
     where
         B: MaxOp<D>,
     {
@@ -615,7 +615,7 @@ where
         ))
     }
 
-    pub fn argmin(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Tensor<B, i32>>
+    pub fn argmin(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Tensor<B, i32>>
     where
         B: ArgminOp<D, I32Storage = <B as Backend<i32>>::Storage> + Backend<i32>,
     {
@@ -633,7 +633,7 @@ where
         ))
     }
 
-    pub fn argmax(&self, axes: Option<&[usize]>, keepdims: bool) -> Result<Tensor<B, i32>>
+    pub fn argmax(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Tensor<B, i32>>
     where
         B: ArgmaxOp<D, I32Storage = <B as Backend<i32>>::Storage> + Backend<i32>,
     {

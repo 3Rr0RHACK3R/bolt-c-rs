@@ -214,7 +214,7 @@ impl<D: FloatType, B: MeanOp<D> + Backend<D>> MeanOp<D> for ProfiledBackend<B> {
         &self,
         layout: &Layout,
         storage: &Self::Storage,
-        axes: Option<&[usize]>,
+        axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         profile_op(

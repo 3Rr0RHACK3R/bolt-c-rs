@@ -50,7 +50,7 @@ where
 
     for i in 0..target_rank {
         if target_shape[i] == 1 && result.shape()[i] != 1 {
-            result = result.sum(Some(&[i]), true)?;
+            result = result.sum(Some(&[i as isize]), true)?;
         }
     }
 

@@ -5,7 +5,7 @@ use bolt_core::{
 
 pub(super) fn compute_reduction_shape(
     shape: &[usize],
-    axes: Option<&[usize]>,
+    axes: Option<&[isize]>,
     keepdims: bool,
 ) -> Result<Vec<usize>> {
     match axes {
@@ -25,7 +25,7 @@ pub(super) fn compute_reduction_shape(
                 }
                 Ok(result)
             } else {
-                reduced_shape(shape, &canonical)
+                reduced_shape(shape, ax)
             }
         }
     }
