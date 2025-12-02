@@ -10,16 +10,17 @@ use bolt_core::{
 
 use super::super::allocator::CpuAllocator;
 use super::super::storage::{CpuStorage, CpuTensorView};
+use super::can_use_fast_path_binary;
 
 pub trait SubKernel: NativeType {
     fn sub_kernel(
         _lhs: CpuTensorView<'_, Self>,
         _rhs: CpuTensorView<'_, Self>,
-        _alloc: &CpuAllocator<Self>,
+        _allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
         Err(Error::OpError(format!(
             "sub not implemented for {}",
-            std::any::type_name::<Self>()
+            Self::DTYPE
         )))
     }
 }
@@ -40,17 +41,8 @@ where
 
     let lhs_data = lhs.storage.as_uninit_slice();
     let rhs_data = rhs.storage.as_uninit_slice();
-    let elem_size = D::DTYPE.size_in_bytes();
 
-    let no_broadcast = lhs_layout.shape() == rhs_layout.shape()
-        && lhs_layout.shape() == lhs.layout.shape()
-        && rhs_layout.shape() == rhs.layout.shape();
-    if no_broadcast
-        && lhs.layout.is_contiguous()
-        && rhs.layout.is_contiguous()
-        && lhs.layout.offset_bytes() == 0
-        && rhs.layout.offset_bytes() == 0
-    {
+    if can_use_fast_path_binary(&lhs, &rhs, &lhs_layout, &rhs_layout) {
         for (dst, (&lhs_val, &rhs_val)) in out_slice
             .iter_mut()
             .zip(lhs_data.iter().zip(rhs_data.iter()))
@@ -60,15 +52,9 @@ where
             dst.write(lhs_val - rhs_val);
         }
     } else {
-        let lhs_iter = lhs_layout.iter_offsets(D::DTYPE)?;
-        let rhs_iter = rhs_layout.iter_offsets(D::DTYPE)?;
-        for (dst, (lhs_idx_bytes, rhs_idx_bytes)) in
-            out_slice.iter_mut().zip(lhs_iter.zip(rhs_iter))
-        {
-            debug_assert_eq!(lhs_idx_bytes % elem_size, 0);
-            debug_assert_eq!(rhs_idx_bytes % elem_size, 0);
-            let lhs_idx = lhs_idx_bytes / elem_size;
-            let rhs_idx = rhs_idx_bytes / elem_size;
+        let lhs_iter = lhs_layout.iter_element_indices(D::DTYPE)?;
+        let rhs_iter = rhs_layout.iter_element_indices(D::DTYPE)?;
+        for (dst, (lhs_idx, rhs_idx)) in out_slice.iter_mut().zip(lhs_iter.zip(rhs_iter)) {
             let lhs_val = unsafe { lhs_data[lhs_idx].assume_init() };
             let rhs_val = unsafe { rhs_data[rhs_idx].assume_init() };
             dst.write(lhs_val - rhs_val);
@@ -86,9 +72,9 @@ impl SubKernel for f32 {
     fn sub_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        sub(lhs, rhs, alloc)
+        sub(lhs, rhs, allocator)
     }
 }
 
@@ -96,9 +82,9 @@ impl SubKernel for f64 {
     fn sub_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        sub(lhs, rhs, alloc)
+        sub(lhs, rhs, allocator)
     }
 }
 
@@ -106,8 +92,8 @@ impl SubKernel for i32 {
     fn sub_kernel(
         lhs: CpuTensorView<'_, Self>,
         rhs: CpuTensorView<'_, Self>,
-        alloc: &CpuAllocator<Self>,
+        allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        sub(lhs, rhs, alloc)
+        sub(lhs, rhs, allocator)
     }
 }
