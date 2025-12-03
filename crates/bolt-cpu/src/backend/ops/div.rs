@@ -77,7 +77,9 @@ impl DivOverflowCheck for i32 {
     fn check_division(lhs: Self, rhs: Self) -> Result<()> {
         Self::check_divisor(rhs)?;
         if lhs == i32::MIN && rhs == -1 {
-            return Err(Error::OpError("integer overflow: i32::MIN / -1".to_string()));
+            return Err(Error::OpError(
+                "integer overflow: i32::MIN / -1".to_string(),
+            ));
         }
         Ok(())
     }

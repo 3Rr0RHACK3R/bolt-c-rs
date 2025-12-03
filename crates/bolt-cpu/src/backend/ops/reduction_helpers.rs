@@ -1,7 +1,4 @@
-use bolt_core::{
-    error::Result,
-    shape::reduced_shape,
-};
+use bolt_core::{error::Result, shape::reduced_shape};
 
 pub(super) fn compute_reduction_shape(
     shape: &[usize],
@@ -24,7 +21,10 @@ pub(super) fn compute_reduction_shape(
                 }
                 Ok(result)
             } else {
-                reduced_shape(shape, &canonical.iter().map(|&x| x as isize).collect::<Vec<_>>())
+                reduced_shape(
+                    shape,
+                    &canonical.iter().map(|&x| x as isize).collect::<Vec<_>>(),
+                )
             }
         }
     }

@@ -47,8 +47,8 @@ pub use sub::SubKernel;
 pub use sum::SumKernel;
 pub use tanh::TanhKernel;
 
-use bolt_core::{dtype::NativeType, layout::Layout};
 use super::storage::CpuTensorView;
+use bolt_core::{dtype::NativeType, layout::Layout};
 
 #[inline]
 pub(crate) fn can_use_fast_path_binary<D: NativeType>(
@@ -60,7 +60,7 @@ pub(crate) fn can_use_fast_path_binary<D: NativeType>(
     let no_broadcast = lhs_layout.shape() == rhs_layout.shape()
         && lhs_layout.shape() == lhs.layout.shape()
         && rhs_layout.shape() == rhs.layout.shape();
-    
+
     no_broadcast
         && lhs.layout.is_contiguous()
         && rhs.layout.is_contiguous()

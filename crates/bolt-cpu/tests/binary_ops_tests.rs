@@ -75,7 +75,11 @@ fn div_broadcast_scalar() -> Result<()> {
 #[test]
 fn div_broadcast_2d() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let lhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[10.0, 20.0, 30.0, 40.0, 50.0, 60.0], &[3, 2])?;
+    let lhs = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
+        &[3, 2],
+    )?;
     let rhs = Tensor::<CpuBackend, f32>::from_slice(&backend, &[2.0, 5.0], &[2])?;
 
     let result = lhs.div(&rhs)?.to_vec()?;

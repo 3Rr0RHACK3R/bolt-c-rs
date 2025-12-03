@@ -2,9 +2,9 @@ use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp};
 use bolt_core::{Backend, Tensor};
 use tinyvec::ArrayVec;
 
+use crate::Float;
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
-use crate::Float;
 
 pub struct SumBackward {
     input_shape: Vec<usize>,

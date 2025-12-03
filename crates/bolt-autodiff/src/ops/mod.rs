@@ -4,7 +4,9 @@ mod shape;
 
 pub use binary::{AddBackward, MatmulBackward, MulBackward, SubBackward};
 pub use reduce::{MeanBackward, SumBackward};
-pub use shape::{ReshapeBackward, TransposeBackward};
+pub use shape::{
+    ExpandBackward, ReshapeBackward, SqueezeBackward, TransposeBackward, UnsqueezeBackward,
+};
 
 use bolt_core::backend::{AddOp, SumOp};
 use bolt_core::{Backend, Tensor};

@@ -41,7 +41,10 @@ where
             dst.write(if val > zero { val } else { zero });
         }
     } else {
-        for (dst, idx) in out_data.iter_mut().zip(view.layout.iter_element_indices(D::DTYPE)?) {
+        for (dst, idx) in out_data
+            .iter_mut()
+            .zip(view.layout.iter_element_indices(D::DTYPE)?)
+        {
             let val = unsafe { view_data[idx].assume_init() };
             dst.write(if val > zero { val } else { zero });
         }

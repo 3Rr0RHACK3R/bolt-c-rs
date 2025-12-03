@@ -36,8 +36,10 @@ where
     D: FloatType + num_traits::Float,
 {
     let view_shape = view.layout.shape();
-    
-    let canonical = axes.map(|ax| canonical_axes(ax, view_shape.len())).transpose()?;
+
+    let canonical = axes
+        .map(|ax| canonical_axes(ax, view_shape.len()))
+        .transpose()?;
     let output_shape = compute_reduction_shape(view_shape, canonical.as_deref(), keepdims)?;
 
     let count = if let Some(ref canonical) = canonical {

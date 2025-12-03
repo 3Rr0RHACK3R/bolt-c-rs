@@ -3,7 +3,7 @@ use bolt_core::{
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
-    shape::{canonical_axes, ConcreteShape},
+    shape::{ConcreteShape, canonical_axes},
 };
 
 use super::super::allocator::CpuAllocator;
@@ -36,8 +36,10 @@ where
     D: NativeType + Copy + PartialOrd,
 {
     let view_shape = view.layout.shape();
-    
-    let canonical = axes.map(|ax| canonical_axes(ax, view_shape.len())).transpose()?;
+
+    let canonical = axes
+        .map(|ax| canonical_axes(ax, view_shape.len()))
+        .transpose()?;
     let output_shape = compute_reduction_shape(view_shape, canonical.as_deref(), keepdims)?;
 
     let output_numel: usize = if output_shape.is_empty() {
@@ -59,7 +61,13 @@ where
                 let val = unsafe { slot.assume_init() };
                 min_val = Some(match min_val {
                     None => val,
-                    Some(current) => if val < current { val } else { current },
+                    Some(current) => {
+                        if val < current {
+                            val
+                        } else {
+                            current
+                        }
+                    }
                 });
             }
         } else {
@@ -67,11 +75,19 @@ where
                 let val = unsafe { view_data[idx].assume_init() };
                 min_val = Some(match min_val {
                     None => val,
-                    Some(current) => if val < current { val } else { current },
+                    Some(current) => {
+                        if val < current {
+                            val
+                        } else {
+                            current
+                        }
+                    }
                 });
             }
         }
-        out_data[0].write(min_val.ok_or_else(|| Error::OpError("cannot compute min of empty tensor".into()))?);
+        out_data[0].write(
+            min_val.ok_or_else(|| Error::OpError("cannot compute min of empty tensor".into()))?,
+        );
     } else {
         let canonical = canonical.unwrap();
 

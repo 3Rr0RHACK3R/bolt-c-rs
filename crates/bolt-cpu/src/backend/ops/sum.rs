@@ -5,7 +5,7 @@ use bolt_core::{
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
-    shape::{canonical_axes, ConcreteShape},
+    shape::{ConcreteShape, canonical_axes},
 };
 
 use super::super::allocator::CpuAllocator;
@@ -38,8 +38,10 @@ where
     D: NativeType + Copy + Add<Output = D> + Default,
 {
     let view_shape = view.layout.shape();
-    
-    let canonical = axes.map(|ax| canonical_axes(ax, view_shape.len())).transpose()?;
+
+    let canonical = axes
+        .map(|ax| canonical_axes(ax, view_shape.len()))
+        .transpose()?;
     let output_shape = compute_reduction_shape(view_shape, canonical.as_deref(), keepdims)?;
 
     let output_numel: usize = if output_shape.is_empty() {
