@@ -156,7 +156,7 @@ impl Layout {
                 TensorIndexer::Select(idx) => {
                     if idx >= dim {
                         return Err(Error::invalid_shape(format!(
-                            "index {idx} out of bounds for dim {i} (size {dim})"
+                            "index {idx} out of bounds for axis {i} (size {dim})"
                         )));
                     }
                     let delta = stride
@@ -170,7 +170,7 @@ impl Layout {
                     }
                     if start > dim || end > dim {
                         return Err(Error::invalid_shape(format!(
-                            "slice range [{start}, {end}) out of bounds for dim {i} (size {dim})"
+                            "slice range [{start}, {end}) out of bounds for axis {i} (size {dim})"
                         )));
                     }
                     let len = if start >= end {
@@ -377,7 +377,7 @@ impl Layout {
 
             if mode == IterMode::Write && dim > 1 && stride == 0 {
                 return Err(Error::invalid_shape(format!(
-                    "write mode requires non-zero strides for dims > 1 (dim {} is broadcasted)",
+                    "write mode requires non-zero strides for axes with extent > 1 (axis {} is broadcasted)",
                     i
                 )));
             }

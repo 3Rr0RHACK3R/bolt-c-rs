@@ -53,28 +53,28 @@ where
         let truncated = self.tensor.numel() > DISPLAY_TOTAL_ELEMENT_THRESHOLD;
         let mut out = String::new();
         let mut indices = Vec::with_capacity(self.tensor.shape().len());
-        self.format_dim(0, &mut indices, truncated, 0, &mut out)?;
+        self.format_axis(0, &mut indices, truncated, 0, &mut out)?;
         Ok(out)
     }
 
-    fn format_dim(
+    fn format_axis(
         &mut self,
-        dim: usize,
+        axis: usize,
         indices: &mut Vec<usize>,
         truncated: bool,
         depth: usize,
         out: &mut String,
     ) -> Result<()> {
         out.push('[');
-        let len = self.tensor.shape()[dim];
+        let len = self.tensor.shape()[axis];
         let entries = self.display_indices(len, truncated);
         let rank = self.tensor.shape().len();
-        let is_leaf = rank == dim + 1;
+        let is_leaf = rank == axis + 1;
 
         if is_leaf {
             self.format_leaf_entries(&entries, indices, out)?;
         } else {
-            self.format_inner_entries(dim, &entries, indices, truncated, depth, out)?;
+            self.format_inner_entries(axis, &entries, indices, truncated, depth, out)?;
         }
 
         if !is_leaf {
@@ -110,7 +110,7 @@ where
 
     fn format_inner_entries(
         &mut self,
-        dim: usize,
+        axis: usize,
         entries: &[DisplayIndex],
         indices: &mut Vec<usize>,
         truncated: bool,
@@ -128,7 +128,7 @@ where
             match entry {
                 DisplayIndex::Index(value_idx) => {
                     indices.push(*value_idx);
-                    self.format_dim(dim + 1, indices, truncated, depth + 1, out)?;
+                    self.format_axis(axis + 1, indices, truncated, depth + 1, out)?;
                     indices.pop();
                 }
                 DisplayIndex::Ellipsis => out.push_str("..."),
