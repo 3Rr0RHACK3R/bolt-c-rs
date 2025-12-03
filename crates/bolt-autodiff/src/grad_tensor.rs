@@ -1,14 +1,15 @@
 use bolt_core::{
+    Backend, Tensor,
     backend::{AddOp, CopyOp, FillOp, MatmulOp, MeanOp, MulOp, SubOp, SumOp},
-    shape, Backend, Tensor,
+    shape,
 };
 use tinyvec::ArrayVec;
 
 use crate::error::Result;
 use crate::graph::MAX_SHAPE_RANK;
 use crate::ops::{
-    AddBackward, MatmulBackward, MeanBackward, MulBackward, ReshapeBackward, SubBackward,
-    SumBackward, TransposeBackward,
+    AddBackward, ExpandBackward, MatmulBackward, MeanBackward, MulBackward, ReshapeBackward,
+    SqueezeBackward, SubBackward, SumBackward, TransposeBackward, UnsqueezeBackward,
 };
 use crate::{Float, Graph, Handle};
 
@@ -401,6 +402,88 @@ where
         ))
     }
 
+    pub fn squeeze(&self) -> Result<GradTensor<'g, B, D>> {
+        let self_tensor = self.tensor()?;
+        let original_shape = self_tensor.shape().to_vec();
+
+        let result = self_tensor.squeeze()?;
+
+        let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
+
+        if !requires_grad {
+            return Ok(self.graph().constant(&result));
+        }
+
+        let saved_idx = self.graph().save_tensors_for_backward(vec![]);
+        let backward_op = SqueezeBackward::new(original_shape);
+
+        let mut inputs = ArrayVec::new();
+        inputs.push(self.handle());
+
+        Ok(self.graph().create_node(
+            result,
+            true,
+            false,
+            inputs,
+            Some((Box::new(backward_op), saved_idx)),
+        ))
+    }
+
+    pub fn squeeze_axis(&self, axis: isize) -> Result<GradTensor<'g, B, D>> {
+        let self_tensor = self.tensor()?;
+        let original_shape = self_tensor.shape().to_vec();
+
+        let result = self_tensor.squeeze_axis(axis)?;
+
+        let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
+
+        if !requires_grad {
+            return Ok(self.graph().constant(&result));
+        }
+
+        let saved_idx = self.graph().save_tensors_for_backward(vec![]);
+        let backward_op = SqueezeBackward::new(original_shape);
+
+        let mut inputs = ArrayVec::new();
+        inputs.push(self.handle());
+
+        Ok(self.graph().create_node(
+            result,
+            true,
+            false,
+            inputs,
+            Some((Box::new(backward_op), saved_idx)),
+        ))
+    }
+
+    pub fn unsqueeze(&self, axis: isize) -> Result<GradTensor<'g, B, D>> {
+        let self_tensor = self.tensor()?;
+        let rank = self_tensor.shape().len();
+        let axis_idx = shape::normalize_axis_inclusive(axis, rank)?;
+
+        let result = self_tensor.unsqueeze(axis)?;
+
+        let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
+
+        if !requires_grad {
+            return Ok(self.graph().constant(&result));
+        }
+
+        let saved_idx = self.graph().save_tensors_for_backward(vec![]);
+        let backward_op = UnsqueezeBackward::new(axis_idx);
+
+        let mut inputs = ArrayVec::new();
+        inputs.push(self.handle());
+
+        Ok(self.graph().create_node(
+            result,
+            true,
+            false,
+            inputs,
+            Some((Box::new(backward_op), saved_idx)),
+        ))
+    }
+
     pub fn transpose(&self, axis_a: isize, axis_b: isize) -> Result<GradTensor<'g, B, D>> {
         let self_tensor = self.tensor()?;
         let rank = self_tensor.shape().len();
@@ -428,5 +511,49 @@ where
             inputs,
             Some((Box::new(backward_op), saved_idx)),
         ))
+    }
+}
+
+impl<'g, B, D> GradTensor<'g, B, D>
+where
+    B: Backend<D> + AddOp<D> + CopyOp<D> + SumOp<D>,
+    D: Float,
+{
+    pub fn expand(&self, shape: &[isize]) -> Result<GradTensor<'g, B, D>> {
+        let self_tensor = self.tensor()?;
+        let input_shape = self_tensor.shape().to_vec();
+
+        let result = self_tensor.expand(shape)?;
+        let expanded_shape = result.shape().to_vec();
+
+        let requires_grad = self.requires_grad()? && self.graph().is_grad_enabled();
+
+        if !requires_grad {
+            return Ok(self.graph().constant(&result));
+        }
+
+        let saved_idx = self.graph().save_tensors_for_backward(vec![]);
+        let backward_op = ExpandBackward::new(input_shape, expanded_shape);
+
+        let mut inputs = ArrayVec::new();
+        inputs.push(self.handle());
+
+        Ok(self.graph().create_node(
+            result,
+            true,
+            false,
+            inputs,
+            Some((Box::new(backward_op), saved_idx)),
+        ))
+    }
+
+    pub fn expand_as(&self, other: &GradTensor<'g, B, D>) -> Result<GradTensor<'g, B, D>> {
+        let target_shape = other
+            .shape()?
+            .as_slice()
+            .iter()
+            .map(|&d| d as isize)
+            .collect::<Vec<_>>();
+        self.expand(&target_shape)
     }
 }

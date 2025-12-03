@@ -140,10 +140,10 @@ fn test_broadcast_to_invalid() {
 fn test_transpose_negative_axes() {
     let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
     let layout = Layout::contiguous(shape);
-    
+
     let transposed = layout.transpose(-2, -1).unwrap();
     assert_eq!(transposed.shape(), &[2, 4, 3]);
-    
+
     let transposed2 = layout.transpose(0, -1).unwrap();
     assert_eq!(transposed2.shape(), &[4, 3, 2]);
 }
@@ -152,7 +152,7 @@ fn test_transpose_negative_axes() {
 fn test_transpose_negative_out_of_bounds() {
     let shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
     let layout = Layout::contiguous(shape);
-    
+
     assert!(layout.transpose(-3, 0).is_err());
     assert!(layout.transpose(0, -3).is_err());
 }
@@ -161,10 +161,10 @@ fn test_transpose_negative_out_of_bounds() {
 fn test_permute_negative_axes() {
     let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
     let layout = Layout::contiguous(shape);
-    
+
     let permuted = layout.permute(&[-1, -2, -3]).unwrap();
     assert_eq!(permuted.shape(), &[4, 3, 2]);
-    
+
     let permuted2 = layout.permute(&[0, -1, 1]).unwrap();
     assert_eq!(permuted2.shape(), &[2, 4, 3]);
 }
@@ -173,7 +173,7 @@ fn test_permute_negative_axes() {
 fn test_permute_mixed_negative_positive() {
     let shape = ConcreteShape::from_slice(&[2, 3, 4, 5]).unwrap();
     let layout = Layout::contiguous(shape);
-    
+
     let permuted = layout.permute(&[0, -1, 1, 2]).unwrap();
     assert_eq!(permuted.shape(), &[2, 5, 3, 4]);
 }
@@ -182,6 +182,45 @@ fn test_permute_mixed_negative_positive() {
 fn test_permute_duplicate_after_normalization() {
     let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
     let layout = Layout::contiguous(shape);
-    
+
     assert!(layout.permute(&[1, -2, 0]).is_err());
+}
+
+#[test]
+fn test_squeeze_all_removes_unit_dims() {
+    let shape = ConcreteShape::from_slice(&[1, 2, 1, 3]).unwrap();
+    let layout = Layout::contiguous(shape);
+    let squeezed = layout.squeeze_all().unwrap();
+    assert_eq!(squeezed.shape(), &[2, 3]);
+    assert!(squeezed.is_contiguous());
+}
+
+#[test]
+fn test_squeeze_axis_validation() {
+    let shape = ConcreteShape::from_slice(&[2, 1, 3]).unwrap();
+    let layout = Layout::contiguous(shape);
+    let squeezed = layout.squeeze_axis(1).unwrap();
+    assert_eq!(squeezed.shape(), &[2, 3]);
+    // Axis without unit dim should no-op.
+    let noop = layout.squeeze_axis(0).unwrap();
+    assert_eq!(noop.shape(), &[2, 1, 3]);
+}
+
+#[test]
+fn test_unsqueeze_axis_contiguous() {
+    let shape = ConcreteShape::from_slice(&[2, 3]).unwrap();
+    let layout = Layout::contiguous(shape);
+    let unsqueezed = layout.unsqueeze_axis(1).unwrap();
+    assert_eq!(unsqueezed.shape(), &[2, 1, 3]);
+    assert!(unsqueezed.is_contiguous());
+}
+
+#[test]
+fn test_unsqueeze_axis_general_layout() {
+    let shape = ConcreteShape::from_slice(&[2, 3, 4]).unwrap();
+    let layout = Layout::contiguous(shape).transpose(0, 2).unwrap();
+    assert!(!layout.is_contiguous());
+    let unsqueezed = layout.unsqueeze_axis(-1).unwrap();
+    assert_eq!(unsqueezed.shape(), &[4, 3, 2, 1]);
+    assert!(!unsqueezed.is_contiguous());
 }

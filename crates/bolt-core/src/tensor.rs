@@ -274,6 +274,34 @@ where
         Ok(self.with_layout(layout))
     }
 
+    pub fn squeeze(&self) -> Result<Self> {
+        let layout = self.layout.squeeze_all()?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
+        Ok(self.with_layout(layout))
+    }
+
+    pub fn squeeze_axis(&self, axis: isize) -> Result<Self> {
+        let layout = self.layout.squeeze_axis(axis)?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
+        Ok(self.with_layout(layout))
+    }
+
+    pub fn unsqueeze(&self, axis: isize) -> Result<Self> {
+        let layout = self.layout.unsqueeze_axis(axis)?;
+        self.validate_layout_for_storage(&self.storage, &layout)?;
+        Ok(self.with_layout(layout))
+    }
+
+    pub fn expand(&self, shape: &[isize]) -> Result<Self> {
+        let target = self.infer_expand_shape(shape)?;
+        self.broadcast_to(&target)
+    }
+
+    pub fn expand_as(&self, other: &Self) -> Result<Self> {
+        let shape: Vec<isize> = other.shape().iter().map(|&d| d as isize).collect();
+        self.expand(&shape)
+    }
+
     pub fn i<I: TensorIndex>(&self, index: I) -> Result<Self> {
         let indexers = index.to_indexers(self.shape())?;
         let layout = self.layout.perform_indexing(&indexers, D::DTYPE)?;
@@ -649,6 +677,67 @@ where
             parts.storage,
             parts.layout,
         ))
+    }
+
+    fn infer_expand_shape(&self, requested: &[isize]) -> Result<Vec<usize>> {
+        if requested.is_empty() {
+            return Ok(self.shape().to_vec());
+        }
+        let src_shape = self.shape();
+        let src_rank = src_shape.len();
+        let dst_rank = requested.len();
+        if dst_rank < src_rank {
+            return Err(Error::invalid_shape(
+                "expand target rank must be >= tensor rank",
+            ));
+        }
+        let mut target = Vec::with_capacity(dst_rank);
+        for &dim in requested {
+            if dim == -1 {
+                target.push(0);
+            } else if dim <= 0 {
+                return Err(Error::invalid_shape(
+                    "expand dimensions must be positive or -1",
+                ));
+            } else {
+                target.push(dim as usize);
+            }
+        }
+        let mut src_idx = src_rank as isize - 1;
+        for dst_idx in (0..dst_rank).rev() {
+            let has_src = src_idx >= 0;
+            let src_dim = if has_src {
+                src_shape[src_idx as usize]
+            } else {
+                1
+            };
+            let desired = if requested[dst_idx] == -1 {
+                src_dim
+            } else {
+                target[dst_idx]
+            };
+            target[dst_idx] = desired;
+            if src_dim == desired || src_dim == 1 {
+                if has_src {
+                    src_idx -= 1;
+                }
+                continue;
+            }
+            return Err(Error::ShapeMismatch {
+                lhs: src_shape.to_vec(),
+                rhs: target,
+            });
+        }
+        while src_idx >= 0 {
+            if src_shape[src_idx as usize] != 1 {
+                return Err(Error::ShapeMismatch {
+                    lhs: src_shape.to_vec(),
+                    rhs: target.clone(),
+                });
+            }
+            src_idx -= 1;
+        }
+        Ok(target)
     }
 
     fn ensure_same_backend(&self, other: &Self) -> Result<()> {

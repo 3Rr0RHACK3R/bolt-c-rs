@@ -251,12 +251,12 @@ impl Layout {
                 "permute axes length must match tensor rank",
             ));
         }
-        
+
         let mut normalized = Vec::with_capacity(axes.len());
         for &axis in axes {
             normalized.push(crate::shape::normalize_axis(axis, rank)?);
         }
-        
+
         let mut seen = vec![false; rank];
         for &axis in &normalized {
             if seen[axis] {
@@ -264,7 +264,7 @@ impl Layout {
             }
             seen[axis] = true;
         }
-        
+
         let mut new_shape = Vec::with_capacity(axes.len());
         let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
         for &axis in &normalized {
@@ -297,6 +297,74 @@ impl Layout {
             ));
         }
         Ok(Layout::contiguous_with_offset(new_shape, self.offset_bytes))
+    }
+
+    pub fn squeeze_all(&self) -> Result<Self> {
+        if self.shape.rank() == 0 {
+            return Ok(self.clone());
+        }
+        let mut new_shape = Vec::new();
+        let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
+        for (&dim, &stride) in self.shape().iter().zip(self.strides().iter()) {
+            if dim != 1 {
+                new_shape.push(dim);
+                new_strides.push(stride);
+            }
+        }
+        if new_shape.len() == self.shape.rank() {
+            return Ok(self.clone());
+        }
+        let shape = ConcreteShape::from_slice(&new_shape)?;
+        Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
+    }
+
+    pub fn squeeze_axis(&self, axis: isize) -> Result<Self> {
+        let rank = self.shape.rank();
+        let axis = crate::shape::normalize_axis(axis, rank)?;
+        if self.shape()[axis] != 1 {
+            return Ok(self.clone());
+        }
+        let mut new_shape = Vec::with_capacity(rank - 1);
+        let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
+        for (idx, (&dim, &stride)) in self.shape().iter().zip(self.strides().iter()).enumerate() {
+            if idx == axis {
+                continue;
+            }
+            new_shape.push(dim);
+            new_strides.push(stride);
+        }
+        let shape = ConcreteShape::from_slice(&new_shape)?;
+        Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
+    }
+
+    pub fn unsqueeze_axis(&self, axis: isize) -> Result<Self> {
+        let rank = self.shape.rank();
+        let insert = crate::shape::normalize_axis_inclusive(axis, rank)?;
+        if self.is_contiguous() {
+            let mut new_dims = self.shape().to_vec();
+            new_dims.insert(insert, 1);
+            let shape = ConcreteShape::from_slice(&new_dims)?;
+            return Ok(Layout::contiguous_with_offset(shape, self.offset_bytes));
+        }
+        let mut new_shape = Vec::with_capacity(rank + 1);
+        let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
+        for i in 0..insert {
+            new_shape.push(self.shape()[i]);
+            new_strides.push(self.strides()[i]);
+        }
+        let inserted_stride = if insert == rank {
+            1
+        } else {
+            self.strides()[insert]
+        };
+        new_shape.push(1);
+        new_strides.push(inserted_stride);
+        for i in insert..rank {
+            new_shape.push(self.shape()[i]);
+            new_strides.push(self.strides()[i]);
+        }
+        let shape = ConcreteShape::from_slice(&new_shape)?;
+        Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
     pub fn broadcast_to(&self, new_shape: &ConcreteShape) -> Result<Self> {
