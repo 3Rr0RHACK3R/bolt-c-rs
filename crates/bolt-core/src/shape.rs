@@ -158,6 +158,29 @@ pub fn normalize_axis(axis: isize, rank: usize) -> Result<usize> {
     Ok(normalized)
 }
 
+pub fn normalize_axis_inclusive(axis: isize, rank: usize) -> Result<usize> {
+    let limit = rank + 1;
+    let normalized = if axis < 0 {
+        let candidate = limit as isize + axis;
+        if candidate < 0 {
+            return Err(Error::InvalidAxes(format!(
+                "axis {axis} out of bounds for insertion in rank {rank}"
+            )));
+        }
+        candidate as usize
+    } else {
+        axis as usize
+    };
+
+    if normalized >= limit {
+        return Err(Error::InvalidAxes(format!(
+            "axis {axis} out of bounds for insertion in rank {rank}"
+        )));
+    }
+
+    Ok(normalized)
+}
+
 pub fn canonical_axes(axes: &[isize], rank: usize) -> Result<Vec<usize>> {
     if rank == 0 {
         if !axes.is_empty() {

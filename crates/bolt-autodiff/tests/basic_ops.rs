@@ -244,6 +244,83 @@ fn test_transpose_backward() -> Result<()> {
 }
 
 #[test]
+fn test_squeeze_backward() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let graph = Graph::<CpuBackend, f32>::new(backend.clone());
+
+    let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0], &[1, 4])?;
+    let x = graph.variable(&x_data);
+
+    let y = x.squeeze()?;
+    let loss = y.sum(None, false)?;
+
+    let grads = graph.backward(&loss)?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+    assert_vec_approx_eq(&dx, &[1.0, 1.0, 1.0, 1.0], 1e-6);
+
+    Ok(())
+}
+
+#[test]
+fn test_unsqueeze_backward() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let graph = Graph::<CpuBackend, f32>::new(backend.clone());
+
+    let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0, 3.0, 4.0], &[2, 2])?;
+    let x = graph.variable(&x_data);
+
+    let y = x.unsqueeze(1)?;
+    assert_eq!(y.tensor()?.shape(), &[2, 1, 2]);
+    let loss = y.sum(None, false)?;
+
+    let grads = graph.backward(&loss)?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+    assert_vec_approx_eq(&dx, &[1.0, 1.0, 1.0, 1.0], 1e-6);
+
+    Ok(())
+}
+
+#[test]
+fn test_expand_backward() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let graph = Graph::<CpuBackend, f32>::new(backend.clone());
+
+    let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0], &[2, 1])?;
+    let x = graph.variable(&x_data);
+
+    let y = x.expand(&[2, 3])?;
+    let loss = y.sum(None, false)?;
+
+    let grads = graph.backward(&loss)?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+    assert_vec_approx_eq(&dx, &[3.0, 3.0], 1e-6);
+
+    Ok(())
+}
+
+#[test]
+fn test_expand_as_does_not_require_other_grad() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let graph = Graph::<CpuBackend, f32>::new(backend.clone());
+
+    let x_data = Tensor::from_slice(&backend, &[1.0_f32, 2.0], &[2, 1])?;
+    let x = graph.variable(&x_data);
+
+    let target_data = Tensor::from_slice(&backend, &[0.0_f32; 6], &[2, 3])?;
+    let target = graph.variable(&target_data);
+
+    let y = x.expand_as(&target)?;
+    let loss = y.sum(None, false)?;
+
+    let grads = graph.backward(&loss)?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+    assert_vec_approx_eq(&dx, &[3.0, 3.0], 1e-6);
+    assert!(grads.wrt(&target).is_none());
+
+    Ok(())
+}
+
+#[test]
 fn test_graph_clear_invalidates_handles() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let graph = Graph::<CpuBackend, f32>::new(backend.clone());
