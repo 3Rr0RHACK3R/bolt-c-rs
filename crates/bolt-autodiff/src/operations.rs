@@ -14,9 +14,10 @@ use crate::backward::{BackwardOp, MAX_INPUTS};
 use crate::graph::Graph;
 use crate::ops::{
     AbsBackward, AddBackward, CosBackward, DivBackward, ExpBackward, ExpandBackward, LogBackward,
-    MatmulBackward, MeanBackward, MulBackward, NegBackward, PowBackward, ReluBackward,
-    ReshapeBackward, SinBackward, SqrtBackward, SqueezeBackward, SubBackward, SumBackward,
-    TanhBackward, TransposeBackward, UnsqueezeBackward,
+    MatmulBackward, MaxBackward, MeanBackward, MinBackward, MulBackward, NegBackward, PowBackward,
+    ProdBackward, ReluBackward, ReshapeBackward, SinBackward, SqrtBackward, SqueezeBackward,
+    SubBackward, SumBackward, TanhBackward, TransposeBackward, UnsqueezeBackward,
+    argmax_not_differentiable, argmin_not_differentiable,
 };
 use crate::storage::AutodiffStorage;
 use crate::utils::{create_saved_tensor, normalize_transpose_axis, normalize_unsqueeze_axis};
@@ -723,7 +724,17 @@ where
 
 impl<B, D> ProdOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + ProdOp<D>,
+    B: Backend<D>
+        + ProdOp<D>
+        + AddOp<D>
+        + AbsOp<D>
+        + BroadcastToOp<D>
+        + DivOp<D>
+        + FillOp<D>
+        + MulOp<D>
+        + ReshapeOp<D>
+        + SubOp<D>
+        + SumOp<D>,
     D: Float,
 {
     fn prod(
@@ -734,8 +745,35 @@ where
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         let parts = self.inner.prod(layout, &storage.inner, axes, keepdims)?;
+
+        if !self.unary_requires_grad(storage) {
+            return Ok(Self::no_grad_result(parts));
+        }
+
+        let input_shape = layout.shape().to_vec();
+        let normalized_axes = axes
+            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .transpose()?;
+        let backward_op = ProdBackward::new(input_shape, normalized_axes);
+
+        let input_tensor = create_saved_tensor(&self.inner, &storage.inner, layout);
+        let output_tensor = create_saved_tensor(&self.inner, &parts.storage, &parts.layout);
+
+        let mut inputs = tinyvec::ArrayVec::new();
+        inputs.push(storage.handle);
+
+        let out_storage = self.create_tracked_storage(
+            parts.storage,
+            &parts.layout,
+            true,
+            false,
+            inputs,
+            Some(Box::new(backward_op)),
+            vec![input_tensor, output_tensor],
+        );
+
         Ok(TensorParts {
-            storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
+            storage: out_storage,
             layout: parts.layout,
         })
     }
@@ -743,7 +781,17 @@ where
 
 impl<B, D> MinOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + MinOp<D>,
+    B: Backend<D>
+        + MinOp<D>
+        + AddOp<D>
+        + AbsOp<D>
+        + BroadcastToOp<D>
+        + DivOp<D>
+        + FillOp<D>
+        + MulOp<D>
+        + ReshapeOp<D>
+        + SubOp<D>
+        + SumOp<D>,
     D: Float,
 {
     fn min(
@@ -754,8 +802,35 @@ where
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         let parts = self.inner.min(layout, &storage.inner, axes, keepdims)?;
+
+        if !self.unary_requires_grad(storage) {
+            return Ok(Self::no_grad_result(parts));
+        }
+
+        let input_shape = layout.shape().to_vec();
+        let normalized_axes = axes
+            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .transpose()?;
+        let backward_op = MinBackward::new(input_shape, normalized_axes);
+
+        let input_tensor = create_saved_tensor(&self.inner, &storage.inner, layout);
+        let output_tensor = create_saved_tensor(&self.inner, &parts.storage, &parts.layout);
+
+        let mut inputs = tinyvec::ArrayVec::new();
+        inputs.push(storage.handle);
+
+        let out_storage = self.create_tracked_storage(
+            parts.storage,
+            &parts.layout,
+            true,
+            false,
+            inputs,
+            Some(Box::new(backward_op)),
+            vec![input_tensor, output_tensor],
+        );
+
         Ok(TensorParts {
-            storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
+            storage: out_storage,
             layout: parts.layout,
         })
     }
@@ -763,7 +838,17 @@ where
 
 impl<B, D> MaxOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + MaxOp<D>,
+    B: Backend<D>
+        + MaxOp<D>
+        + AddOp<D>
+        + AbsOp<D>
+        + BroadcastToOp<D>
+        + DivOp<D>
+        + FillOp<D>
+        + MulOp<D>
+        + ReshapeOp<D>
+        + SubOp<D>
+        + SumOp<D>,
     D: Float,
 {
     fn max(
@@ -774,8 +859,35 @@ where
         keepdims: bool,
     ) -> Result<TensorParts<Self::Storage>> {
         let parts = self.inner.max(layout, &storage.inner, axes, keepdims)?;
+
+        if !self.unary_requires_grad(storage) {
+            return Ok(Self::no_grad_result(parts));
+        }
+
+        let input_shape = layout.shape().to_vec();
+        let normalized_axes = axes
+            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .transpose()?;
+        let backward_op = MaxBackward::new(input_shape, normalized_axes);
+
+        let input_tensor = create_saved_tensor(&self.inner, &storage.inner, layout);
+        let output_tensor = create_saved_tensor(&self.inner, &parts.storage, &parts.layout);
+
+        let mut inputs = tinyvec::ArrayVec::new();
+        inputs.push(storage.handle);
+
+        let out_storage = self.create_tracked_storage(
+            parts.storage,
+            &parts.layout,
+            true,
+            false,
+            inputs,
+            Some(Box::new(backward_op)),
+            vec![input_tensor, output_tensor],
+        );
+
         Ok(TensorParts {
-            storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
+            storage: out_storage,
             layout: parts.layout,
         })
     }
@@ -795,6 +907,10 @@ where
         axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>> {
+        if self.unary_requires_grad(storage) {
+            return Err(argmin_not_differentiable());
+        }
+
         let parts =
             ArgminOp::<D>::argmin(self.inner.as_ref(), layout, &storage.inner, axes, keepdims)?;
         Ok(TensorParts {
@@ -818,6 +934,10 @@ where
         axes: Option<&[isize]>,
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>> {
+        if self.unary_requires_grad(storage) {
+            return Err(argmax_not_differentiable());
+        }
+
         let parts =
             ArgmaxOp::<D>::argmax(self.inner.as_ref(), layout, &storage.inner, axes, keepdims)?;
         Ok(TensorParts {

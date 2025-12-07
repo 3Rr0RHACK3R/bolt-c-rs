@@ -1,15 +1,20 @@
 mod abs;
 mod add;
+mod argmax;
+mod argmin;
 mod cos;
 mod div;
 mod exp;
 mod expand;
 mod log;
 mod matmul;
+mod max;
 mod mean;
+mod min;
 mod mul;
 mod neg;
 mod pow;
+mod prod;
 mod relu;
 mod reshape;
 mod sin;
@@ -23,16 +28,21 @@ mod unsqueeze;
 
 pub use abs::AbsBackward;
 pub use add::AddBackward;
+pub use argmax::argmax_not_differentiable;
+pub use argmin::argmin_not_differentiable;
 pub use cos::CosBackward;
 pub use div::DivBackward;
 pub use exp::ExpBackward;
 pub use expand::ExpandBackward;
 pub use log::LogBackward;
 pub use matmul::MatmulBackward;
+pub use max::MaxBackward;
 pub use mean::MeanBackward;
+pub use min::MinBackward;
 pub use mul::MulBackward;
 pub use neg::NegBackward;
 pub use pow::PowBackward;
+pub use prod::ProdBackward;
 pub use relu::ReluBackward;
 pub use reshape::ReshapeBackward;
 pub use sin::SinBackward;
@@ -47,8 +57,8 @@ pub use unsqueeze::UnsqueezeBackward;
 use bolt_core::backend::{AddOp, SumOp};
 use bolt_core::{Backend, Tensor};
 
-use crate::Float;
 use crate::error::Result;
+use crate::Float;
 
 pub(crate) fn reduce_grad_to_shape<B, D>(
     grad: &Tensor<B, D>,

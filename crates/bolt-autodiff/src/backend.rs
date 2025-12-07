@@ -115,3 +115,51 @@ where
         self.inner.write(&mut storage.inner, layout, src)
     }
 }
+
+impl<B, D> Backend<i32> for Autodiff<B, D>
+where
+    B: Backend<i32> + Backend<D>,
+    D: Float,
+{
+    type Device = AutodiffDevice<<B as Backend<i32>>::Device>;
+    type Storage = AutodiffStorage<<B as Backend<i32>>::Storage>;
+    type Allocator = AutodiffAllocator<<B as Backend<i32>>::Allocator>;
+
+    fn device(&self) -> &Self::Device {
+        let device = <B as Backend<i32>>::device(&self.inner);
+        unsafe {
+            &*(device as *const <B as Backend<i32>>::Device
+                as *const AutodiffDevice<<B as Backend<i32>>::Device>)
+        }
+    }
+
+    fn allocator(&self) -> Self::Allocator {
+        AutodiffAllocator::new(<B as Backend<i32>>::allocator(&self.inner))
+    }
+
+    fn device_kind(&self) -> DeviceKind {
+        <B as Backend<i32>>::device_kind(&self.inner)
+    }
+
+    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
+        <B as Backend<i32>>::storage_len_bytes(&self.inner, &storage.inner)
+    }
+
+    fn read(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        dst: &mut [i32],
+    ) -> bolt_core::Result<()> {
+        self.inner.read(&storage.inner, layout, dst)
+    }
+
+    fn write(
+        &self,
+        storage: &mut Self::Storage,
+        layout: &Layout,
+        src: &[i32],
+    ) -> bolt_core::Result<()> {
+        self.inner.write(&mut storage.inner, layout, src)
+    }
+}

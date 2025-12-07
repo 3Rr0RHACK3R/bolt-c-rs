@@ -1,4 +1,5 @@
 use bolt_autodiff::{Autodiff, AutodiffTensorExt, Result};
+use bolt_core::Error as CoreError;
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 use std::sync::Arc;
@@ -94,4 +95,171 @@ fn test_mean_multi_axis_backward() -> Result<()> {
     assert_vec_approx_eq(&dx, &expected_grad, 1e-6);
 
     Ok(())
+}
+
+#[test]
+fn test_min_grad_basic() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[3.0_f32, 1.0, 4.0, 2.0], &[4])?.requires_grad();
+    let y = x.min(None, false)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 1.0, 0.0, 0.0], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_min_grad_ties() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[3.0_f32, 1.0, 4.0, 1.0], &[4])?.requires_grad();
+    let y = x.min(None, false)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 0.5, 0.0, 0.5], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_min_grad_multi_axis() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(
+        &autodiff,
+        &[1.0_f32, 2.0, 3.0, 0.5, 4.0, 5.0],
+        &[2, 3],
+    )?
+    .requires_grad();
+
+    let y = x.min(Some(&[0]), false)?;
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 1.0, 1.0, 1.0, 0.0, 0.0], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_max_grad_basic() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 3.0, 2.0, 3.0], &[4])?.requires_grad();
+    let y = x.max(None, false)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 0.5, 0.0, 0.5], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_max_grad_keepdims_multi_axis() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 5.0, 3.0, 5.0], &[2, 2])?.requires_grad();
+    let y = x.max(Some(&[0]), true)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 0.5, 1.0, 0.5], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_prod_grad() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[2.0_f32, 3.0, 4.0], &[3])?.requires_grad();
+    let y = x.prod(None, false)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[12.0, 8.0, 6.0], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_prod_grad_single_zero() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[2.0_f32, 0.0, 4.0], &[3])?.requires_grad();
+    let y = x.prod(None, false)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 8.0, 0.0], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_prod_grad_multiple_zeros() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[0.0_f32, 0.0, 3.0], &[3])?.requires_grad();
+    let y = x.prod(None, false)?;
+
+    let grads = y.backward()?;
+    let dx = grads.wrt(&x).expect("gradient for x").to_vec()?;
+
+    assert_vec_approx_eq(&dx, &[0.0, 0.0, 0.0], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn test_argmin_requires_grad_error() {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 2.0], &[2])
+        .expect("tensor")
+        .requires_grad();
+
+    let err = x.argmin(None, false).unwrap_err();
+    match err {
+        CoreError::OpError(msg) => assert!(msg.contains("argmin")),
+        other => panic!("unexpected error: {:?}", other),
+    }
+}
+
+#[test]
+fn test_argmax_requires_grad_error() {
+    let backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 2.0], &[2])
+        .expect("tensor")
+        .requires_grad();
+
+    let err = x.argmax(None, false).unwrap_err();
+    match err {
+        CoreError::OpError(msg) => assert!(msg.contains("argmax")),
+        other => panic!("unexpected error: {:?}", other),
+    }
 }
