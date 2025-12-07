@@ -1,4 +1,6 @@
-use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp, TensorParts};
+use bolt_core::backend::{
+    AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp, TensorParts, TransposeOp,
+};
 use bolt_core::dtype::{FloatType, NativeType};
 use bolt_core::error::Result;
 use bolt_core::layout::Layout;
@@ -223,6 +225,24 @@ impl<D: FloatType, B: MeanOp<D> + Backend<D>> MeanOp<D> for ProfiledBackend<B> {
             OpCategory::Compute,
             vec![shapes_from_layout(layout)],
             |inner| inner.mean(layout, storage, axes, keepdims),
+        )
+    }
+}
+
+impl<D: NativeType, B: TransposeOp<D> + Backend<D>> TransposeOp<D> for ProfiledBackend<B> {
+    fn transpose(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        axis_a: isize,
+        axis_b: isize,
+    ) -> Result<TensorParts<Self::Storage>> {
+        profile_op(
+            self,
+            "transpose",
+            OpCategory::Memory,
+            vec![shapes_from_layout(layout)],
+            |inner| inner.transpose(storage, layout, axis_a, axis_b),
         )
     }
 }

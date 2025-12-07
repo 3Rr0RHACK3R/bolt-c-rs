@@ -170,3 +170,42 @@ fn test_combined_view_ops_gradients() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_unsqueeze_axis_bounds_validation() -> Result<()> {
+    let cpu_backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(cpu_backend.clone()));
+
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 2.0, 3.0, 4.0], &[2, 2])?.requires_grad();
+    let rank = x.rank();
+
+    assert!(x.unsqueeze(-(rank as isize + 1)).is_ok());
+    assert!(x.unsqueeze(rank as isize).is_ok());
+
+    assert!(x.unsqueeze(-(rank as isize + 2)).is_err());
+    assert!(x.unsqueeze((rank + 1) as isize).is_err());
+
+    Ok(())
+}
+
+#[test]
+fn test_transpose_axis_bounds_validation() -> Result<()> {
+    let cpu_backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(cpu_backend.clone()));
+
+    let _ctx = autodiff.begin_grad();
+
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 2.0, 3.0, 4.0], &[2, 2])?.requires_grad();
+    let rank = x.rank();
+
+    assert!(x.transpose(-(rank as isize), (rank - 1) as isize).is_ok());
+    assert!(x.transpose(0, 1).is_ok());
+
+    assert!(x.transpose(-(rank as isize + 1), 0).is_err());
+    assert!(x.transpose(0, rank as isize).is_err());
+    assert!(x.transpose(rank as isize, 0).is_err());
+
+    Ok(())
+}

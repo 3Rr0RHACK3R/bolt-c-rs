@@ -972,11 +972,32 @@ where
         }
 
         let rank = layout.shape().len();
+        let limit = rank + 1;
         let normalized_axis = if axis < 0 {
-            ((rank as isize) + 1 + axis) as usize
+            let candidate = limit as isize + axis;
+            if candidate < 0 {
+                return Err(bolt_core::Error::InvalidAxes(format!(
+                    "unsqueeze axis {} out of bounds for rank {} (valid range: [{}, {}])",
+                    axis,
+                    rank,
+                    -(rank as isize + 1),
+                    rank
+                )));
+            }
+            candidate as usize
         } else {
             axis as usize
         };
+
+        if normalized_axis > rank {
+            return Err(bolt_core::Error::InvalidAxes(format!(
+                "unsqueeze axis {} out of bounds for rank {} (valid range: [{}, {}])",
+                axis,
+                rank,
+                -(rank as isize + 1),
+                rank
+            )));
+        }
 
         let backward_op = UnsqueezeBackward::new(normalized_axis);
 
@@ -1005,16 +1026,40 @@ where
         }
 
         let rank = layout.shape().len();
-        let normalized_a = if axis_a < 0 {
-            ((rank as isize) + axis_a) as usize
-        } else {
-            axis_a as usize
+        let normalize_transpose_axis = |axis: isize, name: &str| -> bolt_core::Result<usize> {
+            let normalized = if axis < 0 {
+                let candidate = rank as isize + axis;
+                if candidate < 0 {
+                    return Err(bolt_core::Error::InvalidAxes(format!(
+                        "transpose {} axis {} out of bounds for rank {} (valid range: [{}, {}])",
+                        name,
+                        axis,
+                        rank,
+                        -(rank as isize),
+                        rank - 1
+                    )));
+                }
+                candidate as usize
+            } else {
+                axis as usize
+            };
+
+            if normalized >= rank {
+                return Err(bolt_core::Error::InvalidAxes(format!(
+                    "transpose {} axis {} out of bounds for rank {} (valid range: [{}, {}])",
+                    name,
+                    axis,
+                    rank,
+                    -(rank as isize),
+                    rank - 1
+                )));
+            }
+
+            Ok(normalized)
         };
-        let normalized_b = if axis_b < 0 {
-            ((rank as isize) + axis_b) as usize
-        } else {
-            axis_b as usize
-        };
+
+        let normalized_a = normalize_transpose_axis(axis_a, "first")?;
+        let normalized_b = normalize_transpose_axis(axis_b, "second")?;
 
         let backward_op = TransposeBackward::new(normalized_a, normalized_b);
 
