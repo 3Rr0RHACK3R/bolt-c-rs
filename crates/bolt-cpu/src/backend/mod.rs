@@ -10,9 +10,9 @@ use bolt_core::{
     TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp,
-        MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, SinOp, SqrtOp, SubOp,
-        SumOp, TanhOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
+        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
+        ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     device::{BackendDevice, DeviceKind},
     error::{Error, Result},
@@ -61,12 +61,6 @@ impl CpuBackend {
             #[cfg(feature = "diagnostics")]
             diagnostics: Arc::new(CpuAllocTelemetry::default()),
         }
-    }
-}
-
-impl Default for CpuBackend {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -492,3 +486,9 @@ where
         )
     }
 }
+
+impl<D> ReshapeOp<D> for CpuBackend where D: CpuScalar {}
+impl<D> SqueezeOp<D> for CpuBackend where D: CpuScalar {}
+impl<D> UnsqueezeOp<D> for CpuBackend where D: CpuScalar {}
+impl<D> TransposeOp<D> for CpuBackend where D: CpuScalar {}
+impl<D> BroadcastToOp<D> for CpuBackend where D: CpuScalar {}

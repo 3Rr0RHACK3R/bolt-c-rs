@@ -3,8 +3,10 @@ use std::collections::HashMap;
 use bolt_core::backend::AddOp;
 use bolt_core::{Backend, Tensor};
 
+use crate::Float;
+use crate::Handle;
 use crate::error::Result;
-use crate::{Float, GradTensor, Handle};
+use crate::operations::Autodiff;
 
 pub struct Gradients<B, D>
 where
@@ -24,11 +26,12 @@ where
         Self { grads, generation }
     }
 
-    pub fn wrt(&self, tensor: &GradTensor<'_, B, D>) -> Option<&Tensor<B, D>> {
-        if tensor.handle().generation != self.generation {
+    pub fn wrt(&self, tensor: &Tensor<Autodiff<B, D>, D>) -> Option<&Tensor<B, D>> {
+        let handle = tensor.storage().handle();
+        if handle.generation != self.generation {
             return None;
         }
-        self.grads.get(&tensor.handle())
+        self.grads.get(&handle)
     }
 
     pub fn get(&self, handle: &Handle) -> Option<&Tensor<B, D>> {
@@ -38,7 +41,7 @@ where
         self.grads.get(handle)
     }
 
-    pub fn contains(&self, tensor: &GradTensor<'_, B, D>) -> bool {
+    pub fn contains(&self, tensor: &Tensor<Autodiff<B, D>, D>) -> bool {
         self.wrt(tensor).is_some()
     }
 
@@ -54,11 +57,12 @@ where
         self.grads.iter()
     }
 
-    pub fn take(&mut self, tensor: &GradTensor<'_, B, D>) -> Option<Tensor<B, D>> {
-        if tensor.handle().generation != self.generation {
+    pub fn take(&mut self, tensor: &Tensor<Autodiff<B, D>, D>) -> Option<Tensor<B, D>> {
+        let handle = tensor.storage().handle();
+        if handle.generation != self.generation {
             return None;
         }
-        self.grads.remove(&tensor.handle())
+        self.grads.remove(&handle)
     }
 
     pub fn accumulate(&mut self, other: &Gradients<B, D>) -> Result<()>

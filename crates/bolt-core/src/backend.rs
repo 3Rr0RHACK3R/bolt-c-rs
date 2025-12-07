@@ -203,3 +203,95 @@ pub trait ArgmaxOp<D: NativeType>: Backend<D> {
         keepdims: bool,
     ) -> Result<TensorParts<Self::I32Storage>>;
 }
+
+pub trait ReshapeOp<D: NativeType>: Backend<D> {
+    fn reshape(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        new_shape: &[usize],
+    ) -> Result<TensorParts<Self::Storage>> {
+        use crate::shape::ConcreteShape;
+        let shape = ConcreteShape::from_slice(new_shape)?;
+        let new_layout = layout.reshape(shape)?;
+        Ok(TensorParts {
+            storage: storage.clone(),
+            layout: new_layout,
+        })
+    }
+}
+
+pub trait SqueezeOp<D: NativeType>: Backend<D> {
+    fn squeeze_all(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage>> {
+        let new_layout = layout.squeeze_all()?;
+        Ok(TensorParts {
+            storage: storage.clone(),
+            layout: new_layout,
+        })
+    }
+
+    fn squeeze_axis(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        axis: isize,
+    ) -> Result<TensorParts<Self::Storage>> {
+        let new_layout = layout.squeeze_axis(axis)?;
+        Ok(TensorParts {
+            storage: storage.clone(),
+            layout: new_layout,
+        })
+    }
+}
+
+pub trait UnsqueezeOp<D: NativeType>: Backend<D> {
+    fn unsqueeze_axis(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        axis: isize,
+    ) -> Result<TensorParts<Self::Storage>> {
+        let new_layout = layout.unsqueeze_axis(axis)?;
+        Ok(TensorParts {
+            storage: storage.clone(),
+            layout: new_layout,
+        })
+    }
+}
+
+pub trait TransposeOp<D: NativeType>: Backend<D> {
+    fn transpose(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        axis_a: isize,
+        axis_b: isize,
+    ) -> Result<TensorParts<Self::Storage>> {
+        let new_layout = layout.transpose(axis_a, axis_b)?;
+        Ok(TensorParts {
+            storage: storage.clone(),
+            layout: new_layout,
+        })
+    }
+}
+
+pub trait BroadcastToOp<D: NativeType>: Backend<D> {
+    fn broadcast_to(
+        &self,
+        storage: &Self::Storage,
+        layout: &Layout,
+        shape: &[usize],
+    ) -> Result<TensorParts<Self::Storage>> {
+        use crate::shape::ConcreteShape;
+        let target_shape = ConcreteShape::from_slice(shape)?;
+        let new_layout = layout.broadcast_to(&target_shape)?;
+        Ok(TensorParts {
+            storage: storage.clone(),
+            layout: new_layout,
+        })
+    }
+}

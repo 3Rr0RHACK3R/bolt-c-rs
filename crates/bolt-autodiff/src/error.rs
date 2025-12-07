@@ -20,6 +20,9 @@ pub enum Error {
     #[error("cannot compute backward: gradient computation is disabled")]
     GradDisabled,
 
+    #[error("cannot compute backward: no active gradient context (use begin_grad())")]
+    NoActiveGraph,
+
     #[error("backward op not found at index {idx}")]
     BackwardOpNotFound { idx: usize },
 

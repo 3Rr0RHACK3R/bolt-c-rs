@@ -3,9 +3,9 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp,
-        MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, SinOp, SqrtOp, SubOp,
-        SumOp, TanhOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
+        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
+        ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     dtype::{FloatType, NativeType, OneValue},
     error::{Error, Result},
@@ -267,37 +267,80 @@ where
         Ok(value[0])
     }
 
-    pub fn reshape(&self, shape: &[usize]) -> Result<Self> {
-        let shape = ConcreteShape::from_slice(shape)?;
-        let layout = self.layout.reshape(shape)?;
-        self.validate_layout_for_storage(&self.storage, &layout)?;
-        Ok(self.with_layout(layout))
+    pub fn reshape(&self, shape: &[usize]) -> Result<Self>
+    where
+        B: ReshapeOp<D>,
+    {
+        if shape.iter().product::<usize>() != self.numel() {
+            return Err(Error::SizeMismatch {
+                expected: self.numel(),
+                actual: shape.iter().product(),
+            });
+        }
+        let parts = self.backend.reshape(&self.storage, &self.layout, shape)?;
+        self.validate_layout_for_storage(&parts.storage, &parts.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
-    pub fn squeeze(&self) -> Result<Self> {
-        let layout = self.layout.squeeze_all()?;
-        self.validate_layout_for_storage(&self.storage, &layout)?;
-        Ok(self.with_layout(layout))
+    pub fn squeeze(&self) -> Result<Self>
+    where
+        B: SqueezeOp<D>,
+    {
+        let parts = self.backend.squeeze_all(&self.storage, &self.layout)?;
+        self.validate_layout_for_storage(&parts.storage, &parts.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
-    pub fn squeeze_axis(&self, axis: isize) -> Result<Self> {
-        let layout = self.layout.squeeze_axis(axis)?;
-        self.validate_layout_for_storage(&self.storage, &layout)?;
-        Ok(self.with_layout(layout))
+    pub fn squeeze_axis(&self, axis: isize) -> Result<Self>
+    where
+        B: SqueezeOp<D>,
+    {
+        let parts = self
+            .backend
+            .squeeze_axis(&self.storage, &self.layout, axis)?;
+        self.validate_layout_for_storage(&parts.storage, &parts.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
-    pub fn unsqueeze(&self, axis: isize) -> Result<Self> {
-        let layout = self.layout.unsqueeze_axis(axis)?;
-        self.validate_layout_for_storage(&self.storage, &layout)?;
-        Ok(self.with_layout(layout))
+    pub fn unsqueeze(&self, axis: isize) -> Result<Self>
+    where
+        B: UnsqueezeOp<D>,
+    {
+        let parts = self
+            .backend
+            .unsqueeze_axis(&self.storage, &self.layout, axis)?;
+        self.validate_layout_for_storage(&parts.storage, &parts.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
-    pub fn expand(&self, shape: &[isize]) -> Result<Self> {
+    pub fn expand(&self, shape: &[isize]) -> Result<Self>
+    where
+        B: BroadcastToOp<D> + ReshapeOp<D>,
+    {
         let target = self.infer_expand_shape(shape)?;
         self.broadcast_to(&target)
     }
 
-    pub fn expand_as(&self, other: &Self) -> Result<Self> {
+    pub fn expand_as(&self, other: &Self) -> Result<Self>
+    where
+        B: BroadcastToOp<D> + ReshapeOp<D>,
+    {
         let shape: Vec<isize> = other.shape().iter().map(|&d| d as isize).collect();
         self.expand(&shape)
     }
@@ -321,7 +364,10 @@ where
         Ok(self.with_layout(layout))
     }
 
-    pub fn broadcast_to(&self, shape: &[usize]) -> Result<Self> {
+    pub fn broadcast_to(&self, shape: &[usize]) -> Result<Self>
+    where
+        B: BroadcastToOp<D> + ReshapeOp<D>,
+    {
         let target_shape = ConcreteShape::from_slice(shape)?;
         let src_shape = self.layout.concrete_shape().as_slice();
         let src_rank = src_shape.len();
@@ -335,20 +381,31 @@ where
             current = current.reshape(&reshaped)?;
         }
 
-        let layout = current.layout().broadcast_to(&target_shape)?;
-        current.validate_layout_for_storage(&current.storage, &layout)?;
+        let parts = current
+            .backend
+            .broadcast_to(&current.storage, current.layout(), shape)?;
+        current.validate_layout_for_storage(&parts.storage, &parts.layout)?;
 
         Ok(Self::from_parts(
             current.backend.clone(),
-            current.storage.clone(),
-            layout,
+            parts.storage,
+            parts.layout,
         ))
     }
 
-    pub fn transpose(&self, axis_a: isize, axis_b: isize) -> Result<Self> {
-        let layout = self.layout.transpose(axis_a, axis_b)?;
-        self.validate_layout_for_storage(&self.storage, &layout)?;
-        Ok(self.with_layout(layout))
+    pub fn transpose(&self, axis_a: isize, axis_b: isize) -> Result<Self>
+    where
+        B: TransposeOp<D>,
+    {
+        let parts = self
+            .backend
+            .transpose(&self.storage, &self.layout, axis_a, axis_b)?;
+        self.validate_layout_for_storage(&parts.storage, &parts.layout)?;
+        Ok(Self::from_parts(
+            self.backend.clone(),
+            parts.storage,
+            parts.layout,
+        ))
     }
 
     pub fn contiguous(&self) -> Result<Self>

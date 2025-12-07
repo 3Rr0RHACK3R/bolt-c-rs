@@ -1,12 +1,48 @@
-mod binary;
-mod reduce;
-mod shape;
+mod abs;
+mod add;
+mod cos;
+mod div;
+mod exp;
+mod expand;
+mod log;
+mod matmul;
+mod mean;
+mod mul;
+mod neg;
+mod pow;
+mod relu;
+mod reshape;
+mod sin;
+mod sqrt;
+mod squeeze;
+mod sub;
+mod sum;
+mod tanh;
+mod transpose;
+mod unsqueeze;
 
-pub use binary::{AddBackward, MatmulBackward, MulBackward, SubBackward};
-pub use reduce::{MeanBackward, SumBackward};
-pub use shape::{
-    ExpandBackward, ReshapeBackward, SqueezeBackward, TransposeBackward, UnsqueezeBackward,
-};
+pub use abs::AbsBackward;
+pub use add::AddBackward;
+pub use cos::CosBackward;
+pub use div::DivBackward;
+pub use exp::ExpBackward;
+pub use expand::ExpandBackward;
+pub use log::LogBackward;
+pub use matmul::MatmulBackward;
+pub use mean::MeanBackward;
+pub use mul::MulBackward;
+pub use neg::NegBackward;
+pub use pow::PowBackward;
+pub use relu::ReluBackward;
+pub use reshape::ReshapeBackward;
+pub use sin::SinBackward;
+pub use sqrt::SqrtBackward;
+pub use squeeze::SqueezeBackward;
+pub use sub::SubBackward;
+pub use sum::SumBackward;
+pub use tanh::TanhBackward;
+pub use transpose::TransposeBackward;
+pub use unsqueeze::UnsqueezeBackward;
 
 use bolt_core::backend::{AddOp, SumOp};
 use bolt_core::{Backend, Tensor};

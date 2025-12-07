@@ -1,18 +1,26 @@
 #![deny(unused_must_use)]
 
+mod backend;
 mod backward;
+pub mod device;
 pub mod error;
 mod float;
-mod grad_tensor;
 mod gradients;
 mod graph;
 mod handle;
+mod operations;
 pub mod ops;
+mod scope;
+mod storage;
+mod tensor_ext;
 
 pub use backward::{BackwardContext, BackwardOp};
+pub use device::AutodiffDevice;
 pub use error::{Error, Result};
 pub use float::Float;
-pub use grad_tensor::{GradTensor, TensorLike};
 pub use gradients::Gradients;
-pub use graph::{Graph, NoGradGuard};
 pub use handle::Handle;
+pub use operations::Autodiff;
+pub use scope::{GradContext, NoGradGuard};
+pub use storage::{AutodiffAllocator, AutodiffStorage};
+pub use tensor_ext::{AutodiffBackend, AutodiffTensorExt};
