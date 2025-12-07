@@ -9,6 +9,7 @@ use crate::backward::BackwardContext;
 use crate::error::{Error, Result};
 use crate::gradients::{Gradients, insert_or_accumulate};
 use crate::operations::Autodiff;
+use crate::utils::create_backward_seed;
 use crate::{Float, Handle};
 
 pub struct GradContext<B, D>
@@ -64,11 +65,7 @@ where
 
         let inner_backend = self.autodiff.inner();
 
-        let seed = if loss_tensor.numel() == 1 {
-            Tensor::full(inner_backend, &[], OneValue::one())?
-        } else {
-            Tensor::ones(inner_backend, loss_tensor.shape())?
-        };
+        let seed = create_backward_seed(inner_backend, loss_tensor)?;
 
         let mut grad_map: HashMap<Handle, Tensor<B, D>> = HashMap::new();
         grad_map.insert(loss_handle, seed);

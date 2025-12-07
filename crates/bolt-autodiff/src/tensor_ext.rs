@@ -8,6 +8,7 @@ use crate::error::{Error, Result};
 use crate::gradients::{Gradients, insert_or_accumulate};
 use crate::operations::Autodiff;
 use crate::storage::AutodiffStorage;
+use crate::utils::create_backward_seed;
 use crate::{Float, Handle};
 
 pub trait AutodiffBackend<D: Float>: Backend<D> {
@@ -111,11 +112,7 @@ where
 
         let inner_backend = backend.inner().clone();
 
-        let seed = if self.numel() == 1 {
-            Tensor::full(&inner_backend, &[], OneValue::one())?
-        } else {
-            Tensor::ones(&inner_backend, self.shape())?
-        };
+        let seed = create_backward_seed(&inner_backend, self)?;
 
         let mut grad_map: std::collections::HashMap<Handle, Tensor<B, D>> =
             std::collections::HashMap::new();

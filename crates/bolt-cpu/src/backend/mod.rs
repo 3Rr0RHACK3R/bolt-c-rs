@@ -19,7 +19,7 @@ use bolt_core::{
     layout::Layout,
 };
 
-pub use storage::CpuStorage;
+pub use storage::{CpuStorage, CpuTensorView};
 
 #[cfg(feature = "diagnostics")]
 use allocator::CpuAllocTelemetry;

@@ -5,6 +5,7 @@ pub mod printer;
 pub mod profiler;
 pub mod registry;
 pub mod report;
+mod utils;
 
 pub use backend::ProfiledBackend;
 pub use host_mem::{HostMemStats, HostMemTracker};

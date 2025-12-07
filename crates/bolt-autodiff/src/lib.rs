@@ -13,6 +13,7 @@ pub mod ops;
 mod scope;
 mod storage;
 mod tensor_ext;
+mod utils;
 
 pub use backward::{BackwardContext, BackwardOp};
 pub use device::AutodiffDevice;
