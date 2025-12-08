@@ -9,7 +9,7 @@ use std::time::Instant;
 static GLOBAL: HostMemTracker = HostMemTracker::new();
 
 fn benchmark_allocator(backend: CpuBackend, name: &str) {
-    let allocator = <CpuBackend as Backend<f32>>::allocator(&backend);
+    let allocator = backend.allocator::<f32>();
 
     // Reset global allocator stats before run
     GLOBAL.reset_counts();

@@ -18,7 +18,7 @@ impl ReshapeBackward {
 
 impl<B, D> BackwardOp<B, D> for ReshapeBackward
 where
-    B: Backend<D> + CopyOp<D> + ReshapeOp<D>,
+    B: Backend + CopyOp<D> + ReshapeOp<D>,
     D: Float,
 {
     fn backward(

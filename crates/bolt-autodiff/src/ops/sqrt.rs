@@ -17,7 +17,7 @@ impl SqrtBackward {
 
 impl<B, D> BackwardOp<B, D> for SqrtBackward
 where
-    B: Backend<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

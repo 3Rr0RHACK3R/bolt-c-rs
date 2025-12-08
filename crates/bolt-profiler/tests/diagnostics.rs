@@ -1,9 +1,10 @@
 use bolt_core::Result as CoreResult;
 use bolt_core::backend::{Backend, FillOp};
 use bolt_core::device::{BackendDevice, DeviceKind};
+use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
-use bolt_core::{AllocatorDiagnostics, NativeType, StorageAllocator, Tensor};
+use bolt_core::{AllocatorDiagnostics, StorageAllocator, Tensor};
 use bolt_cpu::CpuBackend;
 use bolt_profiler::{OpCategory, ProfiledBackend};
 use std::sync::Arc;
@@ -46,56 +47,49 @@ impl BackendDevice for TestDevice {
 #[derive(Clone)]
 struct NoDiagBackend {
     device: TestDevice,
-    allocator: NoDiagAllocator,
 }
 
 impl NoDiagBackend {
     fn new() -> Self {
         Self {
             device: TestDevice,
-            allocator: NoDiagAllocator,
         }
     }
 }
 
-impl Backend<f32> for NoDiagBackend {
+impl Backend for NoDiagBackend {
     type Device = TestDevice;
-    type Storage = NoDiagStorage;
-    type Allocator = NoDiagAllocator;
+    type Storage<D: NativeType> = NoDiagStorage;
+    type Allocator<D: NativeType> = NoDiagAllocator;
 
     fn device(&self) -> &Self::Device {
         &self.device
     }
 
-    fn allocator(&self) -> Self::Allocator {
-        self.allocator.clone()
+    fn allocator<D: NativeType>(&self) -> Self::Allocator<D> {
+        NoDiagAllocator
     }
 
-    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
+    fn storage_len_bytes<D: NativeType>(&self, storage: &Self::Storage<D>) -> usize {
         storage.bytes
     }
 
-    fn read(&self, _storage: &Self::Storage, _layout: &Layout, _dst: &mut [f32]) -> CoreResult<()> {
+    fn read<D: NativeType>(&self, _storage: &Self::Storage<D>, _layout: &Layout, _dst: &mut [D]) -> CoreResult<()> {
         Ok(())
     }
 
-    fn write(
-        &self,
-        _storage: &mut Self::Storage,
-        _layout: &Layout,
-        _src: &[f32],
-    ) -> CoreResult<()> {
+    fn write<D: NativeType>(&self, _storage: &mut Self::Storage<D>, _layout: &Layout, _src: &[D]) -> CoreResult<()> {
         Ok(())
     }
 }
 
 impl FillOp<f32> for NoDiagBackend {
-    fn fill(&self, layout: &Layout, value: f32) -> CoreResult<Self::Storage> {
+    fn fill(&self, layout: &Layout, value: f32) -> CoreResult<Self::Storage<f32>> {
         let len = layout.num_elements();
         let mut data = Vec::with_capacity(len);
         data.resize(len, value);
         std::hint::black_box(&data);
-        <NoDiagAllocator as StorageAllocator<f32>>::allocate(&self.allocator, len)
+        <NoDiagAllocator as StorageAllocator<f32>>::allocate(&self.allocator::<f32>(), len)
     }
 }
 

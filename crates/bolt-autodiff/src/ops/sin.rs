@@ -16,7 +16,7 @@ impl SinBackward {
 
 impl<B, D> BackwardOp<B, D> for SinBackward
 where
-    B: Backend<D> + MulOp<D> + CosOp<D> + CopyOp<D>,
+    B: Backend + MulOp<D> + CosOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

@@ -23,7 +23,7 @@ impl MatmulBackward {
 
 impl<B, D> BackwardOp<B, D> for MatmulBackward
 where
-    B: Backend<D> + AddOp<D> + MatmulOp<D> + CopyOp<D> + SumOp<D> + TransposeOp<D>,
+    B: Backend + AddOp<D> + MatmulOp<D> + CopyOp<D> + SumOp<D> + TransposeOp<D>,
     D: Float,
 {
     fn backward(

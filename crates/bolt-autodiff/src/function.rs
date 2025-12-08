@@ -15,7 +15,7 @@ use crate::{Float, Handle};
 
 pub trait Function<B, D>: Send + Sync + 'static
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     type Ctx: Send + Sync + Default + Clone;
@@ -39,7 +39,7 @@ where
 fn apply_fn<F, B, D>(inputs: &[&Tensor<Autodiff<B, D>, D>]) -> Result<Vec<Tensor<Autodiff<B, D>, D>>>
 where
     F: Function<B, D>,
-    B: Backend<D> + AddOp<D> + CopyOp<D> + FillOp<D>,
+    B: Backend + AddOp<D> + CopyOp<D> + FillOp<D>,
     D: Float,
 {
     if inputs.is_empty() {
@@ -130,7 +130,7 @@ where
 struct FunctionBackward<F, B, D>
 where
     F: Function<B, D>,
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     ctx: Arc<F::Ctx>,
@@ -141,7 +141,7 @@ where
 impl<F, B, D> BackwardOp<B, D> for FunctionBackward<F, B, D>
 where
     F: Function<B, D>,
-    B: Backend<D> + AddOp<D> + CopyOp<D> + FillOp<D>,
+    B: Backend + AddOp<D> + CopyOp<D> + FillOp<D>,
     D: Float,
 {
     fn backward(

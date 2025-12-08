@@ -12,205 +12,203 @@ pub struct TensorParts<S> {
     pub layout: Layout,
 }
 
-pub trait Backend<D: NativeType>: Clone + Send + Sync + 'static {
+pub trait Backend: Clone + Send + Sync + 'static {
     type Device: BackendDevice + Clone + Send + Sync + 'static;
-    type Storage: Clone + Send + Sync + 'static;
-    type Allocator: StorageAllocator<D, Storage = Self::Storage>;
+    type Storage<D: NativeType>: Clone + Send + Sync + 'static;
+    type Allocator<D: NativeType>: StorageAllocator<D, Storage = Self::Storage<D>>;
 
     fn device(&self) -> &Self::Device;
-    fn allocator(&self) -> Self::Allocator;
+    fn allocator<D: NativeType>(&self) -> Self::Allocator<D>;
     fn device_kind(&self) -> DeviceKind {
         self.device().kind()
     }
-    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize;
+    fn storage_len_bytes<D: NativeType>(&self, storage: &Self::Storage<D>) -> usize;
 
-    fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()>;
-    fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()>;
+    fn read<D: NativeType>(&self, storage: &Self::Storage<D>, layout: &Layout, dst: &mut [D]) -> Result<()>;
+    fn write<D: NativeType>(&self, storage: &mut Self::Storage<D>, layout: &Layout, src: &[D]) -> Result<()>;
 }
 
-pub trait CopyOp<D: NativeType>: Backend<D> {
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>>;
+pub trait CopyOp<D: NativeType>: Backend {
+    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait FillOp<D: NativeType>: Backend<D> {
-    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage>;
+pub trait FillOp<D: NativeType>: Backend {
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage<D>>;
 }
 
-pub trait AddOp<D: NativeType>: Backend<D> {
+pub trait AddOp<D: NativeType>: Backend {
     fn add(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait MulOp<D: NativeType>: Backend<D> {
+pub trait MulOp<D: NativeType>: Backend {
     fn mul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait SubOp<D: NativeType>: Backend<D> {
+pub trait SubOp<D: NativeType>: Backend {
     fn sub(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait MatmulOp<D: NativeType>: Backend<D> {
+pub trait MatmulOp<D: NativeType>: Backend {
     fn matmul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait MeanOp<D: FloatType>: Backend<D> {
+pub trait MeanOp<D: FloatType>: Backend {
     fn mean(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait NegOp<D: NativeType>: Backend<D> {
-    fn neg(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait NegOp<D: NativeType>: Backend {
+    fn neg(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait AbsOp<D: NativeType>: Backend<D> {
-    fn abs(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait AbsOp<D: NativeType>: Backend {
+    fn abs(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait ExpOp<D: FloatType>: Backend<D> {
-    fn exp(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait ExpOp<D: FloatType>: Backend {
+    fn exp(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait LogOp<D: FloatType>: Backend<D> {
-    fn log(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait LogOp<D: FloatType>: Backend {
+    fn log(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait SqrtOp<D: FloatType>: Backend<D> {
-    fn sqrt(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait SqrtOp<D: FloatType>: Backend {
+    fn sqrt(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait SinOp<D: FloatType>: Backend<D> {
-    fn sin(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait SinOp<D: FloatType>: Backend {
+    fn sin(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait CosOp<D: FloatType>: Backend<D> {
-    fn cos(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait CosOp<D: FloatType>: Backend {
+    fn cos(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait TanhOp<D: FloatType>: Backend<D> {
-    fn tanh(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait TanhOp<D: FloatType>: Backend {
+    fn tanh(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait ReluOp<D: NativeType>: Backend<D> {
-    fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>>;
+pub trait ReluOp<D: NativeType>: Backend {
+    fn relu(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait DivOp<D: NativeType>: Backend<D> {
+pub trait DivOp<D: NativeType>: Backend {
     fn div(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait PowOp<D: FloatType>: Backend<D> {
+pub trait PowOp<D: FloatType>: Backend {
     fn pow(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait SumOp<D: NativeType>: Backend<D> {
+pub trait SumOp<D: NativeType>: Backend {
     fn sum(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait ProdOp<D: NativeType>: Backend<D> {
+pub trait ProdOp<D: NativeType>: Backend {
     fn prod(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait MinOp<D: NativeType>: Backend<D> {
+pub trait MinOp<D: NativeType>: Backend {
     fn min(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait MaxOp<D: NativeType>: Backend<D> {
+pub trait MaxOp<D: NativeType>: Backend {
     fn max(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>>;
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait ArgminOp<D: NativeType>: Backend<D> {
-    type I32Storage: Clone + Send + Sync + 'static;
+pub trait ArgminOp<D: NativeType>: Backend {
     fn argmin(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::I32Storage>>;
+    ) -> Result<TensorParts<Self::Storage<i32>>>;
 }
 
-pub trait ArgmaxOp<D: NativeType>: Backend<D> {
-    type I32Storage: Clone + Send + Sync + 'static;
+pub trait ArgmaxOp<D: NativeType>: Backend {
     fn argmax(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::I32Storage>>;
+    ) -> Result<TensorParts<Self::Storage<i32>>>;
 }
 
-pub trait ReshapeOp<D: NativeType>: Backend<D> {
+pub trait ReshapeOp<D: NativeType>: Backend {
     fn reshape(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         new_shape: &[usize],
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         use crate::shape::ConcreteShape;
         let shape = ConcreteShape::from_slice(new_shape)?;
         let new_layout = layout.reshape(shape)?;
@@ -221,12 +219,12 @@ pub trait ReshapeOp<D: NativeType>: Backend<D> {
     }
 }
 
-pub trait SqueezeOp<D: NativeType>: Backend<D> {
+pub trait SqueezeOp<D: NativeType>: Backend {
     fn squeeze_all(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let new_layout = layout.squeeze_all()?;
         Ok(TensorParts {
             storage: storage.clone(),
@@ -236,10 +234,10 @@ pub trait SqueezeOp<D: NativeType>: Backend<D> {
 
     fn squeeze_axis(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let new_layout = layout.squeeze_axis(axis)?;
         Ok(TensorParts {
             storage: storage.clone(),
@@ -248,13 +246,13 @@ pub trait SqueezeOp<D: NativeType>: Backend<D> {
     }
 }
 
-pub trait UnsqueezeOp<D: NativeType>: Backend<D> {
+pub trait UnsqueezeOp<D: NativeType>: Backend {
     fn unsqueeze_axis(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let new_layout = layout.unsqueeze_axis(axis)?;
         Ok(TensorParts {
             storage: storage.clone(),
@@ -263,14 +261,14 @@ pub trait UnsqueezeOp<D: NativeType>: Backend<D> {
     }
 }
 
-pub trait TransposeOp<D: NativeType>: Backend<D> {
+pub trait TransposeOp<D: NativeType>: Backend {
     fn transpose(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis_a: isize,
         axis_b: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let new_layout = layout.transpose(axis_a, axis_b)?;
         Ok(TensorParts {
             storage: storage.clone(),
@@ -279,13 +277,13 @@ pub trait TransposeOp<D: NativeType>: Backend<D> {
     }
 }
 
-pub trait BroadcastToOp<D: NativeType>: Backend<D> {
+pub trait BroadcastToOp<D: NativeType>: Backend {
     fn broadcast_to(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         shape: &[usize],
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         use crate::shape::ConcreteShape;
         let target_shape = ConcreteShape::from_slice(shape)?;
         let new_layout = layout.broadcast_to(&target_shape)?;

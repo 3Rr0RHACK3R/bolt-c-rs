@@ -16,7 +16,7 @@ impl ExpBackward {
 
 impl<B, D> BackwardOp<B, D> for ExpBackward
 where
-    B: Backend<D> + MulOp<D> + CopyOp<D>,
+    B: Backend + MulOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

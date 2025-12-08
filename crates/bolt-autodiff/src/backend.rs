@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use bolt_core::backend::Backend;
 use bolt_core::device::DeviceKind;
+use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
 
 use crate::Float;
@@ -13,7 +14,7 @@ use crate::storage::{AutodiffAllocator, AutodiffStorage};
 
 impl<B, D> Clone for Autodiff<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn clone(&self) -> Self {
@@ -28,7 +29,7 @@ where
 
 impl<B, D> Autodiff<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub fn new(inner: B) -> Self {
@@ -72,93 +73,45 @@ where
     }
 }
 
-impl<B, D> Backend<D> for Autodiff<B, D>
+impl<B, D> Backend for Autodiff<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     type Device = AutodiffDevice<B::Device>;
-    type Storage = AutodiffStorage<B::Storage>;
-    type Allocator = AutodiffAllocator<B::Allocator>;
+    type Storage<T: NativeType> = AutodiffStorage<B::Storage<T>>;
+    type Allocator<T: NativeType> = AutodiffAllocator<B::Allocator<T>>;
 
     fn device(&self) -> &Self::Device {
         unsafe { &*(self.inner.device() as *const B::Device as *const AutodiffDevice<B::Device>) }
     }
 
-    fn allocator(&self) -> Self::Allocator {
-        AutodiffAllocator::new(self.inner.allocator())
+    fn allocator<T: NativeType>(&self) -> Self::Allocator<T> {
+        AutodiffAllocator::new(self.inner.allocator::<T>())
     }
 
     fn device_kind(&self) -> DeviceKind {
         self.inner.device_kind()
     }
 
-    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
+    fn storage_len_bytes<T: NativeType>(&self, storage: &Self::Storage<T>) -> usize {
         self.inner.storage_len_bytes(&storage.inner)
     }
 
-    fn read(
+    fn read<T: NativeType>(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<T>,
         layout: &Layout,
-        dst: &mut [D],
+        dst: &mut [T],
     ) -> bolt_core::Result<()> {
         self.inner.read(&storage.inner, layout, dst)
     }
 
-    fn write(
+    fn write<T: NativeType>(
         &self,
-        storage: &mut Self::Storage,
+        storage: &mut Self::Storage<T>,
         layout: &Layout,
-        src: &[D],
-    ) -> bolt_core::Result<()> {
-        self.inner.write(&mut storage.inner, layout, src)
-    }
-}
-
-impl<B, D> Backend<i32> for Autodiff<B, D>
-where
-    B: Backend<i32> + Backend<D>,
-    D: Float,
-{
-    type Device = AutodiffDevice<<B as Backend<i32>>::Device>;
-    type Storage = AutodiffStorage<<B as Backend<i32>>::Storage>;
-    type Allocator = AutodiffAllocator<<B as Backend<i32>>::Allocator>;
-
-    fn device(&self) -> &Self::Device {
-        let device = <B as Backend<i32>>::device(&self.inner);
-        unsafe {
-            &*(device as *const <B as Backend<i32>>::Device
-                as *const AutodiffDevice<<B as Backend<i32>>::Device>)
-        }
-    }
-
-    fn allocator(&self) -> Self::Allocator {
-        AutodiffAllocator::new(<B as Backend<i32>>::allocator(&self.inner))
-    }
-
-    fn device_kind(&self) -> DeviceKind {
-        <B as Backend<i32>>::device_kind(&self.inner)
-    }
-
-    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
-        <B as Backend<i32>>::storage_len_bytes(&self.inner, &storage.inner)
-    }
-
-    fn read(
-        &self,
-        storage: &Self::Storage,
-        layout: &Layout,
-        dst: &mut [i32],
-    ) -> bolt_core::Result<()> {
-        self.inner.read(&storage.inner, layout, dst)
-    }
-
-    fn write(
-        &self,
-        storage: &mut Self::Storage,
-        layout: &Layout,
-        src: &[i32],
+        src: &[T],
     ) -> bolt_core::Result<()> {
         self.inner.write(&mut storage.inner, layout, src)
     }

@@ -1,0 +1,15 @@
+[package]
+name = "bolt-nn"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+bolt-core = { path = "../bolt-core" }
+bolt-autodiff = { path = "../bolt-autodiff" }
+thiserror.workspace = true
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+bolt-cpu = { path = "../bolt-cpu" }

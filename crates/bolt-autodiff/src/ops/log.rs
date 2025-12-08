@@ -16,7 +16,7 @@ impl LogBackward {
 
 impl<B, D> BackwardOp<B, D> for LogBackward
 where
-    B: Backend<D> + DivOp<D> + CopyOp<D>,
+    B: Backend + DivOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

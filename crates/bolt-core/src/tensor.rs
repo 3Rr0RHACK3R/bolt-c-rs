@@ -18,18 +18,18 @@ use crate::{
 #[derive(Clone)]
 pub struct Tensor<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: NativeType,
 {
     backend: Arc<B>,
-    storage: B::Storage,
+    storage: B::Storage<D>,
     layout: Layout,
     _marker: PhantomData<D>,
 }
 
 impl<B, D> Tensor<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: NativeType,
 {
     pub fn from_slice(backend: &Arc<B>, data: &[D], shape: &[usize]) -> Result<Self> {
@@ -41,7 +41,7 @@ where
             });
         }
         let layout = Layout::contiguous(shape);
-        let mut storage = backend.allocator().allocate(data.len())?;
+        let mut storage = backend.allocator::<D>().allocate(data.len())?;
         backend.write(&mut storage, &layout, data)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -57,7 +57,7 @@ where
             });
         }
         let layout = Layout::contiguous(shape);
-        let mut storage = backend.allocator().allocate(data.len())?;
+        let mut storage = backend.allocator::<D>().allocate(data.len())?;
         backend.write(&mut storage, &layout, &data)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -71,7 +71,7 @@ where
         let shape = ConcreteShape::from_slice(shape)?;
         let numel = shape.num_elements();
         let layout = Layout::contiguous(shape);
-        let storage = backend.allocator().allocate_zeroed(numel)?;
+        let storage = backend.allocator::<D>().allocate_zeroed(numel)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
@@ -118,7 +118,7 @@ where
     pub fn zeros_like(other: &Tensor<B, D>) -> Result<Self> {
         let layout = Layout::contiguous(other.layout.concrete_shape().clone());
         let numel = layout.num_elements();
-        let storage = other.backend.allocator().allocate_zeroed(numel)?;
+        let storage = other.backend.allocator::<D>().allocate_zeroed(numel)?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
@@ -143,7 +143,7 @@ where
         let len = tensor_creation::compute_arange_len(start, end, step)?;
         let shape = ConcreteShape::from_slice(&[len])?;
         let layout = Layout::contiguous(shape);
-        let mut storage = backend.allocator().allocate(len)?;
+        let mut storage = backend.allocator::<D>().allocate(len)?;
         let values = tensor_creation::build_arange_values(len, start, step)?;
         backend.write(&mut storage, &layout, &values)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
@@ -180,7 +180,7 @@ where
         let values = tensor_creation::build_linspace_values(start, end, steps)?;
         let shape = ConcreteShape::from_slice(&[values.len()])?;
         let layout = Layout::contiguous(shape);
-        let mut storage = backend.allocator().allocate(values.len())?;
+        let mut storage = backend.allocator::<D>().allocate(values.len())?;
         backend.write(&mut storage, &layout, &values)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -191,7 +191,7 @@ where
         let values = tensor_creation::build_logspace_values(start, end, steps, base)?;
         let shape = ConcreteShape::from_slice(&[values.len()])?;
         let layout = Layout::contiguous(shape);
-        let mut storage = backend.allocator().allocate(values.len())?;
+        let mut storage = backend.allocator::<D>().allocate(values.len())?;
         backend.write(&mut storage, &layout, &values)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -702,15 +702,11 @@ where
 
     pub fn argmin(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Tensor<B, i32>>
     where
-        B: ArgminOp<D, I32Storage = <B as Backend<i32>>::Storage> + Backend<i32>,
+        B: ArgminOp<D>,
     {
-        let parts = ArgminOp::<D>::argmin(
-            self.backend.as_ref(),
-            &self.layout,
-            &self.storage,
-            axes,
-            keepdims,
-        )?;
+        let parts = self
+            .backend
+            .argmin(&self.layout, &self.storage, axes, keepdims)?;
         Ok(Tensor::<B, i32>::from_parts(
             self.backend.clone(),
             parts.storage,
@@ -720,15 +716,11 @@ where
 
     pub fn argmax(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Tensor<B, i32>>
     where
-        B: ArgmaxOp<D, I32Storage = <B as Backend<i32>>::Storage> + Backend<i32>,
+        B: ArgmaxOp<D>,
     {
-        let parts = ArgmaxOp::<D>::argmax(
-            self.backend.as_ref(),
-            &self.layout,
-            &self.storage,
-            axes,
-            keepdims,
-        )?;
+        let parts = self
+            .backend
+            .argmax(&self.layout, &self.storage, axes, keepdims)?;
         Ok(Tensor::<B, i32>::from_parts(
             self.backend.clone(),
             parts.storage,
@@ -809,7 +801,7 @@ where
         Ok(())
     }
 
-    fn validate_layout_for_storage(&self, storage: &B::Storage, layout: &Layout) -> Result<()> {
+    fn validate_layout_for_storage(&self, storage: &B::Storage<D>, layout: &Layout) -> Result<()> {
         let len_bytes = self.backend.storage_len_bytes(storage);
         layout.validate_bounds(D::DTYPE, len_bytes)
     }
@@ -823,7 +815,7 @@ where
         }
     }
 
-    pub fn from_parts(backend: Arc<B>, storage: B::Storage, layout: Layout) -> Self {
+    pub fn from_parts(backend: Arc<B>, storage: B::Storage<D>, layout: Layout) -> Self {
         Self {
             backend,
             storage,
@@ -832,7 +824,7 @@ where
         }
     }
 
-    pub fn storage(&self) -> &B::Storage {
+    pub fn storage(&self) -> &B::Storage<D> {
         &self.storage
     }
 }

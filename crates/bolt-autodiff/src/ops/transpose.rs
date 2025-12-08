@@ -19,7 +19,7 @@ impl TransposeBackward {
 
 impl<B, D> BackwardOp<B, D> for TransposeBackward
 where
-    B: Backend<D> + CopyOp<D> + TransposeOp<D>,
+    B: Backend + CopyOp<D> + TransposeOp<D>,
     D: Float,
 {
     fn backward(

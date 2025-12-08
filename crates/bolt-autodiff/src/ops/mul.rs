@@ -23,7 +23,7 @@ impl MulBackward {
 
 impl<B, D> BackwardOp<B, D> for MulBackward
 where
-    B: Backend<D> + AddOp<D> + MulOp<D> + CopyOp<D> + SumOp<D>,
+    B: Backend + AddOp<D> + MulOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn backward(

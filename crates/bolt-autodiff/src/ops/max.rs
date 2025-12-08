@@ -9,7 +9,7 @@ use crate::Float;
 
 fn zero_mask<B, D>(tensor: &Tensor<B, D>) -> Result<Tensor<B, D>>
 where
-    B: Backend<D> + AbsOp<D> + AddOp<D> + FillOp<D> + SubOp<D> + DivOp<D>,
+    B: Backend + AbsOp<D> + AddOp<D> + FillOp<D> + SubOp<D> + DivOp<D>,
     D: Float,
 {
     let abs = tensor.abs()?;
@@ -51,7 +51,7 @@ impl MaxBackward {
 
 impl<B, D> BackwardOp<B, D> for MaxBackward
 where
-    B: Backend<D>
+    B: Backend
         + AddOp<D>
         + AbsOp<D>
         + BroadcastToOp<D>

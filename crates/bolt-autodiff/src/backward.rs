@@ -11,7 +11,7 @@ pub const MAX_INPUTS: usize = 8;
 
 pub struct BackwardContext<'a, B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     saved: &'a [Tensor<B, D>],
@@ -20,7 +20,7 @@ where
 
 impl<'a, B, D> BackwardContext<'a, B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub fn new(saved: &'a [Tensor<B, D>], backend: &'a Arc<B>) -> Self {
@@ -42,7 +42,7 @@ where
 
 pub trait BackwardOp<B, D>: Send + Sync
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn backward(

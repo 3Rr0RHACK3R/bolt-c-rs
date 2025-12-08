@@ -14,7 +14,7 @@ use crate::{Float, Handle};
 
 pub struct GradContext<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     autodiff: Autodiff<B, D>,
@@ -22,7 +22,7 @@ where
 
 impl<B, D> GradContext<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub(crate) fn new(autodiff: Autodiff<B, D>) -> Self {
@@ -108,7 +108,7 @@ where
 
 impl<B, D> Drop for GradContext<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn drop(&mut self) {
@@ -118,7 +118,7 @@ where
 
 pub struct NoGradGuard<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     autodiff_grad_enabled: Arc<RwLock<bool>>,
@@ -128,7 +128,7 @@ where
 
 impl<B, D> NoGradGuard<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub fn new(autodiff: &Autodiff<B, D>) -> Self {
@@ -145,7 +145,7 @@ where
 
 impl<B, D> Drop for NoGradGuard<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn drop(&mut self) {

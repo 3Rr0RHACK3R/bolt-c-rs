@@ -65,7 +65,7 @@ pub(crate) fn reduce_grad_to_shape<B, D>(
     target_shape: &[usize],
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend<D> + AddOp<D> + SumOp<D>,
+    B: Backend + AddOp<D> + SumOp<D>,
     D: Float,
 {
     let grad_shape = grad.shape();

@@ -23,7 +23,7 @@ impl PowBackward {
 
 impl<B, D> BackwardOp<B, D> for PowBackward
 where
-    B: Backend<D>
+    B: Backend
         + AddOp<D>
         + MulOp<D>
         + PowOp<D>

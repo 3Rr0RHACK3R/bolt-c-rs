@@ -17,7 +17,7 @@ impl AbsBackward {
 
 impl<B, D> BackwardOp<B, D> for AbsBackward
 where
-    B: Backend<D> + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

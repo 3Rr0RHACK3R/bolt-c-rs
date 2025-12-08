@@ -24,7 +24,7 @@ impl MeanBackward {
 
 impl<B, D> BackwardOp<B, D> for MeanBackward
 where
-    B: Backend<D> + AddOp<D> + FillOp<D> + MulOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
+    B: Backend + AddOp<D> + FillOp<D> + MulOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
     D: Float,
 {
     fn backward(

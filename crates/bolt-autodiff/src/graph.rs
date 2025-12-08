@@ -8,7 +8,7 @@ use crate::error::{Error, Result};
 
 pub(crate) struct BackwardEntry<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub op: Box<dyn BackwardOp<B, D>>,
@@ -17,7 +17,7 @@ where
 
 pub(crate) struct Node<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub handle: Handle,
@@ -29,7 +29,7 @@ where
 
 pub struct Graph<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     nodes: Vec<Node<B, D>>,
@@ -38,7 +38,7 @@ where
 
 impl<B, D> Default for Graph<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn default() -> Self {
@@ -48,7 +48,7 @@ where
 
 impl<B, D> Graph<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub fn new() -> Self {

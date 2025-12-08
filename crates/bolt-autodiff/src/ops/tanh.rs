@@ -16,7 +16,7 @@ impl TanhBackward {
 
 impl<B, D> BackwardOp<B, D> for TanhBackward
 where
-    B: Backend<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

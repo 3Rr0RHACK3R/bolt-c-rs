@@ -11,8 +11,8 @@ use crate::storage::AutodiffStorage;
 use crate::utils::create_backward_seed;
 use crate::{Float, Handle};
 
-pub trait AutodiffBackend<D: Float>: Backend<D> {
-    type InnerBackend: Backend<D>;
+pub trait AutodiffBackend<D: Float>: Backend {
+    type InnerBackend: Backend;
 
     fn autodiff(&self) -> &Autodiff<Self::InnerBackend, D>;
     fn inner_backend(&self) -> &Arc<Self::InnerBackend>;
@@ -20,7 +20,7 @@ pub trait AutodiffBackend<D: Float>: Backend<D> {
 
 impl<B, D> AutodiffBackend<D> for Autodiff<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     type InnerBackend = B;
@@ -36,7 +36,7 @@ where
 
 pub trait AutodiffTensorExt<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn requires_grad(self) -> Tensor<Autodiff<B, D>, D>;
@@ -50,7 +50,7 @@ where
 
 impl<B, D> AutodiffTensorExt<B, D> for Tensor<Autodiff<B, D>, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     fn requires_grad(self) -> Tensor<Autodiff<B, D>, D> {

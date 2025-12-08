@@ -1,7 +1,7 @@
 mod allocator;
 mod context;
 mod memory_pool;
-mod ops;
+pub mod ops;
 mod storage;
 
 use std::sync::Arc;
@@ -15,6 +15,7 @@ use bolt_core::{
         ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     device::{BackendDevice, DeviceKind},
+    dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
 };
@@ -64,6 +65,12 @@ impl CpuBackend {
     }
 }
 
+impl Default for CpuBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct CpuDevice;
 
@@ -73,19 +80,16 @@ impl BackendDevice for CpuDevice {
     }
 }
 
-impl<D> Backend<D> for CpuBackend
-where
-    D: CpuScalar,
-{
+impl Backend for CpuBackend {
     type Device = CpuDevice;
-    type Storage = CpuStorage<D>;
-    type Allocator = CpuAllocator<D>;
+    type Storage<D: NativeType> = CpuStorage<D>;
+    type Allocator<D: NativeType> = CpuAllocator<D>;
 
     fn device(&self) -> &Self::Device {
         &self.device
     }
 
-    fn allocator(&self) -> Self::Allocator {
+    fn allocator<D: NativeType>(&self) -> Self::Allocator<D> {
         #[cfg(feature = "diagnostics")]
         {
             CpuAllocator::with_diagnostics(
@@ -105,15 +109,15 @@ where
         }
     }
 
-    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
+    fn storage_len_bytes<D: NativeType>(&self, storage: &Self::Storage<D>) -> usize {
         storage.len_bytes()
     }
 
-    fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()> {
+    fn read<D: NativeType>(&self, storage: &Self::Storage<D>, layout: &Layout, dst: &mut [D]) -> Result<()> {
         unsafe { read_into_slice(storage, layout, dst) }
     }
 
-    fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()> {
+    fn write<D: NativeType>(&self, storage: &mut Self::Storage<D>, layout: &Layout, src: &[D]) -> Result<()> {
         write_from_slice(storage, layout, src)
     }
 }
@@ -122,8 +126,8 @@ impl<D> CopyOp<D> for CpuBackend
 where
     D: CpuScalar + CopyKernel,
 {
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
-        <D as CopyKernel>::copy_kernel(storage, layout, &self.allocator())
+    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as CopyKernel>::copy_kernel(storage, layout, &self.allocator::<D>())
     }
 }
 
@@ -131,7 +135,7 @@ impl<D> FillOp<D> for CpuBackend
 where
     D: CpuScalar,
 {
-    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage<D>> {
         let len_bytes =
             layout
                 .max_offset_bytes(D::DTYPE)?
@@ -140,7 +144,7 @@ where
                     limit: isize::MAX as usize,
                     requested: usize::MAX,
                 })?;
-        let mut storage = self.allocator().allocate_bytes(len_bytes, D::DTYPE)?;
+        let mut storage = self.allocator::<D>().allocate_bytes(len_bytes, D::DTYPE)?;
         fill_storage(&mut storage, layout, value)?;
         Ok(storage)
     }
@@ -152,15 +156,15 @@ where
 {
     fn add(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as AddKernel>::add_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -171,15 +175,15 @@ where
 {
     fn sub(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as SubKernel>::sub_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -190,15 +194,15 @@ where
 {
     fn matmul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as MatmulKernel>::matmul_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -209,15 +213,15 @@ where
 {
     fn mul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as MulKernel>::mul_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -229,15 +233,15 @@ where
     fn mean(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as MeanKernel>::mean_kernel(
             TensorView::new(storage, layout),
             axes,
             keepdims,
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -246,8 +250,8 @@ impl<D> NegOp<D> for CpuBackend
 where
     D: CpuScalar + NegKernel,
 {
-    fn neg(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as NegKernel>::neg_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn neg(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as NegKernel>::neg_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -255,8 +259,8 @@ impl<D> AbsOp<D> for CpuBackend
 where
     D: CpuScalar + AbsKernel,
 {
-    fn abs(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as AbsKernel>::abs_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn abs(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as AbsKernel>::abs_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -264,8 +268,8 @@ impl<D> ExpOp<D> for CpuBackend
 where
     D: CpuScalar + ExpKernel,
 {
-    fn exp(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as ExpKernel>::exp_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn exp(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as ExpKernel>::exp_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -273,8 +277,8 @@ impl<D> LogOp<D> for CpuBackend
 where
     D: CpuScalar + LogKernel,
 {
-    fn log(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as LogKernel>::log_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn log(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as LogKernel>::log_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -282,8 +286,8 @@ impl<D> SqrtOp<D> for CpuBackend
 where
     D: CpuScalar + SqrtKernel,
 {
-    fn sqrt(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as SqrtKernel>::sqrt_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn sqrt(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as SqrtKernel>::sqrt_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -291,8 +295,8 @@ impl<D> SinOp<D> for CpuBackend
 where
     D: CpuScalar + SinKernel,
 {
-    fn sin(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as SinKernel>::sin_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn sin(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as SinKernel>::sin_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -300,8 +304,8 @@ impl<D> CosOp<D> for CpuBackend
 where
     D: CpuScalar + CosKernel,
 {
-    fn cos(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as CosKernel>::cos_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn cos(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as CosKernel>::cos_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -309,8 +313,8 @@ impl<D> TanhOp<D> for CpuBackend
 where
     D: CpuScalar + TanhKernel,
 {
-    fn tanh(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as TanhKernel>::tanh_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn tanh(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as TanhKernel>::tanh_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -318,8 +322,8 @@ impl<D> ReluOp<D> for CpuBackend
 where
     D: CpuScalar + ReluKernel,
 {
-    fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
-        <D as ReluKernel>::relu_kernel(TensorView::new(storage, layout), &self.allocator())
+    fn relu(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as ReluKernel>::relu_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 
@@ -329,15 +333,15 @@ where
 {
     fn div(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as DivKernel>::div_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -348,15 +352,15 @@ where
 {
     fn pow(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as PowKernel>::pow_kernel(
             TensorView::new(lhs, lhs_layout),
             TensorView::new(rhs, rhs_layout),
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -368,15 +372,15 @@ where
     fn sum(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as SumKernel>::sum_kernel(
             TensorView::new(storage, layout),
             axes,
             keepdims,
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -388,15 +392,15 @@ where
     fn prod(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as ProdKernel>::prod_kernel(
             TensorView::new(storage, layout),
             axes,
             keepdims,
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -408,15 +412,15 @@ where
     fn min(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as MinKernel>::min_kernel(
             TensorView::new(storage, layout),
             axes,
             keepdims,
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -428,15 +432,15 @@ where
     fn max(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as MaxKernel>::max_kernel(
             TensorView::new(storage, layout),
             axes,
             keepdims,
-            &self.allocator(),
+            &self.allocator::<D>(),
         )
     }
 }
@@ -445,16 +449,14 @@ impl<D> ArgminOp<D> for CpuBackend
 where
     D: CpuScalar + ArgminKernel,
 {
-    type I32Storage = CpuStorage<i32>;
-
     fn argmin(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::I32Storage>> {
-        let alloc_i32 = <Self as Backend<i32>>::allocator(self);
+    ) -> Result<TensorParts<Self::Storage<i32>>> {
+        let alloc_i32 = self.allocator::<i32>();
         <D as ArgminKernel>::argmin_kernel(
             TensorView::new(storage, layout),
             axes,
@@ -468,16 +470,14 @@ impl<D> ArgmaxOp<D> for CpuBackend
 where
     D: CpuScalar + ArgmaxKernel,
 {
-    type I32Storage = CpuStorage<i32>;
-
     fn argmax(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::I32Storage>> {
-        let alloc_i32 = <Self as Backend<i32>>::allocator(self);
+    ) -> Result<TensorParts<Self::Storage<i32>>> {
+        let alloc_i32 = self.allocator::<i32>();
         <D as ArgmaxKernel>::argmax_kernel(
             TensorView::new(storage, layout),
             axes,

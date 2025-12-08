@@ -22,7 +22,7 @@ impl ExpandBackward {
 
 impl<B, D> BackwardOp<B, D> for ExpandBackward
 where
-    B: Backend<D> + CopyOp<D> + SumOp<D> + ReshapeOp<D>,
+    B: Backend + CopyOp<D> + SumOp<D> + ReshapeOp<D>,
     D: Float,
 {
     fn backward(

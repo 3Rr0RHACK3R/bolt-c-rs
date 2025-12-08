@@ -79,13 +79,13 @@ pub(crate) fn normalize_transpose_axis(
 
 pub(crate) fn create_saved_tensor<B, D>(
     backend: &Arc<B>,
-    storage: &B::Storage,
+    storage: &B::Storage<D>,
     layout: &Layout,
 ) -> Tensor<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
-    B::Storage: Clone,
+    B::Storage<D>: Clone,
 {
     Tensor::from_parts(backend.clone(), storage.clone(), layout.clone())
 }
@@ -95,7 +95,7 @@ pub(crate) fn create_backward_seed<B, D>(
     loss_tensor: &Tensor<Autodiff<B, D>, D>,
 ) -> AutodiffResult<Tensor<B, D>>
 where
-    B: Backend<D> + bolt_core::backend::FillOp<D>,
+    B: Backend + bolt_core::backend::FillOp<D>,
     D: Float + bolt_core::OneValue,
 {
     let seed = if loss_tensor.numel() == 1 {

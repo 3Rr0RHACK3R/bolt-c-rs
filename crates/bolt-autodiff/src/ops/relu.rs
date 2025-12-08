@@ -17,7 +17,7 @@ impl ReluBackward {
 
 impl<B, D> BackwardOp<B, D> for ReluBackward
 where
-    B: Backend<D> + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn backward(

@@ -19,7 +19,7 @@ impl SumBackward {
 
 impl<B, D> BackwardOp<B, D> for SumBackward
 where
-    B: Backend<D> + AddOp<D> + FillOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
+    B: Backend + AddOp<D> + FillOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
     D: Float,
 {
     fn backward(

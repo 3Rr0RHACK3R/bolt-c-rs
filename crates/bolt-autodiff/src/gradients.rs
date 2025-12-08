@@ -10,7 +10,7 @@ use crate::operations::Autodiff;
 
 pub struct Gradients<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     grads: HashMap<Handle, Tensor<B, D>>,
@@ -19,7 +19,7 @@ where
 
 impl<B, D> Gradients<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub(crate) fn new(grads: HashMap<Handle, Tensor<B, D>>, generation: u32) -> Self {
@@ -82,7 +82,7 @@ pub(crate) fn insert_or_accumulate<B, D>(
     grad: Tensor<B, D>,
 ) -> Result<()>
 where
-    B: Backend<D> + AddOp<D>,
+    B: Backend + AddOp<D>,
     D: Float,
 {
     match grads.entry(handle) {

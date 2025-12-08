@@ -5,7 +5,7 @@ use bolt_cpu::backend::CpuBackend;
 fn test_caching_allocator_reuse() {
     let backend = CpuBackend::with_pooling();
     // Specify we want the f32 allocator
-    let allocator = <CpuBackend as Backend<f32>>::allocator(&backend);
+    let allocator = backend.allocator::<f32>();
 
     // 1. Allocate 1024 floats (4KB)
     let len_bytes = 1024 * 4;
@@ -26,7 +26,7 @@ fn test_caching_allocator_reuse() {
 #[test]
 fn test_caching_allocator_alignment() {
     let backend = CpuBackend::with_pooling();
-    let allocator = <CpuBackend as Backend<f32>>::allocator(&backend);
+    let allocator = backend.allocator::<f32>();
 
     // Allocate small size, but check alignment
     let t1 = allocator.allocate(1).unwrap(); // 1 float
@@ -39,7 +39,7 @@ fn test_caching_allocator_alignment() {
 #[test]
 fn test_caching_allocator_multiple_sizes() {
     let backend = CpuBackend::with_pooling();
-    let allocator = <CpuBackend as Backend<f32>>::allocator(&backend);
+    let allocator = backend.allocator::<f32>();
 
     let t1 = allocator.allocate(100).unwrap();
     let p1 = unsafe { t1.as_slice().as_ptr() };

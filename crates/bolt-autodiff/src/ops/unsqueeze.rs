@@ -18,7 +18,7 @@ impl UnsqueezeBackward {
 
 impl<B, D> BackwardOp<B, D> for UnsqueezeBackward
 where
-    B: Backend<D> + CopyOp<D> + SqueezeOp<D>,
+    B: Backend + CopyOp<D> + SqueezeOp<D>,
     D: Float,
 {
     fn backward(

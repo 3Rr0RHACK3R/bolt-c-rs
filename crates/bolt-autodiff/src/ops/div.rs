@@ -23,7 +23,7 @@ impl DivBackward {
 
 impl<B, D> BackwardOp<B, D> for DivBackward
 where
-    B: Backend<D> + AddOp<D> + MulOp<D> + DivOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
+    B: Backend + AddOp<D> + MulOp<D> + DivOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn backward(

@@ -13,7 +13,7 @@ fn shapes_from_layout(layout: &Layout) -> Vec<usize> {
     layout.shape().to_vec()
 }
 
-fn profile_op<D, B, F, R>(
+fn profile_op<B, F, R>(
     backend: &ProfiledBackend<B>,
     name: &'static str,
     category: OpCategory,
@@ -21,11 +21,10 @@ fn profile_op<D, B, F, R>(
     f: F,
 ) -> R
 where
-    D: NativeType,
-    B: Backend<D>,
+    B: Backend,
     F: FnOnce(&B) -> R,
 {
-    let allocator = backend.inner.allocator();
+    let allocator: B::Allocator<f32> = backend.inner.allocator();
     let active = backend.profiler.begin_op(&allocator);
     let result = f(&backend.inner);
     backend
@@ -86,24 +85,24 @@ impl<B> ProfiledBackend<B> {
     }
 }
 
-impl<D: NativeType, B: Backend<D>> Backend<D> for ProfiledBackend<B> {
+impl<B: Backend> Backend for ProfiledBackend<B> {
     type Device = B::Device;
-    type Storage = B::Storage;
-    type Allocator = B::Allocator;
+    type Storage<D: NativeType> = B::Storage<D>;
+    type Allocator<D: NativeType> = B::Allocator<D>;
 
     fn device(&self) -> &Self::Device {
         self.inner.device()
     }
 
-    fn allocator(&self) -> Self::Allocator {
+    fn allocator<D: NativeType>(&self) -> Self::Allocator<D> {
         self.inner.allocator()
     }
 
-    fn storage_len_bytes(&self, storage: &Self::Storage) -> usize {
+    fn storage_len_bytes<D: NativeType>(&self, storage: &Self::Storage<D>) -> usize {
         self.inner.storage_len_bytes(storage)
     }
 
-    fn read(&self, storage: &Self::Storage, layout: &Layout, dst: &mut [D]) -> Result<()> {
+    fn read<D: NativeType>(&self, storage: &Self::Storage<D>, layout: &Layout, dst: &mut [D]) -> Result<()> {
         profile_op(
             self,
             "read",
@@ -113,7 +112,7 @@ impl<D: NativeType, B: Backend<D>> Backend<D> for ProfiledBackend<B> {
         )
     }
 
-    fn write(&self, storage: &mut Self::Storage, layout: &Layout, src: &[D]) -> Result<()> {
+    fn write<D: NativeType>(&self, storage: &mut Self::Storage<D>, layout: &Layout, src: &[D]) -> Result<()> {
         profile_op(
             self,
             "write",
@@ -124,8 +123,8 @@ impl<D: NativeType, B: Backend<D>> Backend<D> for ProfiledBackend<B> {
     }
 }
 
-impl<D: NativeType, B: CopyOp<D> + Backend<D>> CopyOp<D> for ProfiledBackend<B> {
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
+impl<D: NativeType, B: CopyOp<D> + Backend> CopyOp<D> for ProfiledBackend<B> {
+    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "copy",
@@ -136,8 +135,8 @@ impl<D: NativeType, B: CopyOp<D> + Backend<D>> CopyOp<D> for ProfiledBackend<B> 
     }
 }
 
-impl<D: NativeType, B: FillOp<D> + Backend<D>> FillOp<D> for ProfiledBackend<B> {
-    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
+impl<D: NativeType, B: FillOp<D> + Backend> FillOp<D> for ProfiledBackend<B> {
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage<D>> {
         profile_op(
             self,
             "fill",
@@ -148,14 +147,14 @@ impl<D: NativeType, B: FillOp<D> + Backend<D>> FillOp<D> for ProfiledBackend<B> 
     }
 }
 
-impl<D: NativeType, B: AddOp<D> + Backend<D>> AddOp<D> for ProfiledBackend<B> {
+impl<D: NativeType, B: AddOp<D> + Backend> AddOp<D> for ProfiledBackend<B> {
     fn add(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "add",
@@ -169,14 +168,14 @@ impl<D: NativeType, B: AddOp<D> + Backend<D>> AddOp<D> for ProfiledBackend<B> {
     }
 }
 
-impl<D: NativeType, B: SubOp<D> + Backend<D>> SubOp<D> for ProfiledBackend<B> {
+impl<D: NativeType, B: SubOp<D> + Backend> SubOp<D> for ProfiledBackend<B> {
     fn sub(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "sub",
@@ -190,14 +189,14 @@ impl<D: NativeType, B: SubOp<D> + Backend<D>> SubOp<D> for ProfiledBackend<B> {
     }
 }
 
-impl<D: NativeType, B: MatmulOp<D> + Backend<D>> MatmulOp<D> for ProfiledBackend<B> {
+impl<D: NativeType, B: MatmulOp<D> + Backend> MatmulOp<D> for ProfiledBackend<B> {
     fn matmul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "matmul",
@@ -211,14 +210,14 @@ impl<D: NativeType, B: MatmulOp<D> + Backend<D>> MatmulOp<D> for ProfiledBackend
     }
 }
 
-impl<D: FloatType, B: MeanOp<D> + Backend<D>> MeanOp<D> for ProfiledBackend<B> {
+impl<D: FloatType, B: MeanOp<D> + Backend> MeanOp<D> for ProfiledBackend<B> {
     fn mean(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "mean",
@@ -229,14 +228,14 @@ impl<D: FloatType, B: MeanOp<D> + Backend<D>> MeanOp<D> for ProfiledBackend<B> {
     }
 }
 
-impl<D: NativeType, B: TransposeOp<D> + Backend<D>> TransposeOp<D> for ProfiledBackend<B> {
+impl<D: NativeType, B: TransposeOp<D> + Backend> TransposeOp<D> for ProfiledBackend<B> {
     fn transpose(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis_a: isize,
         axis_b: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "transpose",

@@ -25,7 +25,7 @@ use crate::{Float, Handle};
 
 pub struct Autodiff<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub(crate) inner: Arc<B>,
@@ -36,7 +36,7 @@ where
 
 impl<B, D> Autodiff<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: Float,
 {
     pub fn is_grad_enabled(&self) -> bool {
@@ -57,14 +57,14 @@ where
 
     pub(crate) fn create_tracked_storage(
         &self,
-        inner_storage: B::Storage,
+        inner_storage: B::Storage<D>,
         _layout: &Layout,
         requires_grad: bool,
         is_leaf: bool,
         inputs: tinyvec::ArrayVec<[Handle; MAX_INPUTS]>,
         backward_op: Option<Box<dyn BackwardOp<B, D>>>,
         saved_tensors: Vec<bolt_core::Tensor<B, D>>,
-    ) -> AutodiffStorage<B::Storage> {
+    ) -> AutodiffStorage<B::Storage<D>> {
         let handle = self
             .with_graph(|graph| {
                 graph.create_node(requires_grad, is_leaf, inputs, backward_op, saved_tensors)
@@ -77,8 +77,8 @@ where
     // Helper for binary operations
     fn binary_requires_grad(
         &self,
-        lhs: &AutodiffStorage<B::Storage>,
-        rhs: &AutodiffStorage<B::Storage>,
+        lhs: &AutodiffStorage<B::Storage<D>>,
+        rhs: &AutodiffStorage<B::Storage<D>>,
     ) -> bool {
         (lhs.requires_grad || rhs.requires_grad)
             && self.is_grad_enabled()
@@ -86,12 +86,12 @@ where
     }
 
     // Helper for unary operations
-    fn unary_requires_grad(&self, storage: &AutodiffStorage<B::Storage>) -> bool {
+    fn unary_requires_grad(&self, storage: &AutodiffStorage<B::Storage<D>>) -> bool {
         storage.requires_grad && self.is_grad_enabled() && self.has_active_graph()
     }
 
     // Helper for early return (no gradient needed)
-    fn no_grad_result(parts: TensorParts<B::Storage>) -> TensorParts<AutodiffStorage<B::Storage>> {
+    fn no_grad_result(parts: TensorParts<B::Storage<D>>) -> TensorParts<AutodiffStorage<B::Storage<D>>> {
         TensorParts {
             storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
             layout: parts.layout,
@@ -101,12 +101,12 @@ where
     // Helper for binary operations with tracked storage
     fn create_tracked_binary_op(
         &self,
-        parts: TensorParts<B::Storage>,
+        parts: TensorParts<B::Storage<D>>,
         lhs_handle: Handle,
         rhs_handle: Handle,
         backward_op: Box<dyn BackwardOp<B, D>>,
         saved_tensors: Vec<Tensor<B, D>>,
-    ) -> TensorParts<AutodiffStorage<B::Storage>> {
+    ) -> TensorParts<AutodiffStorage<B::Storage<D>>> {
         let mut inputs = tinyvec::ArrayVec::new();
         inputs.push(lhs_handle);
         inputs.push(rhs_handle);
@@ -130,11 +130,11 @@ where
     // Helper for unary operations with tracked storage
     fn create_tracked_unary_op(
         &self,
-        parts: TensorParts<B::Storage>,
+        parts: TensorParts<B::Storage<D>>,
         input_handle: Handle,
         backward_op: Box<dyn BackwardOp<B, D>>,
         saved_tensors: Vec<Tensor<B, D>>,
-    ) -> TensorParts<AutodiffStorage<B::Storage>> {
+    ) -> TensorParts<AutodiffStorage<B::Storage<D>>> {
         let mut inputs = tinyvec::ArrayVec::new();
         inputs.push(input_handle);
 
@@ -157,10 +157,10 @@ where
 
 impl<B, D> CopyOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + CopyOp<D>,
+    B: Backend + CopyOp<D>,
     D: Float,
 {
-    fn copy(&self, storage: &Self::Storage, layout: &Layout) -> Result<TensorParts<Self::Storage>> {
+    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.copy(&storage.inner, layout)?;
         Ok(TensorParts {
             storage: AutodiffStorage::new(parts.storage, storage.handle, storage.requires_grad),
@@ -171,10 +171,10 @@ where
 
 impl<B, D> FillOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + FillOp<D>,
+    B: Backend + FillOp<D>,
     D: Float,
 {
-    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage> {
+    fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage<D>> {
         let inner = self.inner.fill(layout, value)?;
         Ok(AutodiffStorage::new(inner, Handle::NONE, false))
     }
@@ -182,16 +182,16 @@ where
 
 impl<B, D> AddOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + AddOp<D> + SumOp<D> + CopyOp<D>,
+    B: Backend + AddOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn add(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .add(&lhs.inner, &rhs.inner, lhs_layout, rhs_layout)?;
@@ -215,16 +215,16 @@ where
 
 impl<B, D> SubOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + SubOp<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
+    B: Backend + SubOp<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn sub(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .sub(&lhs.inner, &rhs.inner, lhs_layout, rhs_layout)?;
@@ -248,16 +248,16 @@ where
 
 impl<B, D> MulOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + MulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D>,
+    B: Backend + MulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn mul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .mul(&lhs.inner, &rhs.inner, lhs_layout, rhs_layout)?;
@@ -285,16 +285,16 @@ where
 
 impl<B, D> MatmulOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + MatmulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D> + TransposeOp<D>,
+    B: Backend + MatmulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D> + TransposeOp<D>,
     D: Float,
 {
     fn matmul(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .matmul(&lhs.inner, &rhs.inner, lhs_layout, rhs_layout)?;
@@ -321,16 +321,16 @@ where
 
 impl<B, D> SumOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + SumOp<D> + AddOp<D> + FillOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
+    B: Backend + SumOp<D> + AddOp<D> + FillOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
     D: Float,
 {
     fn sum(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.sum(layout, &storage.inner, axes, keepdims)?;
 
         if !self.unary_requires_grad(storage) {
@@ -365,7 +365,7 @@ where
 
 impl<B, D> MeanOp<D> for Autodiff<B, D>
 where
-    B: Backend<D>
+    B: Backend
         + MeanOp<D>
         + AddOp<D>
         + FillOp<D>
@@ -378,10 +378,10 @@ where
     fn mean(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.mean(layout, &storage.inner, axes, keepdims)?;
 
         if !self.unary_requires_grad(storage) {
@@ -424,10 +424,10 @@ where
 
 impl<B, D> NegOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + NegOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + NegOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn neg(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn neg(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.neg(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -442,10 +442,10 @@ where
 
 impl<B, D> AbsOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn abs(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn abs(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.abs(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -467,10 +467,10 @@ where
 
 impl<B, D> ExpOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + ExpOp<D> + MulOp<D> + CopyOp<D>,
+    B: Backend + ExpOp<D> + MulOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn exp(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn exp(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.exp(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -492,10 +492,10 @@ where
 
 impl<B, D> LogOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + LogOp<D> + DivOp<D> + CopyOp<D>,
+    B: Backend + LogOp<D> + DivOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn log(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn log(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.log(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -517,10 +517,10 @@ where
 
 impl<B, D> SqrtOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + SqrtOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + SqrtOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn sqrt(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn sqrt(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.sqrt(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -542,10 +542,10 @@ where
 
 impl<B, D> SinOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + SinOp<D> + MulOp<D> + CosOp<D> + CopyOp<D>,
+    B: Backend + SinOp<D> + MulOp<D> + CosOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn sin(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn sin(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.sin(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -567,10 +567,10 @@ where
 
 impl<B, D> CosOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + CosOp<D> + SinOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + CosOp<D> + SinOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn cos(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn cos(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.cos(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -592,10 +592,10 @@ where
 
 impl<B, D> TanhOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + TanhOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + TanhOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn tanh(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn tanh(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.tanh(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -617,10 +617,10 @@ where
 
 impl<B, D> ReluOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + ReluOp<D> + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
+    B: Backend + ReluOp<D> + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn relu(&self, layout: &Layout, storage: &Self::Storage) -> Result<TensorParts<Self::Storage>> {
+    fn relu(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.relu(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -642,16 +642,16 @@ where
 
 impl<B, D> DivOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + DivOp<D> + AddOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
+    B: Backend + DivOp<D> + AddOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn div(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .div(&lhs.inner, &rhs.inner, lhs_layout, rhs_layout)?;
@@ -678,7 +678,7 @@ where
 
 impl<B, D> PowOp<D> for Autodiff<B, D>
 where
-    B: Backend<D>
+    B: Backend
         + PowOp<D>
         + AddOp<D>
         + MulOp<D>
@@ -692,11 +692,11 @@ where
 {
     fn pow(
         &self,
-        lhs: &Self::Storage,
-        rhs: &Self::Storage,
+        lhs: &Self::Storage<D>,
+        rhs: &Self::Storage<D>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .pow(&lhs.inner, &rhs.inner, lhs_layout, rhs_layout)?;
@@ -724,7 +724,7 @@ where
 
 impl<B, D> ProdOp<D> for Autodiff<B, D>
 where
-    B: Backend<D>
+    B: Backend
         + ProdOp<D>
         + AddOp<D>
         + AbsOp<D>
@@ -740,10 +740,10 @@ where
     fn prod(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.prod(layout, &storage.inner, axes, keepdims)?;
 
         if !self.unary_requires_grad(storage) {
@@ -781,7 +781,7 @@ where
 
 impl<B, D> MinOp<D> for Autodiff<B, D>
 where
-    B: Backend<D>
+    B: Backend
         + MinOp<D>
         + AddOp<D>
         + AbsOp<D>
@@ -797,10 +797,10 @@ where
     fn min(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.min(layout, &storage.inner, axes, keepdims)?;
 
         if !self.unary_requires_grad(storage) {
@@ -838,7 +838,7 @@ where
 
 impl<B, D> MaxOp<D> for Autodiff<B, D>
 where
-    B: Backend<D>
+    B: Backend
         + MaxOp<D>
         + AddOp<D>
         + AbsOp<D>
@@ -854,10 +854,10 @@ where
     fn max(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.max(layout, &storage.inner, axes, keepdims)?;
 
         if !self.unary_requires_grad(storage) {
@@ -895,24 +895,21 @@ where
 
 impl<B, D> ArgminOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + ArgminOp<D> + Backend<i32>,
+    B: Backend + ArgminOp<D>,
     D: Float,
 {
-    type I32Storage = AutodiffStorage<<B as ArgminOp<D>>::I32Storage>;
-
     fn argmin(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::I32Storage>> {
+    ) -> Result<TensorParts<Self::Storage<i32>>> {
         if self.unary_requires_grad(storage) {
             return Err(argmin_not_differentiable());
         }
 
-        let parts =
-            ArgminOp::<D>::argmin(self.inner.as_ref(), layout, &storage.inner, axes, keepdims)?;
+        let parts = self.inner.argmin(layout, &storage.inner, axes, keepdims)?;
         Ok(TensorParts {
             storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
             layout: parts.layout,
@@ -922,24 +919,21 @@ where
 
 impl<B, D> ArgmaxOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + ArgmaxOp<D> + Backend<i32>,
+    B: Backend + ArgmaxOp<D>,
     D: Float,
 {
-    type I32Storage = AutodiffStorage<<B as ArgmaxOp<D>>::I32Storage>;
-
     fn argmax(
         &self,
         layout: &Layout,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         axes: Option<&[isize]>,
         keepdims: bool,
-    ) -> Result<TensorParts<Self::I32Storage>> {
+    ) -> Result<TensorParts<Self::Storage<i32>>> {
         if self.unary_requires_grad(storage) {
             return Err(argmax_not_differentiable());
         }
 
-        let parts =
-            ArgmaxOp::<D>::argmax(self.inner.as_ref(), layout, &storage.inner, axes, keepdims)?;
+        let parts = self.inner.argmax(layout, &storage.inner, axes, keepdims)?;
         Ok(TensorParts {
             storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
             layout: parts.layout,
@@ -949,15 +943,15 @@ where
 
 impl<B, D> ReshapeOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + ReshapeOp<D> + CopyOp<D>,
+    B: Backend + ReshapeOp<D> + CopyOp<D>,
     D: Float,
 {
     fn reshape(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         new_shape: &[usize],
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.reshape(&storage.inner, layout, new_shape)?;
 
         if !self.unary_requires_grad(storage) {
@@ -972,14 +966,14 @@ where
 
 impl<B, D> SqueezeOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + SqueezeOp<D> + ReshapeOp<D> + CopyOp<D>,
+    B: Backend + SqueezeOp<D> + ReshapeOp<D> + CopyOp<D>,
     D: Float,
 {
     fn squeeze_all(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.squeeze_all(&storage.inner, layout)?;
 
         if !self.unary_requires_grad(storage) {
@@ -993,10 +987,10 @@ where
 
     fn squeeze_axis(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.squeeze_axis(&storage.inner, layout, axis)?;
 
         if !self.unary_requires_grad(storage) {
@@ -1011,15 +1005,15 @@ where
 
 impl<B, D> UnsqueezeOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + UnsqueezeOp<D> + CopyOp<D> + SqueezeOp<D>,
+    B: Backend + UnsqueezeOp<D> + CopyOp<D> + SqueezeOp<D>,
     D: Float,
 {
     fn unsqueeze_axis(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.unsqueeze_axis(&storage.inner, layout, axis)?;
 
         if !self.unary_requires_grad(storage) {
@@ -1037,16 +1031,16 @@ where
 
 impl<B, D> TransposeOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + TransposeOp<D> + CopyOp<D>,
+    B: Backend + TransposeOp<D> + CopyOp<D>,
     D: Float,
 {
     fn transpose(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         axis_a: isize,
         axis_b: isize,
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self
             .inner
             .transpose(&storage.inner, layout, axis_a, axis_b)?;
@@ -1067,15 +1061,15 @@ where
 
 impl<B, D> BroadcastToOp<D> for Autodiff<B, D>
 where
-    B: Backend<D> + BroadcastToOp<D> + ReshapeOp<D> + SumOp<D> + CopyOp<D>,
+    B: Backend + BroadcastToOp<D> + ReshapeOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn broadcast_to(
         &self,
-        storage: &Self::Storage,
+        storage: &Self::Storage<D>,
         layout: &Layout,
         shape: &[usize],
-    ) -> Result<TensorParts<Self::Storage>> {
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.broadcast_to(&storage.inner, layout, shape)?;
 
         if !self.unary_requires_grad(storage) {

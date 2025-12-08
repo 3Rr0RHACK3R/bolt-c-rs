@@ -23,7 +23,7 @@ enum DisplayIndex {
 
 struct TensorFormatter<'a, B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: NativeType,
 {
     tensor: &'a Tensor<B, D>,
@@ -32,7 +32,7 @@ where
 
 impl<'a, B, D> TensorFormatter<'a, B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: NativeType,
 {
     fn new(tensor: &'a Tensor<B, D>) -> Self {
@@ -185,7 +185,7 @@ where
 
 impl<B, D> fmt::Display for Tensor<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: NativeType + fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -213,7 +213,7 @@ where
 
 impl<B, D> fmt::Debug for Tensor<B, D>
 where
-    B: Backend<D>,
+    B: Backend,
     D: NativeType + fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

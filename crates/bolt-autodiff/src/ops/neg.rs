@@ -16,7 +16,7 @@ impl NegBackward {
 
 impl<B, D> BackwardOp<B, D> for NegBackward
 where
-    B: Backend<D> + SubOp<D> + FillOp<D>,
+    B: Backend + SubOp<D> + FillOp<D>,
     D: Float,
 {
     fn backward(
