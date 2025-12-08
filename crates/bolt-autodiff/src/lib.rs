@@ -5,6 +5,7 @@ mod backward;
 pub mod device;
 pub mod error;
 mod float;
+mod function;
 mod gradients;
 mod graph;
 mod handle;
@@ -15,13 +16,15 @@ mod storage;
 mod tensor_ext;
 mod utils;
 
-pub use backward::{BackwardContext, BackwardOp};
+pub use backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 pub use device::AutodiffDevice;
 pub use error::{Error, Result};
 pub use float::Float;
+pub use function::Function;
 pub use gradients::Gradients;
 pub use handle::Handle;
 pub use operations::Autodiff;
 pub use scope::{GradContext, NoGradGuard};
 pub use storage::{AutodiffAllocator, AutodiffStorage};
 pub use tensor_ext::{AutodiffBackend, AutodiffTensorExt};
+
