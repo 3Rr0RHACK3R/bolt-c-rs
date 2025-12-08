@@ -1,4 +1,5 @@
 use crate::Handle;
+use bolt_core::Error as CoreError;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -36,7 +37,7 @@ pub enum Error {
     EmptyOutputs,
 
     #[error(transparent)]
-    Core(#[from] bolt_core::Error),
+    Core(#[from] CoreError),
 }
 
 impl Error {

@@ -9,6 +9,7 @@ use bolt_core::backend::{
     SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TensorParts, TransposeOp, UnsqueezeOp,
 };
 use bolt_core::layout::Layout;
+use bolt_core::shape;
 
 use crate::backward::{BackwardOp, MAX_INPUTS};
 use crate::graph::Graph;
@@ -63,7 +64,7 @@ where
         is_leaf: bool,
         inputs: tinyvec::ArrayVec<[Handle; MAX_INPUTS]>,
         backward_op: Option<Box<dyn BackwardOp<B, D>>>,
-        saved_tensors: Vec<bolt_core::Tensor<B, D>>,
+        saved_tensors: Vec<Tensor<B, D>>,
     ) -> AutodiffStorage<B::Storage<D>> {
         let handle = self
             .with_graph(|graph| {
@@ -91,7 +92,9 @@ where
     }
 
     // Helper for early return (no gradient needed)
-    fn no_grad_result(parts: TensorParts<B::Storage<D>>) -> TensorParts<AutodiffStorage<B::Storage<D>>> {
+    fn no_grad_result(
+        parts: TensorParts<B::Storage<D>>,
+    ) -> TensorParts<AutodiffStorage<B::Storage<D>>> {
         TensorParts {
             storage: AutodiffStorage::new(parts.storage, Handle::NONE, false),
             layout: parts.layout,
@@ -160,7 +163,11 @@ where
     B: Backend + CopyOp<D>,
     D: Float,
 {
-    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>> {
+    fn copy(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.copy(&storage.inner, layout)?;
         Ok(TensorParts {
             storage: AutodiffStorage::new(parts.storage, storage.handle, storage.requires_grad),
@@ -339,7 +346,7 @@ where
 
         let input_shape = layout.shape().to_vec();
         let normalized_axes = axes
-            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .map(|a| shape::canonical_axes(a, input_shape.len()))
             .transpose()?;
         let backward_op = SumBackward::new(input_shape, normalized_axes);
 
@@ -392,13 +399,13 @@ where
         let count = match axes {
             None => layout.num_elements(),
             Some(ax) => {
-                let canonical = bolt_core::shape::canonical_axes(ax, input_shape.len())?;
+                let canonical = shape::canonical_axes(ax, input_shape.len())?;
                 canonical.iter().map(|&a| input_shape[a]).product()
             }
         };
 
         let normalized_axes = axes
-            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .map(|a| shape::canonical_axes(a, input_shape.len()))
             .transpose()?;
         let backward_op = MeanBackward::new(input_shape, normalized_axes, count);
 
@@ -427,7 +434,11 @@ where
     B: Backend + NegOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn neg(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn neg(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.neg(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -445,7 +456,11 @@ where
     B: Backend + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn abs(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn abs(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.abs(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -470,7 +485,11 @@ where
     B: Backend + ExpOp<D> + MulOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn exp(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn exp(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.exp(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -495,7 +514,11 @@ where
     B: Backend + LogOp<D> + DivOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn log(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn log(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.log(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -520,7 +543,11 @@ where
     B: Backend + SqrtOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn sqrt(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn sqrt(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.sqrt(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -545,7 +572,11 @@ where
     B: Backend + SinOp<D> + MulOp<D> + CosOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn sin(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn sin(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.sin(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -570,7 +601,11 @@ where
     B: Backend + CosOp<D> + SinOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn cos(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn cos(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.cos(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -595,7 +630,11 @@ where
     B: Backend + TanhOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn tanh(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn tanh(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.tanh(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -620,7 +659,11 @@ where
     B: Backend + ReluOp<D> + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
-    fn relu(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn relu(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         let parts = self.inner.relu(layout, &storage.inner)?;
 
         if !self.unary_requires_grad(storage) {
@@ -752,7 +795,7 @@ where
 
         let input_shape = layout.shape().to_vec();
         let normalized_axes = axes
-            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .map(|a| shape::canonical_axes(a, input_shape.len()))
             .transpose()?;
         let backward_op = ProdBackward::new(input_shape, normalized_axes);
 
@@ -809,7 +852,7 @@ where
 
         let input_shape = layout.shape().to_vec();
         let normalized_axes = axes
-            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .map(|a| shape::canonical_axes(a, input_shape.len()))
             .transpose()?;
         let backward_op = MinBackward::new(input_shape, normalized_axes);
 
@@ -866,7 +909,7 @@ where
 
         let input_shape = layout.shape().to_vec();
         let normalized_axes = axes
-            .map(|a| bolt_core::shape::canonical_axes(a, input_shape.len()))
+            .map(|a| shape::canonical_axes(a, input_shape.len()))
             .transpose()?;
         let backward_op = MaxBackward::new(input_shape, normalized_axes);
 

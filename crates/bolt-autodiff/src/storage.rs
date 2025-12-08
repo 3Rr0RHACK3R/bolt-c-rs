@@ -1,5 +1,8 @@
-use bolt_core::allocator::StorageAllocator;
+use bolt_core::allocator::{
+    AllocatorDiagnostics, AllocatorSnapshot, DiagnosticsCaps, StorageAllocator,
+};
 use bolt_core::dtype::NativeType;
+use bolt_core::error::Result;
 
 use crate::handle::Handle;
 
@@ -43,14 +46,12 @@ impl<A> AutodiffAllocator<A> {
     }
 }
 
-impl<A: bolt_core::allocator::AllocatorDiagnostics> bolt_core::allocator::AllocatorDiagnostics
-    for AutodiffAllocator<A>
-{
-    fn capabilities(&self) -> bolt_core::allocator::DiagnosticsCaps {
+impl<A: AllocatorDiagnostics> AllocatorDiagnostics for AutodiffAllocator<A> {
+    fn capabilities(&self) -> DiagnosticsCaps {
         self.inner.capabilities()
     }
 
-    fn snapshot(&self) -> bolt_core::allocator::AllocatorSnapshot {
+    fn snapshot(&self) -> AllocatorSnapshot {
         self.inner.snapshot()
     }
 
@@ -58,7 +59,7 @@ impl<A: bolt_core::allocator::AllocatorDiagnostics> bolt_core::allocator::Alloca
         self.inner.begin_scope()
     }
 
-    fn end_scope(&self) -> Option<bolt_core::allocator::AllocatorSnapshot> {
+    fn end_scope(&self) -> Option<AllocatorSnapshot> {
         self.inner.end_scope()
     }
 }
@@ -70,12 +71,12 @@ where
 {
     type Storage = AutodiffStorage<A::Storage>;
 
-    fn allocate(&self, num_elements: usize) -> bolt_core::error::Result<Self::Storage> {
+    fn allocate(&self, num_elements: usize) -> Result<Self::Storage> {
         let inner = self.inner.allocate(num_elements)?;
         Ok(AutodiffStorage::new(inner, Handle::NONE, false))
     }
 
-    fn allocate_zeroed(&self, num_elements: usize) -> bolt_core::error::Result<Self::Storage> {
+    fn allocate_zeroed(&self, num_elements: usize) -> Result<Self::Storage> {
         let inner = self.inner.allocate_zeroed(num_elements)?;
         Ok(AutodiffStorage::new(inner, Handle::NONE, false))
     }

@@ -20,4 +20,3 @@ pub(crate) fn can_use_fast_path_binary<D: NativeType>(
         && lhs.layout.offset_bytes() == 0
         && rhs.layout.offset_bytes() == 0
 }
-

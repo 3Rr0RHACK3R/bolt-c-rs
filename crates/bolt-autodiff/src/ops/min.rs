@@ -1,11 +1,13 @@
-use bolt_core::backend::{AbsOp, AddOp, BroadcastToOp, FillOp, MulOp, ReshapeOp, SubOp, SumOp, DivOp};
+use bolt_core::backend::{
+    AbsOp, AddOp, BroadcastToOp, DivOp, FillOp, MulOp, ReshapeOp, SubOp, SumOp,
+};
 use bolt_core::{Backend, Tensor};
 use num_traits::cast;
 use tinyvec::ArrayVec;
 
+use crate::Float;
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
-use crate::Float;
 
 fn zero_mask<B, D>(tensor: &Tensor<B, D>) -> Result<Tensor<B, D>>
 where

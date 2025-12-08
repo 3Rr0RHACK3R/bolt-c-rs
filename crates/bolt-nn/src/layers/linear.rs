@@ -1,6 +1,6 @@
-use bolt_core::backend::{AddOp, Backend, FillOp, MatmulOp, TransposeOp};
-use bolt_core::dtype::FloatType;
 use bolt_core::Tensor;
+use bolt_core::backend::{AddOp, Backend, FillOp, MatmulOp, TransposeOp};
+use bolt_core::dtype::{FloatType, NativeType};
 use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
@@ -40,7 +40,11 @@ impl LinearSpec {
         )?;
 
         let bias = if self.bias {
-            Some(Tensor::full(ctx.backend(), &[self.out_features], D::default())?)
+            Some(Tensor::full(
+                ctx.backend(),
+                &[self.out_features],
+                D::default(),
+            )?)
         } else {
             None
         };
@@ -52,7 +56,7 @@ impl LinearSpec {
 pub struct Linear<B, D>
 where
     B: Backend,
-    D: bolt_core::dtype::NativeType,
+    D: NativeType,
 {
     pub weight: Tensor<B, D>,
     pub bias: Option<Tensor<B, D>>,

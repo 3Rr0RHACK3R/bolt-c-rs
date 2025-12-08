@@ -25,7 +25,7 @@ pub trait DivKernel: NativeType {
     }
 }
 
-pub(crate) trait DivValidate: NativeType {
+pub trait DivValidate: NativeType {
     fn check_divisor(val: Self) -> Result<()>;
 }
 
@@ -54,7 +54,7 @@ impl DivValidate for i32 {
     }
 }
 
-pub(crate) trait DivOverflowCheck: DivValidate {
+pub trait DivOverflowCheck: DivValidate {
     fn check_division(lhs: Self, rhs: Self) -> Result<()>;
 }
 

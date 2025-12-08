@@ -113,11 +113,21 @@ impl Backend for CpuBackend {
         storage.len_bytes()
     }
 
-    fn read<D: NativeType>(&self, storage: &Self::Storage<D>, layout: &Layout, dst: &mut [D]) -> Result<()> {
+    fn read<D: NativeType>(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        dst: &mut [D],
+    ) -> Result<()> {
         unsafe { read_into_slice(storage, layout, dst) }
     }
 
-    fn write<D: NativeType>(&self, storage: &mut Self::Storage<D>, layout: &Layout, src: &[D]) -> Result<()> {
+    fn write<D: NativeType>(
+        &self,
+        storage: &mut Self::Storage<D>,
+        layout: &Layout,
+        src: &[D],
+    ) -> Result<()> {
         write_from_slice(storage, layout, src)
     }
 }
@@ -126,7 +136,11 @@ impl<D> CopyOp<D> for CpuBackend
 where
     D: CpuScalar + CopyKernel,
 {
-    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>> {
+    fn copy(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as CopyKernel>::copy_kernel(storage, layout, &self.allocator::<D>())
     }
 }
@@ -250,7 +264,11 @@ impl<D> NegOp<D> for CpuBackend
 where
     D: CpuScalar + NegKernel,
 {
-    fn neg(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn neg(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as NegKernel>::neg_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -259,7 +277,11 @@ impl<D> AbsOp<D> for CpuBackend
 where
     D: CpuScalar + AbsKernel,
 {
-    fn abs(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn abs(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as AbsKernel>::abs_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -268,7 +290,11 @@ impl<D> ExpOp<D> for CpuBackend
 where
     D: CpuScalar + ExpKernel,
 {
-    fn exp(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn exp(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as ExpKernel>::exp_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -277,7 +303,11 @@ impl<D> LogOp<D> for CpuBackend
 where
     D: CpuScalar + LogKernel,
 {
-    fn log(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn log(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as LogKernel>::log_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -286,7 +316,11 @@ impl<D> SqrtOp<D> for CpuBackend
 where
     D: CpuScalar + SqrtKernel,
 {
-    fn sqrt(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn sqrt(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as SqrtKernel>::sqrt_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -295,7 +329,11 @@ impl<D> SinOp<D> for CpuBackend
 where
     D: CpuScalar + SinKernel,
 {
-    fn sin(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn sin(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as SinKernel>::sin_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -304,7 +342,11 @@ impl<D> CosOp<D> for CpuBackend
 where
     D: CpuScalar + CosKernel,
 {
-    fn cos(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn cos(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as CosKernel>::cos_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -313,7 +355,11 @@ impl<D> TanhOp<D> for CpuBackend
 where
     D: CpuScalar + TanhKernel,
 {
-    fn tanh(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn tanh(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as TanhKernel>::tanh_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
@@ -322,7 +368,11 @@ impl<D> ReluOp<D> for CpuBackend
 where
     D: CpuScalar + ReluKernel,
 {
-    fn relu(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>> {
+    fn relu(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as ReluKernel>::relu_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }

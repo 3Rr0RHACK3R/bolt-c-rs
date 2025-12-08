@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use bolt_core::backend::Backend;
-use bolt_core::error::Result;
-use bolt_core::layout::Layout;
 use bolt_core::OneValue;
 use bolt_core::Tensor;
+use bolt_core::backend::{Backend, FillOp};
+use bolt_core::error::{Error, Result};
+use bolt_core::layout::Layout;
 
 use crate::Float;
 use crate::error::Result as AutodiffResult;
@@ -15,7 +15,7 @@ pub(crate) fn normalize_unsqueeze_axis(axis: isize, rank: usize) -> Result<usize
     let normalized_axis = if axis < 0 {
         let candidate = limit as isize + axis;
         if candidate < 0 {
-            return Err(bolt_core::Error::InvalidAxes(format!(
+            return Err(Error::InvalidAxes(format!(
                 "unsqueeze axis {} out of bounds for rank {} (valid range: [{}, {}])",
                 axis,
                 rank,
@@ -29,7 +29,7 @@ pub(crate) fn normalize_unsqueeze_axis(axis: isize, rank: usize) -> Result<usize
     };
 
     if normalized_axis > rank {
-        return Err(bolt_core::Error::InvalidAxes(format!(
+        return Err(Error::InvalidAxes(format!(
             "unsqueeze axis {} out of bounds for rank {} (valid range: [{}, {}])",
             axis,
             rank,
@@ -41,15 +41,11 @@ pub(crate) fn normalize_unsqueeze_axis(axis: isize, rank: usize) -> Result<usize
     Ok(normalized_axis)
 }
 
-pub(crate) fn normalize_transpose_axis(
-    axis: isize,
-    rank: usize,
-    name: &str,
-) -> bolt_core::error::Result<usize> {
+pub(crate) fn normalize_transpose_axis(axis: isize, rank: usize, name: &str) -> Result<usize> {
     let normalized = if axis < 0 {
         let candidate = rank as isize + axis;
         if candidate < 0 {
-            return Err(bolt_core::Error::InvalidAxes(format!(
+            return Err(Error::InvalidAxes(format!(
                 "transpose {} axis {} out of bounds for rank {} (valid range: [{}, {}])",
                 name,
                 axis,
@@ -64,7 +60,7 @@ pub(crate) fn normalize_transpose_axis(
     };
 
     if normalized >= rank {
-        return Err(bolt_core::Error::InvalidAxes(format!(
+        return Err(Error::InvalidAxes(format!(
             "transpose {} axis {} out of bounds for rank {} (valid range: [{}, {}])",
             name,
             axis,
@@ -95,8 +91,8 @@ pub(crate) fn create_backward_seed<B, D>(
     loss_tensor: &Tensor<Autodiff<B, D>, D>,
 ) -> AutodiffResult<Tensor<B, D>>
 where
-    B: Backend + bolt_core::backend::FillOp<D>,
-    D: Float + bolt_core::OneValue,
+    B: Backend + FillOp<D>,
+    D: Float + OneValue,
 {
     let seed = if loss_tensor.numel() == 1 {
         Tensor::full(backend, &[], OneValue::one())?
@@ -105,4 +101,3 @@ where
     };
     Ok(seed)
 }
-

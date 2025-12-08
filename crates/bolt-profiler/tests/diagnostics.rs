@@ -51,9 +51,7 @@ struct NoDiagBackend {
 
 impl NoDiagBackend {
     fn new() -> Self {
-        Self {
-            device: TestDevice,
-        }
+        Self { device: TestDevice }
     }
 }
 
@@ -74,11 +72,21 @@ impl Backend for NoDiagBackend {
         storage.bytes
     }
 
-    fn read<D: NativeType>(&self, _storage: &Self::Storage<D>, _layout: &Layout, _dst: &mut [D]) -> CoreResult<()> {
+    fn read<D: NativeType>(
+        &self,
+        _storage: &Self::Storage<D>,
+        _layout: &Layout,
+        _dst: &mut [D],
+    ) -> CoreResult<()> {
         Ok(())
     }
 
-    fn write<D: NativeType>(&self, _storage: &mut Self::Storage<D>, _layout: &Layout, _src: &[D]) -> CoreResult<()> {
+    fn write<D: NativeType>(
+        &self,
+        _storage: &mut Self::Storage<D>,
+        _layout: &Layout,
+        _src: &[D],
+    ) -> CoreResult<()> {
         Ok(())
     }
 }

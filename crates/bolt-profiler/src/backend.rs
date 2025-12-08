@@ -102,7 +102,12 @@ impl<B: Backend> Backend for ProfiledBackend<B> {
         self.inner.storage_len_bytes(storage)
     }
 
-    fn read<D: NativeType>(&self, storage: &Self::Storage<D>, layout: &Layout, dst: &mut [D]) -> Result<()> {
+    fn read<D: NativeType>(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        dst: &mut [D],
+    ) -> Result<()> {
         profile_op(
             self,
             "read",
@@ -112,7 +117,12 @@ impl<B: Backend> Backend for ProfiledBackend<B> {
         )
     }
 
-    fn write<D: NativeType>(&self, storage: &mut Self::Storage<D>, layout: &Layout, src: &[D]) -> Result<()> {
+    fn write<D: NativeType>(
+        &self,
+        storage: &mut Self::Storage<D>,
+        layout: &Layout,
+        src: &[D],
+    ) -> Result<()> {
         profile_op(
             self,
             "write",
@@ -124,7 +134,11 @@ impl<B: Backend> Backend for ProfiledBackend<B> {
 }
 
 impl<D: NativeType, B: CopyOp<D> + Backend> CopyOp<D> for ProfiledBackend<B> {
-    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>> {
+    fn copy(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
         profile_op(
             self,
             "copy",

@@ -1,6 +1,6 @@
 use bolt_core::Backend;
 use bolt_core::Tensor;
-use bolt_core::dtype::FloatType;
+use bolt_core::dtype::{FloatType, NativeType};
 
 use crate::context::Context;
 use crate::error::Result;
@@ -57,9 +57,11 @@ where
 pub struct Seq<B, D>
 where
     B: Backend,
-    D: bolt_core::dtype::NativeType,
+    D: NativeType,
 {
-    layers: Vec<Box<dyn Model<B, D, Input = Tensor<B, D>, Output = Result<Tensor<B, D>>> + Send + Sync>>,
+    layers: Vec<
+        Box<dyn Model<B, D, Input = Tensor<B, D>, Output = Result<Tensor<B, D>>> + Send + Sync>,
+    >,
 }
 
 impl<B, D> Seq<B, D>

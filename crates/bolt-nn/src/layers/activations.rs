@@ -1,6 +1,6 @@
+use bolt_core::Tensor;
 use bolt_core::backend::{Backend, ReluOp};
 use bolt_core::dtype::FloatType;
-use bolt_core::Tensor;
 
 use crate::context::Context;
 use crate::error::Result;

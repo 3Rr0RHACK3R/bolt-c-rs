@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp};
 use bolt_core::Tensor;
+use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp};
 use tinyvec::ArrayVec;
 
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
@@ -36,7 +36,9 @@ where
     }
 }
 
-fn apply_fn<F, B, D>(inputs: &[&Tensor<Autodiff<B, D>, D>]) -> Result<Vec<Tensor<Autodiff<B, D>, D>>>
+fn apply_fn<F, B, D>(
+    inputs: &[&Tensor<Autodiff<B, D>, D>],
+) -> Result<Vec<Tensor<Autodiff<B, D>, D>>>
 where
     F: Function<B, D>,
     B: Backend + AddOp<D> + CopyOp<D> + FillOp<D>,
@@ -68,7 +70,11 @@ where
             .into_iter()
             .map(|t| {
                 let storage = AutodiffStorage::new(t.storage().clone(), Handle::NONE, false);
-                Ok(Tensor::from_parts(autodiff.clone(), storage, t.layout().clone()))
+                Ok(Tensor::from_parts(
+                    autodiff.clone(),
+                    storage,
+                    t.layout().clone(),
+                ))
             })
             .collect();
     }
@@ -86,7 +92,7 @@ where
 
     let num_outputs = outputs.len();
     let shared_ctx = Arc::new(ctx);
-    
+
     let mut result = Vec::with_capacity(num_outputs);
     for (idx, output) in outputs.into_iter().enumerate() {
         let layout = output.layout().clone();

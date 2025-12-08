@@ -1,9 +1,12 @@
 use bolt_core::allocator::AllocatorSnapshot;
 
-use crate::report::{DeviceMemoryStats, HostMemoryStats};
 use crate::host_mem::HostMemStats;
+use crate::report::{DeviceMemoryStats, HostMemoryStats};
 
-pub(crate) fn snapshot_delta(after: &AllocatorSnapshot, before: &AllocatorSnapshot) -> AllocatorSnapshot {
+pub(crate) fn snapshot_delta(
+    after: &AllocatorSnapshot,
+    before: &AllocatorSnapshot,
+) -> AllocatorSnapshot {
     AllocatorSnapshot {
         bytes_requested: after.bytes_requested.saturating_sub(before.bytes_requested),
         bytes_granted: after.bytes_granted.saturating_sub(before.bytes_granted),
@@ -17,7 +20,10 @@ pub(crate) fn snapshot_delta(after: &AllocatorSnapshot, before: &AllocatorSnapsh
     }
 }
 
-pub(crate) fn build_device_memory_stats(base: &AllocatorSnapshot, available: bool) -> DeviceMemoryStats {
+pub(crate) fn build_device_memory_stats(
+    base: &AllocatorSnapshot,
+    available: bool,
+) -> DeviceMemoryStats {
     DeviceMemoryStats {
         bytes_requested: base.bytes_requested,
         bytes_granted: base.bytes_granted,
@@ -53,4 +59,3 @@ pub(crate) fn build_host_memory_stats(
         available: true,
     }
 }
-

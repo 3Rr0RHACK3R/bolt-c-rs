@@ -10,8 +10,7 @@ use crate::host_mem::{HostMemStats, HostMemTracker};
 use crate::os_stats::{OsStats, get_os_stats};
 use crate::registry::{OpCategory, OpId, Registry};
 use crate::report::{
-    DeviceTimeStats, HostMemoryStats, HostTimeStats, MemoryStats, ProfileReport,
-    TimeStats,
+    DeviceTimeStats, HostMemoryStats, HostTimeStats, MemoryStats, ProfileReport, TimeStats,
 };
 use crate::utils::{build_device_memory_stats, build_host_memory_stats, snapshot_delta};
 
@@ -177,4 +176,3 @@ fn pop_scope() {
         let _ = s.borrow_mut().pop();
     });
 }
-

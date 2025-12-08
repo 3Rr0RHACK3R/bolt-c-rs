@@ -26,6 +26,8 @@ mod tanh;
 mod transpose;
 mod unsqueeze;
 
+use bolt_core::Error as CoreError;
+
 pub use abs::AbsBackward;
 pub use add::AddBackward;
 pub use argmax::argmax_not_differentiable;
@@ -57,8 +59,8 @@ pub use unsqueeze::UnsqueezeBackward;
 use bolt_core::backend::{AddOp, SumOp};
 use bolt_core::{Backend, Tensor};
 
-use crate::error::Result;
 use crate::Float;
+use crate::error::Result;
 
 pub(crate) fn reduce_grad_to_shape<B, D>(
     grad: &Tensor<B, D>,
@@ -82,7 +84,7 @@ where
     let target_rank = target_shape.len();
 
     if grad_rank < target_rank {
-        return Err(crate::error::Error::Core(bolt_core::Error::ShapeMismatch {
+        return Err(crate::error::Error::Core(CoreError::ShapeMismatch {
             lhs: grad_shape.to_vec(),
             rhs: target_shape.to_vec(),
         }));

@@ -24,12 +24,26 @@ pub trait Backend: Clone + Send + Sync + 'static {
     }
     fn storage_len_bytes<D: NativeType>(&self, storage: &Self::Storage<D>) -> usize;
 
-    fn read<D: NativeType>(&self, storage: &Self::Storage<D>, layout: &Layout, dst: &mut [D]) -> Result<()>;
-    fn write<D: NativeType>(&self, storage: &mut Self::Storage<D>, layout: &Layout, src: &[D]) -> Result<()>;
+    fn read<D: NativeType>(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        dst: &mut [D],
+    ) -> Result<()>;
+    fn write<D: NativeType>(
+        &self,
+        storage: &mut Self::Storage<D>,
+        layout: &Layout,
+        src: &[D],
+    ) -> Result<()>;
 }
 
 pub trait CopyOp<D: NativeType>: Backend {
-    fn copy(&self, storage: &Self::Storage<D>, layout: &Layout) -> Result<TensorParts<Self::Storage<D>>>;
+    fn copy(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait FillOp<D: NativeType>: Backend {
@@ -87,39 +101,75 @@ pub trait MeanOp<D: FloatType>: Backend {
 }
 
 pub trait NegOp<D: NativeType>: Backend {
-    fn neg(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn neg(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait AbsOp<D: NativeType>: Backend {
-    fn abs(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn abs(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait ExpOp<D: FloatType>: Backend {
-    fn exp(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn exp(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait LogOp<D: FloatType>: Backend {
-    fn log(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn log(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait SqrtOp<D: FloatType>: Backend {
-    fn sqrt(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn sqrt(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait SinOp<D: FloatType>: Backend {
-    fn sin(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn sin(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait CosOp<D: FloatType>: Backend {
-    fn cos(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn cos(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait TanhOp<D: FloatType>: Backend {
-    fn tanh(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn tanh(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait ReluOp<D: NativeType>: Backend {
-    fn relu(&self, layout: &Layout, storage: &Self::Storage<D>) -> Result<TensorParts<Self::Storage<D>>>;
+    fn relu(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
 pub trait DivOp<D: NativeType>: Backend {

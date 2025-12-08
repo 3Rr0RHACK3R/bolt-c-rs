@@ -135,12 +135,8 @@ fn test_min_grad_multi_axis() -> Result<()> {
     let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
     let _ctx = autodiff.begin_grad();
 
-    let x = Tensor::from_slice(
-        &autodiff,
-        &[1.0_f32, 2.0, 3.0, 0.5, 4.0, 5.0],
-        &[2, 3],
-    )?
-    .requires_grad();
+    let x = Tensor::from_slice(&autodiff, &[1.0_f32, 2.0, 3.0, 0.5, 4.0, 5.0], &[2, 3])?
+        .requires_grad();
 
     let y = x.min(Some(&[0]), false)?;
     let grads = y.backward()?;
