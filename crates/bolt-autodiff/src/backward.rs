@@ -7,7 +7,7 @@ use tinyvec::ArrayVec;
 use crate::Float;
 use crate::error::Result;
 
-pub const MAX_INPUTS: usize = 2;
+pub const MAX_INPUTS: usize = 8;
 
 pub struct BackwardContext<'a, B, D>
 where

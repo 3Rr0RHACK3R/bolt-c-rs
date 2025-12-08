@@ -29,6 +29,12 @@ pub enum Error {
     #[error("saved tensors not found at index {idx}")]
     SavedTensorsNotFound { idx: usize },
 
+    #[error("Function::apply requires at least one input tensor")]
+    EmptyInputs,
+
+    #[error("Function::forward must return at least one output tensor")]
+    EmptyOutputs,
+
     #[error(transparent)]
     Core(#[from] bolt_core::Error),
 }
