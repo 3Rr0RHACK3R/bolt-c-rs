@@ -32,6 +32,13 @@ where
     let preds_vec = preds.to_vec()?;
     let targets_vec = targets.to_vec()?;
 
+    if targets_vec.is_empty() {
+        return Err(Error::InvalidTargetShape {
+            expected: vec![1],
+            got: vec![0],
+        });
+    }
+
     let correct = preds_vec
         .iter()
         .zip(targets_vec.iter())

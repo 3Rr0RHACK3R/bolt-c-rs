@@ -35,7 +35,8 @@ fn cross_entropy_logits() {
         .item()
         .unwrap();
 
-    let expected = 0.126928; // -log(softmax(2)) ≈ 0.126928
+    // For logits [2, 0, 0] (3 classes), cross-entropy = -log(exp(2)/(exp(2)+2)) = ln(exp(2)+2) - 2
+    let expected = (2.0f32.exp() + 2.0).ln() - 2.0; // ≈ 0.24027
     assert!((loss - expected).abs() < 1e-4);
 }
 
@@ -63,4 +64,8 @@ fn accuracy_top1_basic() {
     let acc = accuracy_top1(&logits, &targets).unwrap();
     assert!((acc - 1.0).abs() < 1e-6);
 }
+
+// Note: Empty batch (shape [0, num_classes]) is not currently supported by tensor creation,
+// but the accuracy_top1 function includes a guard to prevent division by zero if empty batches
+// are ever supported in the future.
 

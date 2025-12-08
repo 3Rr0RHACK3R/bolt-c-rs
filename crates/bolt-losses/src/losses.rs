@@ -80,8 +80,8 @@ where
 {
     match reduction {
         Reduction::None => Ok(tensor),
-        Reduction::Mean => tensor.mean(None, false),
-        Reduction::Sum => tensor.sum(None, false),
+        Reduction::Mean => Ok(tensor.mean(None, false)?),
+        Reduction::Sum => Ok(tensor.sum(None, false)?),
     }
 }
 
