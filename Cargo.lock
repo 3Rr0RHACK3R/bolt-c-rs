@@ -54,12 +54,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "bolt-losses"
+version = "0.1.0"
+dependencies = [
+ "bolt-autodiff",
+ "bolt-core",
+ "bolt-cpu",
+ "thiserror",
+]
+
+[[package]]
 name = "bolt-nn"
 version = "0.1.0"
 dependencies = [
  "bolt-autodiff",
  "bolt-core",
  "bolt-cpu",
+ "bolt-losses",
  "serde",
  "thiserror",
 ]

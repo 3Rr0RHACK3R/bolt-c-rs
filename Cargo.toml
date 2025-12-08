@@ -3,6 +3,7 @@ members = [
     "crates/bolt-autodiff",
     "crates/bolt-core",
     "crates/bolt-cpu",
+    "crates/bolt-losses",
     "crates/bolt-examples",
     "crates/bolt-nn",
     "crates/bolt-profiler",
