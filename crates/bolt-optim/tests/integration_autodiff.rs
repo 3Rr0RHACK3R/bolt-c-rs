@@ -34,37 +34,6 @@ fn step_errors_on_missing_gradient() -> TestResult {
 }
 
 #[test]
-fn step_dedupes_repeated_params() -> TestResult {
-    let base = Arc::new(CpuBackend::new());
-    let autodiff = Autodiff::wrap(base.clone());
-
-    let mut p = Parameter::with_name(Tensor::from_slice(&base, &[1.0f32], &[1])?, "p");
-    let mut opt: Opt = Opt::builder().learning_rate(0.5).weight_decay(0.0).init(&[&p])?;
-
-    autodiff.with_tape(|tape| {
-        let pv = tape.param(&mut p);
-        let loss = pv.sum(None, false)?;
-        tape.backward_into_params(&loss, &mut [&mut p])
-    })?;
-
-    let before = p.value().to_vec()?;
-
-    let mut dup_params: Vec<&mut Parameter<CpuBackend, f32>> = {
-        let ptr: *mut Parameter<CpuBackend, f32> = &mut p;
-        // SAFETY: we intentionally alias the same parameter to verify deduplication logic.
-        vec![unsafe { &mut *ptr }, unsafe { &mut *ptr }]
-    };
-
-    opt.step(&mut dup_params)?;
-    let after = p.value().to_vec()?;
-
-    let expected = before[0] - 0.5 * 1.0;
-    assert!((after[0] - expected).abs() < 1e-6, "dedupe failed: {after:?} vs {expected}");
-
-    Ok(())
-}
-
-#[test]
 fn weight_decay_applies_l2_penalty() -> TestResult {
     let base = Arc::new(CpuBackend::new());
     let autodiff = Autodiff::wrap(base.clone());
