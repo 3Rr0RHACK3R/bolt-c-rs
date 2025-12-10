@@ -1,4 +1,4 @@
-use crate::Handle;
+use crate::{parameter::ParamId, Handle};
 use bolt_core::Error as CoreError;
 use thiserror::Error;
 
@@ -23,6 +23,12 @@ pub enum Error {
 
     #[error("cannot compute backward: no active gradient context (use begin_grad())")]
     NoActiveGraph,
+
+    #[error("parameter not recorded in this tape: id={param_id:?}, name={param_name:?}")]
+    ParamNotInTape {
+        param_id: ParamId,
+        param_name: Option<String>,
+    },
 
     #[error("backward op not found at index {idx}")]
     BackwardOpNotFound { idx: usize },

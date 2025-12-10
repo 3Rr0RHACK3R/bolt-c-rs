@@ -7,6 +7,7 @@ use bolt_core::layout::Layout;
 
 use crate::Float;
 use crate::device::AutodiffDevice;
+use crate::grad_tape::GradTape;
 use crate::graph::Graph;
 use crate::operations::Autodiff;
 use crate::scope::{GradContext, NoGradGuard};
@@ -62,6 +63,15 @@ where
 
     pub fn no_grad(&self) -> NoGradGuard<B, D> {
         NoGradGuard::new(self)
+    }
+
+    pub fn with_tape<F, R>(&self, f: F) -> crate::Result<R>
+    where
+        F: FnOnce(&mut GradTape<B, D>) -> crate::Result<R>,
+    {
+        let ctx = self.begin_grad();
+        let mut tape = GradTape::new(&ctx);
+        f(&mut tape)
     }
 
     pub(crate) fn graph(&self) -> &Arc<RwLock<Option<Graph<B, D>>>> {
