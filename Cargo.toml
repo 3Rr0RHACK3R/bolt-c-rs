@@ -7,6 +7,7 @@ members = [
     "crates/bolt-examples",
     "crates/bolt-nn",
     "crates/bolt-profiler",
+    "crates/bolt-optim",
 ]
 resolver = "2"
 

@@ -76,6 +76,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "bolt-optim"
+version = "0.1.0"
+dependencies = [
+ "bolt-autodiff",
+ "bolt-core",
+ "bolt-cpu",
+ "bolt-losses",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
 name = "bolt-profiler"
 version = "0.1.0"
 dependencies = [
