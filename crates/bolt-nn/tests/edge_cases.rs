@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use bolt_autodiff::Parameter;
+use bolt_autodiff::{AutodiffTensorExt, Parameter};
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{linear, HasParams};
@@ -308,8 +308,7 @@ fn test_alternating_optimization_with_freeze_unfreeze() {
         let d_out = model_d.forward(&ctx, fake).unwrap();
         let d_loss = d_out.sum(None, false).unwrap();
 
-        let mut d_params: Vec<&mut Parameter<B, D>> = model_d.params_mut();
-        ctx.backward(&d_loss, &mut d_params).unwrap();
+        ctx.backward(&d_loss, &mut model_d.params_mut()).unwrap();
 
         // D gradient: [[1, 2]]
         let d_grad = model_d.weight.grad().expect("D should have gradient");
@@ -337,8 +336,7 @@ fn test_alternating_optimization_with_freeze_unfreeze() {
         let d_out = model_d.forward(&ctx, fake).unwrap();
         let g_loss = d_out.sum(None, false).unwrap();
 
-        let mut g_params: Vec<&mut Parameter<B, D>> = model_g.params_mut();
-        ctx.backward(&g_loss, &mut g_params).unwrap();
+        ctx.backward(&g_loss, &mut model_g.params_mut()).unwrap();
 
         // G gradient: [[1, 2], [1, 2]]
         let g_grad = model_g.weight.grad().expect("G should have gradient");
@@ -396,12 +394,12 @@ fn test_eval_and_grad_produce_same_forward_values() {
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0], &[1, 3]).unwrap();
 
     // Eval context
-    let eval_ctx = Context::<B, D, Eval<B, D>>::eval(&backend);
+    let eval_ctx = Context::eval(&backend);
     let eval_out = layer.forward(&eval_ctx, eval_ctx.input(&x)).unwrap();
-    let eval_vals = tensor_to_vec(&eval_out);
+    let eval_vals = eval_out.to_vec().unwrap();
 
     // Grad context
-    let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
+    let grad_ctx = Context::grad(&backend);
     let grad_out = layer.forward(&grad_ctx, grad_ctx.input(&x)).unwrap();
     let grad_vals = grad_out.to_vec().unwrap();
 
@@ -471,34 +469,31 @@ fn test_has_params_freeze_unfreeze_all() {
 
     // Forward + backward should produce no gradients for frozen layer
     // Need at least one tracked tensor for backward to work
-    let ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
+    let ctx = Context::grad(&backend);
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
     let output = layer.forward(&ctx, ctx.input(&x)).unwrap();
 
     // Add a tracked dummy param that matches output shape for the add
-    let dummy_data = Tensor::<B, D>::from_slice(&backend, &[1.0, 1.0], &[1, 2]).unwrap();
-    let mut dummy_param = Parameter::new(dummy_data);
-    let dummy_ad = ctx.param(&dummy_param);
+    let ad_backend = ctx.autodiff();
+    let dummy_ad = Tensor::from_slice(&ad_backend, &[1.0, 1.0], &[1, 2]).unwrap().requires_grad();
     let output_with_dummy = output.add(&dummy_ad).unwrap();
     let loss = output_with_dummy.sum(None, false).unwrap();
 
-    let mut all_params: Vec<&mut Parameter<B, D>> = layer.params_mut();
-    all_params.push(&mut dummy_param);
-    ctx.backward(&loss, &mut all_params).unwrap();
+    let grads = loss.backward().unwrap();
 
     assert!(layer.weight.grad().is_none(), "Frozen weight should have no grad");
     assert!(
         layer.bias.as_ref().unwrap().grad().is_none(),
         "Frozen bias should have no grad"
     );
-    assert!(dummy_param.grad().is_some(), "Dummy param should have grad");
+    assert!(grads.wrt(&dummy_ad).is_some(), "Dummy param should have grad");
 
     // Unfreeze and verify gradients flow
     layer.unfreeze();
     assert!(layer.weight.requires_grad());
     assert!(layer.bias.as_ref().unwrap().requires_grad());
 
-    let ctx2 = Context::<B, D, Grad<B, D>>::grad(&backend);
+    let ctx2 = Context::grad(&backend);
     let output2 = layer.forward(&ctx2, ctx2.input(&x)).unwrap();
     let loss2 = output2.sum(None, false).unwrap();
     ctx2.backward(&loss2, &mut layer.params_mut()).unwrap();

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{linear, HasParams};
-use bolt_nn::{Context, Eval, Grad, Model};
+use bolt_nn::{Context, Eval, Model};
 use bolt_optim::Sgd;
 
 type B = CpuBackend;
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Training a linear model to learn y = 2x + 1\n");
 
     for step in 0..steps {
-        let ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
+        let ctx = Context::grad(&backend);
 
         let output = layer.forward(&ctx, ctx.input(&x_data))?;
 
