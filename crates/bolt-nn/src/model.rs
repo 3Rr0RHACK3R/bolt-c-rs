@@ -1,15 +1,16 @@
-use bolt_core::Backend;
-use bolt_core::dtype::NativeType;
+use bolt_autodiff::Float;
+use bolt_core::BaseBackend;
 
-use crate::Context;
+use crate::{Context, Mode};
 
-pub trait Model<B, D>: Send + Sync
+pub trait Model<B, D, M>: Send + Sync
 where
-    B: Backend,
-    D: NativeType,
+    B: BaseBackend,
+    D: Float,
+    M: Mode<B, D>,
 {
     type Input;
     type Output;
 
-    fn forward(&self, ctx: &Context<B>, input: Self::Input) -> Self::Output;
+    fn forward(&self, ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output;
 }

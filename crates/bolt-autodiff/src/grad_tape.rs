@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp, SumOp};
-use bolt_core::{OneValue, Tensor};
+use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
+use bolt_core::{BaseBackend, OneValue, Tensor};
 use tinyvec::ArrayVec;
 
 use crate::error::{Error, Result};
@@ -14,7 +14,7 @@ use crate::{Float, Handle};
 
 pub struct GradTape<'a, B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     ctx: &'a GradContext<B, D>,
@@ -24,7 +24,7 @@ where
 
 impl<'a, B, D> GradTape<'a, B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub(crate) fn new(ctx: &'a GradContext<B, D>) -> Self {
@@ -41,19 +41,19 @@ where
         Tensor::from_parts(self.autodiff.clone(), storage, layout)
     }
 
-    pub fn param(&mut self, p: &mut Parameter<B, D>) -> Tensor<Autodiff<B, D>, D> {
-        let layout = p.value().layout().clone();
+    pub fn param(&mut self, p: &Parameter<B, D>) -> Tensor<Autodiff<B, D>, D> {
+        let layout = p.tensor().layout().clone();
         let autodiff = self.ctx.autodiff();
 
         if let Some(handle) = self.param_handles.get(&p.id()) {
-            let storage = AutodiffStorage::new(p.value().storage().clone(), *handle, true);
+            let storage = AutodiffStorage::new(p.tensor().storage().clone(), *handle, true);
             return Tensor::from_parts(self.autodiff.clone(), storage, layout);
         }
 
         let storage = autodiff.create_tracked_storage(
-            p.value().storage().clone(),
+            p.tensor().storage().clone(),
             &layout,
-            true,
+            p.requires_grad(),
             true,
             ArrayVec::new(),
             None,
@@ -91,7 +91,7 @@ where
 
             match grads.get(&handle) {
                 Some(grad) => param.set_grad(grad.clone()),
-                None => param.clear_grad(),
+                None => param.zero_grad(),
             }
         }
 
@@ -132,7 +132,7 @@ where
 
 pub struct ParamGrads<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     inner: HashMap<ParamId, Tensor<B, D>>,
@@ -140,7 +140,7 @@ where
 
 impl<B, D> ParamGrads<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub fn get(&self, p: &Parameter<B, D>) -> Option<&Tensor<B, D>> {

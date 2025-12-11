@@ -1,19 +1,13 @@
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-use bolt_core::Backend;
+use bolt_autodiff::{Autodiff, Float, Parameter};
+use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
+use bolt_core::{BaseBackend, OneValue, Tensor};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
-    Train,
-    Eval,
-}
-
-pub struct Context<B: Backend> {
-    backend: Arc<B>,
-    mode: RefCell<Mode>,
-    rng: RefCell<Rng>,
-}
+use crate::error::Result;
+use crate::mode::{Eval, Grad, Mode};
 
 pub struct Rng {
     state: u64,
@@ -34,23 +28,78 @@ impl Rng {
     }
 }
 
-impl<B: Backend> Context<B> {
-    pub fn train(backend: Arc<B>, seed: u64) -> Self {
-        Self {
-            backend,
-            mode: RefCell::new(Mode::Train),
-            rng: RefCell::new(Rng::new(seed)),
-        }
-    }
+pub struct Context<B, D, M>
+where
+    B: BaseBackend,
+    D: Float,
+    M: Mode<B, D>,
+{
+    backend: Arc<B>,
+    mode: M,
+    rng: RefCell<Rng>,
+    _dtype: PhantomData<D>,
+}
 
-    pub fn infer(backend: Arc<B>) -> Self {
+// ============ Eval Context ============
+
+impl<B, D> Context<B, D, Eval<B, D>>
+where
+    B: BaseBackend,
+    D: Float,
+{
+    pub fn eval(backend: &Arc<B>) -> Self {
         Self {
-            backend,
-            mode: RefCell::new(Mode::Eval),
+            backend: backend.clone(),
+            mode: Eval::new(),
             rng: RefCell::new(Rng::new(0)),
+            _dtype: PhantomData,
+        }
+    }
+}
+
+// ============ Grad Context ============
+
+impl<B, D> Context<B, D, Grad<B, D>>
+where
+    B: BaseBackend,
+    D: Float,
+{
+    pub fn grad(backend: &Arc<B>) -> Self {
+        let autodiff = Arc::new(Autodiff::wrap(backend.clone()));
+
+        Self {
+            backend: backend.clone(),
+            mode: Grad::new(autodiff),
+            rng: RefCell::new(Rng::new(42)),
+            _dtype: PhantomData,
         }
     }
 
+    pub fn autodiff(&self) -> &Arc<Autodiff<B, D>> {
+        self.mode.autodiff()
+    }
+
+    pub fn backward(
+        &self,
+        loss: &Tensor<Autodiff<B, D>, D>,
+        params: &mut [&mut Parameter<B, D>],
+    ) -> Result<()>
+    where
+        B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
+        D: OneValue,
+    {
+        self.mode.backward(loss, params)
+    }
+}
+
+// ============ Common Methods ============
+
+impl<B, D, M> Context<B, D, M>
+where
+    B: BaseBackend,
+    D: Float,
+    M: Mode<B, D>,
+{
     pub fn backend(&self) -> &Arc<B> {
         &self.backend
     }
@@ -59,34 +108,19 @@ impl<B: Backend> Context<B> {
         self.backend.device()
     }
 
-    pub fn mode(&self) -> Mode {
-        *self.mode.borrow()
-    }
-
-    pub fn is_training(&self) -> bool {
-        self.mode() == Mode::Train
-    }
-
-    pub fn set_train(&self) {
-        *self.mode.borrow_mut() = Mode::Train;
-    }
-
-    pub fn set_eval(&self) {
-        *self.mode.borrow_mut() = Mode::Eval;
-    }
-
     pub fn rng(&self) -> std::cell::RefMut<'_, Rng> {
         self.rng.borrow_mut()
     }
 
-    pub fn evaluating<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        let prev = self.mode();
-        self.set_eval();
-        let result = f();
-        *self.mode.borrow_mut() = prev;
-        result
+    pub fn input(&self, tensor: &Tensor<B, D>) -> Tensor<M::Backend, D> {
+        self.mode.wrap_input(tensor)
+    }
+
+    pub fn param(&self, p: &Parameter<B, D>) -> Tensor<M::Backend, D> {
+        self.mode.wrap_param(p)
+    }
+
+    pub fn param_frozen(&self, p: &Parameter<B, D>) -> Tensor<M::Backend, D> {
+        self.mode.wrap_param_frozen(p)
     }
 }

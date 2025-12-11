@@ -51,7 +51,7 @@ fn weight_decay_applies_l2_penalty() -> TestResult {
     })?;
 
     opt.step(&mut [&mut p])?;
-    let after = p.value().to_vec()?;
+    let after = p.tensor().to_vec()?;
 
     // grad=1, decay=0.5*value=1.0 => effective grad 2.0, lr=1 => value should hit 0.0
     assert!((after[0] - 0.0).abs() < 1e-6, "weight decay not applied: {after:?}");

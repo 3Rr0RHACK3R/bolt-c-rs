@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp, SumOp};
-use bolt_core::{OneValue, Tensor};
+use bolt_core::{BaseBackend, OneValue, Tensor};
 
 use crate::backward::BackwardContext;
 use crate::error::{Error, Result};
@@ -12,7 +12,7 @@ use crate::utils::create_backward_seed;
 use crate::{Float, Handle};
 
 pub trait AutodiffBackend<D: Float>: Backend {
-    type InnerBackend: Backend;
+    type InnerBackend: BaseBackend;
 
     fn autodiff(&self) -> &Autodiff<Self::InnerBackend, D>;
     fn inner_backend(&self) -> &Arc<Self::InnerBackend>;
@@ -20,7 +20,7 @@ pub trait AutodiffBackend<D: Float>: Backend {
 
 impl<B, D> AutodiffBackend<D> for Autodiff<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     type InnerBackend = B;
@@ -36,7 +36,7 @@ where
 
 pub trait AutodiffTensorExt<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     fn requires_grad(self) -> Tensor<Autodiff<B, D>, D>;
@@ -50,7 +50,7 @@ where
 
 impl<B, D> AutodiffTensorExt<B, D> for Tensor<Autodiff<B, D>, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     fn requires_grad(self) -> Tensor<Autodiff<B, D>, D> {

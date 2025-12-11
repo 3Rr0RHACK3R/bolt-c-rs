@@ -1,9 +1,11 @@
+use bolt_autodiff::Float;
 use bolt_core::Tensor;
 use bolt_core::backend::{Backend, ReluOp};
-use bolt_core::dtype::FloatType;
+use bolt_core::BaseBackend;
 
 use crate::context::Context;
 use crate::error::Result;
+use crate::mode::Mode;
 use crate::model::Model;
 
 pub struct ReLU;
@@ -20,15 +22,17 @@ impl Default for ReLU {
     }
 }
 
-impl<B, D> Model<B, D> for ReLU
+impl<B, D, M> Model<B, D, M> for ReLU
 where
-    B: Backend + ReluOp<D>,
-    D: FloatType,
+    B: BaseBackend,
+    D: Float,
+    M: Mode<B, D>,
+    M::Backend: Backend + ReluOp<D>,
 {
-    type Input = Tensor<B, D>;
-    type Output = Result<Tensor<B, D>>;
+    type Input = Tensor<M::Backend, D>;
+    type Output = Result<Tensor<M::Backend, D>>;
 
-    fn forward(&self, _ctx: &Context<B>, input: Self::Input) -> Self::Output {
+    fn forward(&self, _ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output {
         Ok(input.relu()?)
     }
 }

@@ -2,7 +2,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use bolt_core::Tensor;
-use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp};
+use bolt_core::BaseBackend;
+use bolt_core::backend::{AddOp, CopyOp, FillOp};
 use tinyvec::ArrayVec;
 
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
@@ -15,7 +16,7 @@ use crate::{Float, Handle};
 
 pub trait Function<B, D>: Send + Sync + 'static
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     type Ctx: Send + Sync + Default + Clone;
@@ -41,7 +42,7 @@ fn apply_fn<F, B, D>(
 ) -> Result<Vec<Tensor<Autodiff<B, D>, D>>>
 where
     F: Function<B, D>,
-    B: Backend + AddOp<D> + CopyOp<D> + FillOp<D>,
+    B: BaseBackend + AddOp<D> + CopyOp<D> + FillOp<D>,
     D: Float,
 {
     if inputs.is_empty() {
@@ -136,7 +137,7 @@ where
 struct FunctionBackward<F, B, D>
 where
     F: Function<B, D>,
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     ctx: Arc<F::Ctx>,
@@ -147,7 +148,7 @@ where
 impl<F, B, D> BackwardOp<B, D> for FunctionBackward<F, B, D>
 where
     F: Function<B, D>,
-    B: Backend + AddOp<D> + CopyOp<D> + FillOp<D>,
+    B: BaseBackend + AddOp<D> + CopyOp<D> + FillOp<D>,
     D: Float,
 {
     fn backward(

@@ -5,10 +5,13 @@
 mod context;
 pub mod error;
 pub mod layers;
+mod mode;
 mod model;
 
 #[cfg(feature = "losses")]
 pub use bolt_losses::*;
-pub use context::{Context, Mode, Rng};
+pub use context::{Context, Rng};
 pub use error::{Error, Result};
+pub use mode::{Eval, Grad, Mode};
 pub use model::Model;
+

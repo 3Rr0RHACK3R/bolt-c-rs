@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use bolt_autodiff::{Float, ParamId, Parameter};
-use bolt_core::backend::{AddOp, Backend, FillOp, MulOp, SubOp};
-use bolt_core::Tensor;
+use bolt_core::backend::{AddOp, FillOp, MulOp, SubOp};
+use bolt_core::{BaseBackend, Tensor};
 use num_traits::NumCast;
 
 use crate::error::{Error, Result};
@@ -17,7 +17,7 @@ pub struct SgdConfig {
 #[derive(Clone, Debug)]
 pub struct Sgd<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float + std::fmt::Display,
 {
     pub(crate) config: SgdConfig,
@@ -34,7 +34,7 @@ pub struct SgdBuilder {
 #[derive(Clone, Debug)]
 pub struct SgdParamState<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float + std::fmt::Display,
 {
     pub(crate) velocity: Option<Tensor<B, D>>,
@@ -43,7 +43,7 @@ where
 #[derive(Clone, Debug)]
 pub struct SgdState<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float + std::fmt::Display,
 {
     pub(crate) per_param: HashMap<ParamId, SgdParamState<B, D>>,
@@ -76,7 +76,7 @@ impl SgdBuilder {
 
     pub fn init<B, D>(self, params: &[&Parameter<B, D>]) -> Result<Sgd<B, D>>
 where
-    B: Backend + FillOp<D>,
+    B: BaseBackend + FillOp<D>,
     D: Float + std::fmt::Display,
 {
         validate_hyperparams(self.learning_rate, self.momentum, self.weight_decay)?;
@@ -92,7 +92,7 @@ where
             let mut state = SgdParamState { velocity: None };
 
             if self.momentum.is_some() {
-                state.velocity = Some(Tensor::zeros_like(param.value())?);
+                state.velocity = Some(Tensor::zeros_like(param.tensor())?);
             }
 
             per_param.insert(param.id(), state);
@@ -114,7 +114,7 @@ where
 
 impl<B, D> Sgd<B, D>
 where
-    B: Backend + AddOp<D> + SubOp<D> + MulOp<D> + FillOp<D>,
+    B: BaseBackend + AddOp<D> + SubOp<D> + MulOp<D> + FillOp<D>,
     D: Float + std::fmt::Display,
 {
     pub fn builder() -> SgdBuilder {
@@ -164,7 +164,7 @@ where
             })?;
 
             let grad_shape = grad.shape().to_vec();
-            let param_shape = param.value().shape().to_vec();
+            let param_shape = param.tensor().shape().to_vec();
             if grad_shape != param_shape {
                 return Err(Error::ShapeMismatch {
                     param_id: param.id(),
@@ -177,16 +177,16 @@ where
             let mut grad_tensor = grad.clone();
 
             if let Some(wd) = weight_decay_value {
-                let wd_tensor = scalar_tensor(param.value(), wd)?;
-                let decay = param.value().mul(&wd_tensor)?;
+                let wd_tensor = scalar_tensor(param.tensor(), wd)?;
+                let decay = param.tensor().mul(&wd_tensor)?;
                 grad_tensor = grad_tensor.add(&decay)?;
             }
 
             let update = if let Some(momentum) = momentum_value {
-                let momentum_tensor = scalar_tensor(param.value(), momentum)?;
+                let momentum_tensor = scalar_tensor(param.tensor(), momentum)?;
                 let velocity = match state.velocity.take() {
                     Some(v) => v,
-                    None => Tensor::zeros_like(param.value())?,
+                    None => Tensor::zeros_like(param.tensor())?,
                 };
                 let updated_velocity = velocity.mul(&momentum_tensor)?.add(&grad_tensor)?;
                 state.velocity = Some(updated_velocity.clone());
@@ -195,10 +195,10 @@ where
                 grad_tensor
             };
 
-            let lr_tensor = scalar_tensor(param.value(), lr_value)?;
+            let lr_tensor = scalar_tensor(param.tensor(), lr_value)?;
             let scaled_update = update.mul(&lr_tensor)?;
-            let new_value = param.value().sub(&scaled_update)?;
-            *param.value_mut() = new_value;
+            let new_value = param.tensor().sub(&scaled_update)?;
+            *param.tensor_mut() = new_value;
         }
 
         self.state.step = self.state.step.saturating_add(1);
@@ -233,7 +233,7 @@ where
 
 fn scalar_tensor<B, D>(like: &Tensor<B, D>, value: D) -> Result<Tensor<B, D>>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float + std::fmt::Display,
 {
     Ok(Tensor::from_slice(&like.backend(), &[value], &[])?)

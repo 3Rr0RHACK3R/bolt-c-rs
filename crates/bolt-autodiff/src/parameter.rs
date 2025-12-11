@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use bolt_core::backend::Backend;
+use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 
 use crate::Float;
@@ -18,44 +18,46 @@ impl ParamId {
 
 pub struct Parameter<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
-    value: Tensor<B, D>,
+    data: Tensor<B, D>,
     grad: Option<Tensor<B, D>>,
     id: ParamId,
     name: Option<String>,
+    requires_grad: bool,
 }
 
 impl<B, D> Parameter<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
-    pub fn new(value: Tensor<B, D>) -> Self {
-        Self::with_name_opt(value, None)
+    pub fn new(data: Tensor<B, D>) -> Self {
+        Self::with_name_opt(data, None)
     }
 
-    pub fn with_name(value: Tensor<B, D>, name: impl Into<String>) -> Self {
-        Self::with_name_opt(value, Some(name.into()))
+    pub fn with_name(data: Tensor<B, D>, name: impl Into<String>) -> Self {
+        Self::with_name_opt(data, Some(name.into()))
     }
 
-    pub fn with_name_opt(value: Tensor<B, D>, name: Option<String>) -> Self {
+    pub fn with_name_opt(data: Tensor<B, D>, name: Option<String>) -> Self {
         let id = ParamId::next();
         Self {
-            value,
+            data,
             grad: None,
             id,
             name,
+            requires_grad: true,
         }
     }
 
-    pub fn value(&self) -> &Tensor<B, D> {
-        &self.value
+    pub fn tensor(&self) -> &Tensor<B, D> {
+        &self.data
     }
 
-    pub fn value_mut(&mut self) -> &mut Tensor<B, D> {
-        &mut self.value
+    pub fn tensor_mut(&mut self) -> &mut Tensor<B, D> {
+        &mut self.data
     }
 
     pub fn grad(&self) -> Option<&Tensor<B, D>> {
@@ -66,7 +68,7 @@ where
         self.grad.as_mut()
     }
 
-    pub fn clear_grad(&mut self) {
+    pub fn zero_grad(&mut self) {
         self.grad = None;
     }
 
@@ -85,7 +87,23 @@ where
         }
     }
 
-    pub(crate) fn set_grad(&mut self, grad: Tensor<B, D>) {
+    pub fn requires_grad(&self) -> bool {
+        self.requires_grad
+    }
+
+    pub fn set_requires_grad(&mut self, requires_grad: bool) {
+        self.requires_grad = requires_grad;
+    }
+
+    pub fn freeze(&mut self) {
+        self.requires_grad = false;
+    }
+
+    pub fn unfreeze(&mut self) {
+        self.requires_grad = true;
+    }
+
+    pub fn set_grad(&mut self, grad: Tensor<B, D>) {
         self.grad = Some(grad);
     }
 }

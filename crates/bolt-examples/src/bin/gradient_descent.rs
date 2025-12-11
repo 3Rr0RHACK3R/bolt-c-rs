@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bolt_autodiff::{Autodiff, AutodiffTensorExt};
+use bolt_autodiff::{Autodiff, Parameter};
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 
@@ -8,56 +8,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lr = 0.1f32;
     let steps = 80usize;
 
-    let x_host = vec![0.0f32, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0];
-    let y_host = vec![1.0f32, 3.0, 5.0, 7.0];
-
-    // Create backend and wrap with autodiff
+    // Create backend
     let cpu_backend = Arc::new(CpuBackend::new());
-    let autodiff = Arc::new(Autodiff::wrap(cpu_backend.clone()));
+    let autodiff = Autodiff::wrap(cpu_backend.clone());
 
     let lr_tensor = Tensor::from_slice(&cpu_backend, &[lr], &[])?;
-    let mut w_data = Tensor::from_slice(&cpu_backend, &[0.0f32, 0.0], &[2, 1])?;
+
+    // Create training data on base backend
+    let x_data = Tensor::from_slice(&cpu_backend, &[0.0f32, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0], &[4, 2])?;
+    let y_data = Tensor::from_slice(&cpu_backend, &[1.0f32, 3.0, 5.0, 7.0], &[4, 1])?;
+
+    // Create a learnable parameter using Parameter API
+    let w_data = Tensor::from_slice(&cpu_backend, &[0.0f32, 0.0], &[2, 1])?;
+    let mut w_param = Parameter::with_name(w_data, "weights");
 
     for step in 0..steps {
-        // Begin gradient tracking scope
-        let _ctx = autodiff.begin_grad();
+        // Use with_tape for scoped gradient tracking
+        autodiff.with_tape(|tape| {
+            // Wrap inputs with tape.input()
+            let x = tape.input(&x_data);
+            let y = tape.input(&y_data);
 
-        // Create parameter tensor that requires gradients
-        let w = Tensor::from_slice(&autodiff, &w_data.to_vec()?, &[2, 1])?.requires_grad();
+            // Track parameter on tape
+            let w = tape.param(&w_param);
 
-        // Forward pass
-        let x = Tensor::from_slice(&autodiff, &x_host, &[4, 2])?;
-        let y = Tensor::from_slice(&autodiff, &y_host, &[4, 1])?;
+            // Forward pass
+            let y_pred = x.matmul(&w)?;
+            let diff = y_pred.sub(&y)?;
+            let loss = diff.mul(&diff)?.mean(None, false)?;
 
-        let y_pred = x.matmul(&w)?;
-        let diff = y_pred.sub(&y)?;
-        let loss = diff.mul(&diff)?.mean(None, false)?;
+            // Backward pass - compute gradients into parameter
+            tape.backward_into_params(&loss, &mut [&mut w_param])
+        })?;
 
-        // Backward pass - returns gradients on CPU backend
-        let grads = loss.backward()?;
-        let dw = grads.wrt(&w).unwrap();
-
-        // Update weights (gradients are on cpu_backend, same as w_data)
-        let scaled = dw.mul(&lr_tensor)?;
-        w_data = w_data.sub(&scaled)?;
+        // Get gradient and update weights
+        if let Some(dw) = w_param.grad() {
+            let scaled = dw.mul(&lr_tensor)?;
+            let new_w = w_param.tensor().sub(&scaled)?;
+            *w_param.tensor_mut() = new_w;
+        }
 
         // Print progress
         if (step + 1) % 10 == 0 || step == 0 {
-            let loss_value = loss.detach().item()?;
-            let w_vec = w_data.to_vec()?;
+            let w_vec = w_param.tensor().to_vec()?;
             println!(
-                "step {:>3}: loss={:.4}, w=[{:.4}, {:.4}]",
+                "step {:>3}: w=[{:.4}, {:.4}]",
                 step + 1,
-                loss_value,
                 w_vec[0],
                 w_vec[1],
             );
         }
 
-        // _ctx dropped here, graph is cleared automatically
+        // Zero gradients for next iteration
+        w_param.zero_grad();
     }
 
-    println!("\nFinal weights: {:?}", w_data.to_vec()?);
+    println!("\nFinal weights: {:?}", w_param.tensor().to_vec()?);
+    println!("Expected: [2.0, 1.0] (y = 2x + 1)");
 
     Ok(())
 }

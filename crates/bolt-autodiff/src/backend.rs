@@ -4,6 +4,7 @@ use bolt_core::backend::Backend;
 use bolt_core::device::DeviceKind;
 use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
+use bolt_core::BaseBackend;
 
 use crate::Float;
 use crate::device::AutodiffDevice;
@@ -15,7 +16,7 @@ use crate::storage::{AutodiffAllocator, AutodiffStorage};
 
 impl<B, D> Clone for Autodiff<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     fn clone(&self) -> Self {
@@ -30,7 +31,7 @@ where
 
 impl<B, D> Autodiff<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub fn new(inner: B) -> Self {
@@ -85,7 +86,7 @@ where
 
 impl<B, D> Backend for Autodiff<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     type Device = AutodiffDevice<B::Device>;

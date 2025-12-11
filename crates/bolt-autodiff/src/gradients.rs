@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bolt_core::backend::AddOp;
-use bolt_core::{Backend, Tensor};
+use bolt_core::{BaseBackend, Tensor};
 
 use crate::Float;
 use crate::Handle;
@@ -10,7 +10,7 @@ use crate::operations::Autodiff;
 
 pub struct Gradients<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     grads: HashMap<Handle, Tensor<B, D>>,
@@ -19,7 +19,7 @@ where
 
 impl<B, D> Gradients<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub(crate) fn new(grads: HashMap<Handle, Tensor<B, D>>, generation: u32) -> Self {
@@ -82,7 +82,7 @@ pub(crate) fn insert_or_accumulate<B, D>(
     grad: Tensor<B, D>,
 ) -> Result<()>
 where
-    B: Backend + AddOp<D>,
+    B: BaseBackend + AddOp<D>,
     D: Float,
 {
     match grads.entry(handle) {

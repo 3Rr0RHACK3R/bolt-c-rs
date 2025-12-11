@@ -15,6 +15,7 @@ bolt-autodiff = { path = "../bolt-autodiff" }
 bolt-losses = { path = "../bolt-losses", optional = true }
 thiserror.workspace = true
 serde = { version = "1", features = ["derive"] }
+tinyvec = { version = "1", features = ["alloc"] }
 
 [dev-dependencies]
 bolt-cpu = { path = "../bolt-cpu" }

@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use bolt_core::OneValue;
 use bolt_core::Tensor;
-use bolt_core::backend::{Backend, FillOp};
+use bolt_core::BaseBackend;
+use bolt_core::backend::FillOp;
 use bolt_core::error::{Error, Result};
 use bolt_core::layout::Layout;
 
@@ -79,7 +80,7 @@ pub(crate) fn create_saved_tensor<B, D>(
     layout: &Layout,
 ) -> Tensor<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
     B::Storage<D>: Clone,
 {
@@ -91,7 +92,7 @@ pub(crate) fn create_backward_seed<B, D>(
     loss_tensor: &Tensor<Autodiff<B, D>, D>,
 ) -> AutodiffResult<Tensor<B, D>>
 where
-    B: Backend + FillOp<D>,
+    B: BaseBackend + FillOp<D>,
     D: Float + OneValue,
 {
     let seed = if loss_tensor.numel() == 1 {

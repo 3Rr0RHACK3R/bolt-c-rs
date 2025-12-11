@@ -3,10 +3,11 @@ use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
-use bolt_core::{Backend, OneValue, Tensor};
+use bolt_core::{BaseBackend, OneValue, Tensor};
 
 use crate::backward::BackwardContext;
 use crate::error::{Error, Result};
+use crate::grad_tape::GradTape;
 use crate::gradients::{Gradients, insert_or_accumulate};
 use crate::operations::Autodiff;
 use crate::utils::create_backward_seed;
@@ -14,7 +15,7 @@ use crate::{Float, Handle};
 
 pub struct GradContext<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     autodiff: Autodiff<B, D>,
@@ -22,7 +23,7 @@ where
 
 impl<B, D> GradContext<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub(crate) fn new(autodiff: Autodiff<B, D>) -> Self {
@@ -104,11 +105,15 @@ where
 
         Ok(Gradients::new(leaf_grads, generation))
     }
+
+    pub fn tape(&self) -> GradTape<'_, B, D> {
+        GradTape::new(self)
+    }
 }
 
 impl<B, D> Drop for GradContext<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     fn drop(&mut self) {
@@ -118,7 +123,7 @@ where
 
 pub struct NoGradGuard<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     autodiff_grad_enabled: Arc<RwLock<bool>>,
@@ -128,7 +133,7 @@ where
 
 impl<B, D> NoGradGuard<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub fn new(autodiff: &Autodiff<B, D>) -> Self {
@@ -145,7 +150,7 @@ where
 
 impl<B, D> Drop for NoGradGuard<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     fn drop(&mut self) {

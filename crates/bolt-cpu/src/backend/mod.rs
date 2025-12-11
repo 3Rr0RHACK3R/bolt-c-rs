@@ -7,7 +7,7 @@ mod storage;
 use std::sync::Arc;
 
 use bolt_core::{
-    TensorParts, TensorView,
+    BaseBackend, TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
@@ -131,6 +131,8 @@ impl Backend for CpuBackend {
         write_from_slice(storage, layout, src)
     }
 }
+
+impl BaseBackend for CpuBackend {}
 
 impl<D> CopyOp<D> for CpuBackend
 where

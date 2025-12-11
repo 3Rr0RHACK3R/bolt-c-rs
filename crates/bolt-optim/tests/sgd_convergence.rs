@@ -35,8 +35,8 @@ fn sgd_converges_on_linear_regression() -> Result<(), Box<dyn std::error::Error>
         opt.step(&mut [&mut w, &mut b])?;
     }
 
-    let w_val: f32 = w.value().item()?;
-    let b_val: f32 = b.value().item()?;
+    let w_val: f32 = w.tensor().item()?;
+    let b_val: f32 = b.tensor().item()?;
 
     assert!((w_val - 2.0).abs() < 0.05, "w too far: {w_val}");
     assert!((b_val - 1.0).abs() < 0.05, "b too far: {b_val}");

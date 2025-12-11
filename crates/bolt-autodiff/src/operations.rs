@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use bolt_core::Result;
 use bolt_core::Tensor;
+use bolt_core::BaseBackend;
 use bolt_core::backend::{
-    AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp, FillOp,
+    AbsOp, AddOp, ArgmaxOp, ArgminOp, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp, FillOp,
     LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, ReshapeOp, SinOp,
     SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TensorParts, TransposeOp, UnsqueezeOp,
 };
@@ -26,7 +27,7 @@ use crate::{Float, Handle};
 
 pub struct Autodiff<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub(crate) inner: Arc<B>,
@@ -37,7 +38,7 @@ where
 
 impl<B, D> Autodiff<B, D>
 where
-    B: Backend,
+    B: BaseBackend,
     D: Float,
 {
     pub fn is_grad_enabled(&self) -> bool {
@@ -56,7 +57,9 @@ where
         graph_ref.as_mut().map(f)
     }
 
-    pub(crate) fn create_tracked_storage(
+    /// Create a storage entry with gradient tracking in the autodiff graph.
+    /// This is used by the Mode trait to register params.
+    pub fn create_tracked_storage(
         &self,
         inner_storage: B::Storage<D>,
         _layout: &Layout,
@@ -160,7 +163,7 @@ where
 
 impl<B, D> CopyOp<D> for Autodiff<B, D>
 where
-    B: Backend + CopyOp<D>,
+    B: BaseBackend + CopyOp<D>,
     D: Float,
 {
     fn copy(
@@ -178,7 +181,7 @@ where
 
 impl<B, D> FillOp<D> for Autodiff<B, D>
 where
-    B: Backend + FillOp<D>,
+    B: BaseBackend + FillOp<D>,
     D: Float,
 {
     fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage<D>> {
@@ -189,7 +192,7 @@ where
 
 impl<B, D> AddOp<D> for Autodiff<B, D>
 where
-    B: Backend + AddOp<D> + SumOp<D> + CopyOp<D>,
+    B: BaseBackend + AddOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn add(
@@ -222,7 +225,7 @@ where
 
 impl<B, D> SubOp<D> for Autodiff<B, D>
 where
-    B: Backend + SubOp<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
+    B: BaseBackend + SubOp<D> + AddOp<D> + FillOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn sub(
@@ -255,7 +258,7 @@ where
 
 impl<B, D> MulOp<D> for Autodiff<B, D>
 where
-    B: Backend + MulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D>,
+    B: BaseBackend + MulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn mul(
@@ -292,7 +295,7 @@ where
 
 impl<B, D> MatmulOp<D> for Autodiff<B, D>
 where
-    B: Backend + MatmulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D> + TransposeOp<D>,
+    B: BaseBackend + MatmulOp<D> + AddOp<D> + SumOp<D> + CopyOp<D> + TransposeOp<D>,
     D: Float,
 {
     fn matmul(
@@ -328,7 +331,7 @@ where
 
 impl<B, D> SumOp<D> for Autodiff<B, D>
 where
-    B: Backend + SumOp<D> + AddOp<D> + FillOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
+    B: BaseBackend + SumOp<D> + AddOp<D> + FillOp<D> + CopyOp<D> + ReshapeOp<D> + BroadcastToOp<D>,
     D: Float,
 {
     fn sum(
@@ -372,7 +375,7 @@ where
 
 impl<B, D> MeanOp<D> for Autodiff<B, D>
 where
-    B: Backend
+    B: BaseBackend
         + MeanOp<D>
         + AddOp<D>
         + FillOp<D>
@@ -431,7 +434,7 @@ where
 
 impl<B, D> NegOp<D> for Autodiff<B, D>
 where
-    B: Backend + NegOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: BaseBackend + NegOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn neg(
@@ -453,7 +456,7 @@ where
 
 impl<B, D> AbsOp<D> for Autodiff<B, D>
 where
-    B: Backend + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
+    B: BaseBackend + AbsOp<D> + AddOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn abs(
@@ -482,7 +485,7 @@ where
 
 impl<B, D> ExpOp<D> for Autodiff<B, D>
 where
-    B: Backend + ExpOp<D> + MulOp<D> + CopyOp<D>,
+    B: BaseBackend + ExpOp<D> + MulOp<D> + CopyOp<D>,
     D: Float,
 {
     fn exp(
@@ -511,7 +514,7 @@ where
 
 impl<B, D> LogOp<D> for Autodiff<B, D>
 where
-    B: Backend + LogOp<D> + DivOp<D> + CopyOp<D>,
+    B: BaseBackend + LogOp<D> + DivOp<D> + CopyOp<D>,
     D: Float,
 {
     fn log(
@@ -540,7 +543,7 @@ where
 
 impl<B, D> SqrtOp<D> for Autodiff<B, D>
 where
-    B: Backend + SqrtOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
+    B: BaseBackend + SqrtOp<D> + DivOp<D> + MulOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn sqrt(
@@ -569,7 +572,7 @@ where
 
 impl<B, D> SinOp<D> for Autodiff<B, D>
 where
-    B: Backend + SinOp<D> + MulOp<D> + CosOp<D> + CopyOp<D>,
+    B: BaseBackend + SinOp<D> + MulOp<D> + CosOp<D> + CopyOp<D>,
     D: Float,
 {
     fn sin(
@@ -598,7 +601,7 @@ where
 
 impl<B, D> CosOp<D> for Autodiff<B, D>
 where
-    B: Backend + CosOp<D> + SinOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: BaseBackend + CosOp<D> + SinOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn cos(
@@ -627,7 +630,7 @@ where
 
 impl<B, D> TanhOp<D> for Autodiff<B, D>
 where
-    B: Backend + TanhOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
+    B: BaseBackend + TanhOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn tanh(
@@ -656,7 +659,7 @@ where
 
 impl<B, D> ReluOp<D> for Autodiff<B, D>
 where
-    B: Backend + ReluOp<D> + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
+    B: BaseBackend + ReluOp<D> + AddOp<D> + MulOp<D> + DivOp<D> + AbsOp<D> + FillOp<D> + CopyOp<D>,
     D: Float,
 {
     fn relu(
@@ -685,7 +688,7 @@ where
 
 impl<B, D> DivOp<D> for Autodiff<B, D>
 where
-    B: Backend + DivOp<D> + AddOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
+    B: BaseBackend + DivOp<D> + AddOp<D> + MulOp<D> + SubOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
     D: Float,
 {
     fn div(
@@ -721,7 +724,7 @@ where
 
 impl<B, D> PowOp<D> for Autodiff<B, D>
 where
-    B: Backend
+    B: BaseBackend
         + PowOp<D>
         + AddOp<D>
         + MulOp<D>
@@ -767,7 +770,7 @@ where
 
 impl<B, D> ProdOp<D> for Autodiff<B, D>
 where
-    B: Backend
+    B: BaseBackend
         + ProdOp<D>
         + AddOp<D>
         + AbsOp<D>
@@ -824,7 +827,7 @@ where
 
 impl<B, D> MinOp<D> for Autodiff<B, D>
 where
-    B: Backend
+    B: BaseBackend
         + MinOp<D>
         + AddOp<D>
         + AbsOp<D>
@@ -881,7 +884,7 @@ where
 
 impl<B, D> MaxOp<D> for Autodiff<B, D>
 where
-    B: Backend
+    B: BaseBackend
         + MaxOp<D>
         + AddOp<D>
         + AbsOp<D>
@@ -938,7 +941,7 @@ where
 
 impl<B, D> ArgminOp<D> for Autodiff<B, D>
 where
-    B: Backend + ArgminOp<D>,
+    B: BaseBackend + ArgminOp<D>,
     D: Float,
 {
     fn argmin(
@@ -962,7 +965,7 @@ where
 
 impl<B, D> ArgmaxOp<D> for Autodiff<B, D>
 where
-    B: Backend + ArgmaxOp<D>,
+    B: BaseBackend + ArgmaxOp<D>,
     D: Float,
 {
     fn argmax(
@@ -986,7 +989,7 @@ where
 
 impl<B, D> ReshapeOp<D> for Autodiff<B, D>
 where
-    B: Backend + ReshapeOp<D> + CopyOp<D>,
+    B: BaseBackend + ReshapeOp<D> + CopyOp<D>,
     D: Float,
 {
     fn reshape(
@@ -1009,7 +1012,7 @@ where
 
 impl<B, D> SqueezeOp<D> for Autodiff<B, D>
 where
-    B: Backend + SqueezeOp<D> + ReshapeOp<D> + CopyOp<D>,
+    B: BaseBackend + SqueezeOp<D> + ReshapeOp<D> + CopyOp<D>,
     D: Float,
 {
     fn squeeze_all(
@@ -1048,7 +1051,7 @@ where
 
 impl<B, D> UnsqueezeOp<D> for Autodiff<B, D>
 where
-    B: Backend + UnsqueezeOp<D> + CopyOp<D> + SqueezeOp<D>,
+    B: BaseBackend + UnsqueezeOp<D> + CopyOp<D> + SqueezeOp<D>,
     D: Float,
 {
     fn unsqueeze_axis(
@@ -1074,7 +1077,7 @@ where
 
 impl<B, D> TransposeOp<D> for Autodiff<B, D>
 where
-    B: Backend + TransposeOp<D> + CopyOp<D>,
+    B: BaseBackend + TransposeOp<D> + CopyOp<D>,
     D: Float,
 {
     fn transpose(
@@ -1104,7 +1107,7 @@ where
 
 impl<B, D> BroadcastToOp<D> for Autodiff<B, D>
 where
-    B: Backend + BroadcastToOp<D> + ReshapeOp<D> + SumOp<D> + CopyOp<D>,
+    B: BaseBackend + BroadcastToOp<D> + ReshapeOp<D> + SumOp<D> + CopyOp<D>,
     D: Float,
 {
     fn broadcast_to(

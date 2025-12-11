@@ -1,10 +1,14 @@
+use std::sync::Arc;
+
+use bolt_autodiff::{Float, Parameter};
 use bolt_core::Tensor;
 use bolt_core::backend::{AddOp, Backend, FillOp, MatmulOp, TransposeOp};
-use bolt_core::dtype::{FloatType, NativeType};
+use bolt_core::BaseBackend;
 use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
 use crate::error::Result;
+use crate::mode::Mode;
 use crate::model::Model;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -28,23 +32,25 @@ impl LinearSpec {
         self
     }
 
-    pub fn build<B, D>(&self, ctx: &Context<B>) -> Result<Linear<B, D>>
+    pub fn build<B, D>(&self, backend: &Arc<B>) -> Result<Linear<B, D>>
     where
-        B: Backend + FillOp<D>,
-        D: FloatType,
+        B: BaseBackend + FillOp<D>,
+        D: Float,
     {
-        let weight = Tensor::full(
-            ctx.backend(),
+        let weight_tensor = Tensor::full(
+            backend,
             &[self.out_features, self.in_features],
             D::default(),
         )?;
+        let weight = Parameter::with_name(weight_tensor, "weight");
 
         let bias = if self.bias {
-            Some(Tensor::full(
-                ctx.backend(),
+            let bias_tensor = Tensor::full(
+                backend,
                 &[self.out_features],
                 D::default(),
-            )?)
+            )?;
+            Some(Parameter::with_name(bias_tensor, "bias"))
         } else {
             None
         };
@@ -55,27 +61,55 @@ impl LinearSpec {
 
 pub struct Linear<B, D>
 where
-    B: Backend,
-    D: NativeType,
+    B: BaseBackend,
+    D: Float,
 {
-    pub weight: Tensor<B, D>,
-    pub bias: Option<Tensor<B, D>>,
+    pub weight: Parameter<B, D>,
+    pub bias: Option<Parameter<B, D>>,
 }
 
-impl<B, D> Model<B, D> for Linear<B, D>
+impl<B, D> Linear<B, D>
 where
-    B: Backend + MatmulOp<D> + AddOp<D> + TransposeOp<D>,
-    D: FloatType,
+    B: BaseBackend,
+    D: Float,
 {
-    type Input = Tensor<B, D>;
-    type Output = Result<Tensor<B, D>>;
+    pub fn params(&self) -> Vec<&Parameter<B, D>> {
+        let mut params = vec![&self.weight];
+        if let Some(ref b) = self.bias {
+            params.push(b);
+        }
+        params
+    }
 
-    fn forward(&self, _ctx: &Context<B>, input: Self::Input) -> Self::Output {
-        let weight_t = self.weight.transpose(-1, -2)?;
+    pub fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
+        let mut params = vec![&mut self.weight];
+        if let Some(ref mut b) = self.bias {
+            params.push(b);
+        }
+        params
+    }
+}
+
+impl<B, D, M> Model<B, D, M> for Linear<B, D>
+where
+    B: BaseBackend + MatmulOp<D> + AddOp<D> + TransposeOp<D>,
+    D: Float,
+    M: Mode<B, D>,
+    M::Backend: Backend + MatmulOp<D> + AddOp<D> + TransposeOp<D>,
+{
+    type Input = Tensor<M::Backend, D>;
+    type Output = Result<Tensor<M::Backend, D>>;
+
+    fn forward(&self, ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output {
+        let weight = ctx.param(&self.weight);
+        let weight_t = weight.transpose(-1, -2)?;
         let out = input.matmul(&weight_t)?;
 
         match &self.bias {
-            Some(bias) => Ok(out.add(bias)?),
+            Some(bias) => {
+                let bias_tensor = ctx.param(bias);
+                Ok(out.add(&bias_tensor)?)
+            }
             None => Ok(out),
         }
     }
