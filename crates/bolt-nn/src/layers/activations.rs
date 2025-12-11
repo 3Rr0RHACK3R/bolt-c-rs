@@ -1,4 +1,4 @@
-use bolt_autodiff::Float;
+use bolt_autodiff::{Float, HasParams, Parameter};
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 use bolt_core::backend::{Backend, ReluOp};
@@ -19,6 +19,20 @@ impl ReLU {
 impl Default for ReLU {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<B, D> HasParams<B, D> for ReLU
+where
+    B: BaseBackend,
+    D: Float,
+{
+    fn params(&self) -> Vec<&Parameter<B, D>> {
+        vec![]
+    }
+
+    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
+        vec![]
     }
 }
 

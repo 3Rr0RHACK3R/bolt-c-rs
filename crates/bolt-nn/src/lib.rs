@@ -10,6 +10,7 @@ mod model;
 
 #[cfg(feature = "losses")]
 pub use bolt_losses::*;
+pub use bolt_autodiff::HasParams;
 pub use context::{Context, Rng};
 pub use error::{Error, Result};
 pub use mode::{Eval, Grad, Mode};

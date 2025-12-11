@@ -16,6 +16,33 @@ impl ParamId {
     }
 }
 
+pub trait HasParams<B, D>
+where
+    B: BaseBackend,
+    D: Float,
+{
+    fn params(&self) -> Vec<&Parameter<B, D>>;
+    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>>;
+
+    fn freeze(&mut self) {
+        for p in self.params_mut() {
+            p.freeze();
+        }
+    }
+
+    fn unfreeze(&mut self) {
+        for p in self.params_mut() {
+            p.unfreeze();
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        for p in self.params_mut() {
+            p.zero_grad();
+        }
+    }
+}
+
 pub struct Parameter<B, D>
 where
     B: BaseBackend,

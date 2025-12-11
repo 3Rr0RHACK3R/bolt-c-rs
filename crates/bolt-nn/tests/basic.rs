@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{Linear, linear};
+use bolt_nn::layers::{HasParams, Linear, linear};
 use bolt_nn::{Context, Eval, Model};
 
 type B = CpuBackend;
@@ -48,10 +48,7 @@ fn test_context_backend_access() {
 
 #[test]
 fn test_linear_params_access() {
-    use bolt_autodiff::Parameter;
-
     let backend = Arc::new(CpuBackend::new());
-    let ctx = Context::<B, D, M>::eval(&backend);
 
     let layer: Linear<B, D> = linear(4, 2).build(&backend).unwrap();
 

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::linear;
+use bolt_nn::layers::{linear, HasParams};
 use bolt_nn::{Context, Eval, Grad, Model};
 use bolt_optim::Sgd;
 
@@ -44,9 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         optimizer.step(&mut layer.params_mut())?;
 
-        for param in layer.params_mut() {
-            param.zero_grad();
-        }
+        layer.zero_grad();
 
         if (step + 1) % 20 == 0 || step == 0 {
             let w = layer.weight.tensor().to_vec()?[0];

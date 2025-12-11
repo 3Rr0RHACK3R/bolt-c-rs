@@ -27,7 +27,7 @@ pub use grad_tape::{GradTape, ParamGrads};
 pub use gradients::Gradients;
 pub use handle::Handle;
 pub use operations::Autodiff;
-pub use parameter::{ParamId, Parameter};
+pub use parameter::{HasParams, ParamId, Parameter};
 pub use scope::{GradContext, NoGradGuard};
 pub use storage::{AutodiffAllocator, AutodiffStorage};
 pub use tensor_ext::{AutodiffBackend, AutodiffTensorExt};

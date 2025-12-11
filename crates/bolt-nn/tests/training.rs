@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::linear;
-use bolt_nn::{Context, Eval, Grad, Model};
+use bolt_nn::{Context, Grad, Model};
 
 type B = CpuBackend;
 type D = f32;
@@ -19,7 +19,6 @@ fn test_grad_context_creation() {
 #[test]
 fn test_linear_forward_with_grad() {
     let backend = Arc::new(CpuBackend::new());
-    let eval_ctx = Context::<B, D, Eval<B, D>>::eval(&backend);
     let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
 
     let spec = linear(4, 2);
@@ -34,7 +33,6 @@ fn test_linear_forward_with_grad() {
 #[test]
 fn test_backward_with_context() {
     let backend = Arc::new(CpuBackend::new());
-    let eval_ctx = Context::<B, D, Eval<B, D>>::eval(&backend);
     let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
 
     let mut layer = linear(2, 1).build(&backend).unwrap();

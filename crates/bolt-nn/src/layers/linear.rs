@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bolt_autodiff::{Float, Parameter};
+use bolt_autodiff::{Float, HasParams, Parameter};
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 use bolt_core::backend::{AddOp, Backend, FillOp, MatmulOp, TransposeOp};
@@ -64,12 +64,12 @@ where
     pub bias: Option<Parameter<B, D>>,
 }
 
-impl<B, D> Linear<B, D>
+impl<B, D> HasParams<B, D> for Linear<B, D>
 where
     B: BaseBackend,
     D: Float,
 {
-    pub fn params(&self) -> Vec<&Parameter<B, D>> {
+    fn params(&self) -> Vec<&Parameter<B, D>> {
         let mut params = vec![&self.weight];
         if let Some(ref b) = self.bias {
             params.push(b);
@@ -77,7 +77,7 @@ where
         params
     }
 
-    pub fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
+    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
         let mut params = vec![&mut self.weight];
         if let Some(ref mut b) = self.bias {
             params.push(b);
