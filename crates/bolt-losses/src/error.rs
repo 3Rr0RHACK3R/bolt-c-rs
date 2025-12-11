@@ -13,9 +13,14 @@ pub enum Error {
     Autodiff(#[from] AutodiffError),
 
     #[error("shape mismatch: expected {expected:?}, got {got:?}")]
-    ShapeMismatch { expected: Vec<usize>, got: Vec<usize> },
+    ShapeMismatch {
+        expected: Vec<usize>,
+        got: Vec<usize>,
+    },
 
     #[error("invalid target shape: expected {expected:?}, got {got:?}")]
-    InvalidTargetShape { expected: Vec<usize>, got: Vec<usize> },
+    InvalidTargetShape {
+        expected: Vec<usize>,
+        got: Vec<usize>,
+    },
 }
-

@@ -1,7 +1,7 @@
 use bolt_autodiff::Float;
+use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 use bolt_core::backend::{Backend, ReluOp};
-use bolt_core::BaseBackend;
 
 use crate::context::Context;
 use crate::error::Result;

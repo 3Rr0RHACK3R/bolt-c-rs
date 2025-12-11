@@ -75,10 +75,10 @@ impl SgdBuilder {
     }
 
     pub fn init<B, D>(self, params: &[&Parameter<B, D>]) -> Result<Sgd<B, D>>
-where
-    B: BaseBackend + FillOp<D>,
-    D: Float + std::fmt::Display,
-{
+    where
+        B: BaseBackend + FillOp<D>,
+        D: Float + std::fmt::Display,
+    {
         validate_hyperparams(self.learning_rate, self.momentum, self.weight_decay)?;
 
         let mut per_param = HashMap::new();
@@ -104,10 +104,7 @@ where
                 momentum: self.momentum,
                 weight_decay: self.weight_decay,
             },
-            state: SgdState {
-                per_param,
-                step: 0,
-            },
+            state: SgdState { per_param, step: 0 },
         })
     }
 }
@@ -130,7 +127,9 @@ where
     }
 
     pub fn step(&mut self, params: &mut [&mut Parameter<B, D>]) -> Result<()> {
-        let lr_value = cast_scalar::<D, _>(self.config.learning_rate, |value| Error::InvalidLearningRate { value })?;
+        let lr_value = cast_scalar::<D, _>(self.config.learning_rate, |value| {
+            Error::InvalidLearningRate { value }
+        })?;
         let momentum_value = self
             .config
             .momentum
@@ -149,8 +148,22 @@ where
                 continue;
             }
 
-            let state = self
-                .state
+            self.update_parameter(param, lr_value, momentum_value, weight_decay_value)?;
+        }
+
+        self.state.step = self.state.step.saturating_add(1);
+        Ok(())
+    }
+
+    fn update_parameter(
+        &mut self,
+        param: &mut Parameter<B, D>,
+        lr: D,
+        momentum: Option<D>,
+        weight_decay: Option<D>,
+    ) -> Result<()> {
+        let state =
+            self.state
                 .per_param
                 .get_mut(&param.id())
                 .ok_or_else(|| Error::UnknownParameter {
@@ -158,51 +171,66 @@ where
                     param_name: param.name().map(|n| n.to_string()),
                 })?;
 
-            let grad = param.grad().ok_or_else(|| Error::MissingGradient {
+        let grad = param.grad().ok_or_else(|| Error::MissingGradient {
+            param_id: param.id(),
+            param_name: param.name().map(|n| n.to_string()),
+        })?;
+
+        let grad_shape = grad.shape().to_vec();
+        let param_shape = param.tensor().shape().to_vec();
+        if grad_shape != param_shape {
+            return Err(Error::ShapeMismatch {
                 param_id: param.id(),
                 param_name: param.name().map(|n| n.to_string()),
-            })?;
-
-            let grad_shape = grad.shape().to_vec();
-            let param_shape = param.tensor().shape().to_vec();
-            if grad_shape != param_shape {
-                return Err(Error::ShapeMismatch {
-                    param_id: param.id(),
-                    param_name: param.name().map(|n| n.to_string()),
-                    grad_shape,
-                    param_shape,
-                });
-            }
-
-            let mut grad_tensor = grad.clone();
-
-            if let Some(wd) = weight_decay_value {
-                let wd_tensor = scalar_tensor(param.tensor(), wd)?;
-                let decay = param.tensor().mul(&wd_tensor)?;
-                grad_tensor = grad_tensor.add(&decay)?;
-            }
-
-            let update = if let Some(momentum) = momentum_value {
-                let momentum_tensor = scalar_tensor(param.tensor(), momentum)?;
-                let velocity = match state.velocity.take() {
-                    Some(v) => v,
-                    None => Tensor::zeros_like(param.tensor())?,
-                };
-                let updated_velocity = velocity.mul(&momentum_tensor)?.add(&grad_tensor)?;
-                state.velocity = Some(updated_velocity.clone());
-                updated_velocity
-            } else {
-                grad_tensor
-            };
-
-            let lr_tensor = scalar_tensor(param.tensor(), lr_value)?;
-            let scaled_update = update.mul(&lr_tensor)?;
-            let new_value = param.tensor().sub(&scaled_update)?;
-            *param.tensor_mut() = new_value;
+                grad_shape,
+                param_shape,
+            });
         }
 
-        self.state.step = self.state.step.saturating_add(1);
+        let mut grad_tensor = grad.clone();
+
+        if let Some(wd) = weight_decay {
+            grad_tensor = Self::apply_weight_decay(param.tensor(), &grad_tensor, wd)?;
+        }
+
+        let update = if let Some(mom) = momentum {
+            Self::apply_momentum(state, param.tensor(), &grad_tensor, mom)?
+        } else {
+            grad_tensor
+        };
+
+        let lr_tensor = scalar_tensor(param.tensor(), lr)?;
+        let scaled_update = update.mul(&lr_tensor)?;
+        let new_value = param.tensor().sub(&scaled_update)?;
+        *param.tensor_mut() = new_value;
+
         Ok(())
+    }
+
+    fn apply_weight_decay(
+        param_tensor: &Tensor<B, D>,
+        grad: &Tensor<B, D>,
+        wd: D,
+    ) -> Result<Tensor<B, D>> {
+        let wd_tensor = scalar_tensor(param_tensor, wd)?;
+        let decay = param_tensor.mul(&wd_tensor)?;
+        Ok(grad.add(&decay)?)
+    }
+
+    fn apply_momentum(
+        state: &mut SgdParamState<B, D>,
+        param_tensor: &Tensor<B, D>,
+        grad: &Tensor<B, D>,
+        momentum: D,
+    ) -> Result<Tensor<B, D>> {
+        let momentum_tensor = scalar_tensor(param_tensor, momentum)?;
+        let velocity = match state.velocity.take() {
+            Some(v) => v,
+            None => Tensor::zeros_like(param_tensor)?,
+        };
+        let updated_velocity = velocity.mul(&momentum_tensor)?.add(grad)?;
+        state.velocity = Some(updated_velocity.clone());
+        Ok(updated_velocity)
     }
 }
 

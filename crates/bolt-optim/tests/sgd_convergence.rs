@@ -18,7 +18,10 @@ fn sgd_converges_on_linear_regression() -> Result<(), Box<dyn std::error::Error>
     let mut w = Parameter::with_name(Tensor::from_slice(&base, &[0.0f32], &[])?, "w");
     let mut b = Parameter::with_name(Tensor::from_slice(&base, &[0.0f32], &[])?, "b");
 
-    let mut opt: Opt = Opt::builder().learning_rate(0.1).momentum(0.9).init(&[&w, &b])?;
+    let mut opt: Opt = Opt::builder()
+        .learning_rate(0.1)
+        .momentum(0.9)
+        .init(&[&w, &b])?;
 
     for _ in 0..200 {
         autodiff.with_tape(|tape| {

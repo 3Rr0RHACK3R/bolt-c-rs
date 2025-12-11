@@ -10,7 +10,13 @@ fn approx_eq(a: f32, b: f32, eps: f32) -> bool {
 fn assert_vec_approx_eq(actual: &[f32], expected: &[f32], eps: f32) {
     assert_eq!(actual.len(), expected.len());
     for (a, e) in actual.iter().zip(expected.iter()) {
-        assert!(approx_eq(*a, *e, eps), "got {}, expected {} (eps={})", a, e, eps);
+        assert!(
+            approx_eq(*a, *e, eps),
+            "got {}, expected {} (eps={})",
+            a,
+            e,
+            eps
+        );
     }
 }
 

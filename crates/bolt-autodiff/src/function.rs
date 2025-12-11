@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use bolt_core::Tensor;
 use bolt_core::BaseBackend;
+use bolt_core::Tensor;
 use bolt_core::backend::{AddOp, CopyOp, FillOp};
 use tinyvec::ArrayVec;
 

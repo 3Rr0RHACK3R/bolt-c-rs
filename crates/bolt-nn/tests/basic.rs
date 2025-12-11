@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{linear, Linear};
+use bolt_nn::layers::{Linear, linear};
 use bolt_nn::{Context, Eval, Model};
 
 type B = CpuBackend;
@@ -42,7 +42,6 @@ fn test_context_backend_access() {
     let backend = Arc::new(CpuBackend::new());
     let ctx = Context::<B, D, M>::eval(&backend);
 
-    // Can access backend through context
     let _ = ctx.backend();
     let _ = ctx.device();
 }
@@ -56,12 +55,9 @@ fn test_linear_params_access() {
 
     let layer: Linear<B, D> = linear(4, 2).build(&backend).unwrap();
 
-    // Can access params
     let params = layer.params();
-    assert_eq!(params.len(), 2); // weight + bias
+    assert_eq!(params.len(), 2);
 
-    // Weight shape
     assert_eq!(params[0].tensor().shape(), &[2, 4]);
-    // Bias shape
     assert_eq!(params[1].tensor().shape(), &[2]);
 }

@@ -67,7 +67,16 @@ where
     M: Mode<B, D>,
 {
     layers: Vec<
-        Box<dyn Model<B, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>> + Send + Sync>,
+        Box<
+            dyn Model<
+                    B,
+                    D,
+                    M,
+                    Input = Tensor<M::Backend, D>,
+                    Output = Result<Tensor<M::Backend, D>>,
+                > + Send
+                + Sync,
+        >,
     >,
 }
 
@@ -83,7 +92,10 @@ where
 
     pub fn push<L>(mut self, layer: L) -> Self
     where
-        L: Model<B, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>> + Send + Sync + 'static,
+        L: Model<B, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>>
+            + Send
+            + Sync
+            + 'static,
     {
         self.layers.push(Box::new(layer));
         self

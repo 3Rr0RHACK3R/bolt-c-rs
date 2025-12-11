@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use bolt_core::BaseBackend;
 use bolt_core::OneValue;
 use bolt_core::Tensor;
-use bolt_core::BaseBackend;
 use bolt_core::backend::FillOp;
 use bolt_core::error::{Error, Result};
 use bolt_core::layout::Layout;

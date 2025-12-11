@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use bolt_core::BaseBackend;
 use bolt_core::Result;
 use bolt_core::Tensor;
-use bolt_core::BaseBackend;
 use bolt_core::backend::{
-    AbsOp, AddOp, ArgmaxOp, ArgminOp, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp, FillOp,
-    LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, ReshapeOp, SinOp,
-    SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TensorParts, TransposeOp, UnsqueezeOp,
+    AbsOp, AddOp, ArgmaxOp, ArgminOp, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp,
+    MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp, ReshapeOp, SinOp, SqrtOp,
+    SqueezeOp, SubOp, SumOp, TanhOp, TensorParts, TransposeOp, UnsqueezeOp,
 };
 use bolt_core::layout::Layout;
 use bolt_core::shape;

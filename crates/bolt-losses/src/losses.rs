@@ -1,7 +1,7 @@
 use bolt_core::{
+    Tensor,
     backend::{Backend, ExpOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, SubOp, SumOp},
     dtype::FloatType,
-    Tensor,
 };
 
 use crate::error::{Error, Result};
@@ -98,4 +98,3 @@ where
     }
     Ok(())
 }
-

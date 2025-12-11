@@ -1,10 +1,10 @@
 use std::sync::{Arc, RwLock};
 
+use bolt_core::BaseBackend;
 use bolt_core::backend::Backend;
 use bolt_core::device::DeviceKind;
 use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
-use bolt_core::BaseBackend;
 
 use crate::Float;
 use crate::device::AutodiffDevice;
