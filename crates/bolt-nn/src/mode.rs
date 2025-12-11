@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use bolt_autodiff::{
-    Autodiff, AutodiffStorage, Float, GradContext, Handle, ParamId, Parameter,
-};
+use bolt_autodiff::{Autodiff, AutodiffStorage, Float, GradContext, Handle, ParamId, Parameter};
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
 use bolt_core::{BaseBackend, OneValue, Tensor};
 use tinyvec::ArrayVec;
@@ -26,7 +24,9 @@ pub struct Eval<B, D> {
 
 impl<B, D> Eval<B, D> {
     pub(crate) fn new() -> Self {
-        Self { _marker: PhantomData }
+        Self {
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -68,7 +68,7 @@ where
     pub(crate) fn new(autodiff: Arc<Autodiff<B, D>>) -> Self {
         // Start the gradient graph immediately
         let grad_ctx = autodiff.begin_grad();
-        
+
         Self {
             autodiff,
             grad_ctx: RefCell::new(Some(grad_ctx)),
@@ -90,9 +90,11 @@ where
         D: OneValue,
     {
         let grad_ctx_opt = self.grad_ctx.borrow();
-        let grad_ctx = grad_ctx_opt.as_ref().ok_or_else(|| Error::MissingParam(
-            "No active gradient context. backward() may have already been called.".into()
-        ))?;
+        let grad_ctx = grad_ctx_opt.as_ref().ok_or_else(|| {
+            Error::MissingParam(
+                "No active gradient context. backward() may have already been called.".into(),
+            )
+        })?;
 
         let grads = grad_ctx.backward(loss)?;
 
@@ -120,11 +122,7 @@ where
 
     fn wrap_input(&self, tensor: &Tensor<B, D>) -> Tensor<Autodiff<B, D>, D> {
         let layout = tensor.layout().clone();
-        let storage = AutodiffStorage::new(
-            tensor.storage().clone(),
-            Handle::NONE,
-            false,
-        );
+        let storage = AutodiffStorage::new(tensor.storage().clone(), Handle::NONE, false);
         Tensor::from_parts(self.autodiff.clone(), storage, layout)
     }
 
@@ -146,8 +144,8 @@ where
         let storage = self.autodiff.create_tracked_storage(
             p.tensor().storage().clone(),
             &layout,
-            true,  // requires_grad
-            true,  // is_leaf
+            true, // requires_grad
+            true, // is_leaf
             ArrayVec::new(),
             None,
             vec![],

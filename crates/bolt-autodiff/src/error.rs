@@ -1,4 +1,4 @@
-use crate::{parameter::ParamId, Handle};
+use crate::{Handle, parameter::ParamId};
 use bolt_core::Error as CoreError;
 use thiserror::Error;
 

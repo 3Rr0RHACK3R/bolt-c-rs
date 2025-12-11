@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use bolt_autodiff::{Float, Parameter};
+use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 use bolt_core::backend::{AddOp, Backend, FillOp, MatmulOp, TransposeOp};
-use bolt_core::BaseBackend;
 use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
@@ -45,11 +45,7 @@ impl LinearSpec {
         let weight = Parameter::with_name(weight_tensor, "weight");
 
         let bias = if self.bias {
-            let bias_tensor = Tensor::full(
-                backend,
-                &[self.out_features],
-                D::default(),
-            )?;
+            let bias_tensor = Tensor::full(backend, &[self.out_features], D::default())?;
             Some(Parameter::with_name(bias_tensor, "bias"))
         } else {
             None

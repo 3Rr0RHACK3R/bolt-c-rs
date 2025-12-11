@@ -84,10 +84,14 @@ where
                 continue;
             }
 
-            let handle = *self.param_handles.get(&param.id()).ok_or_else(|| Error::ParamNotInTape {
-                param_id: param.id(),
-                param_name: param.name().map(|n| n.to_string()),
-            })?;
+            let handle =
+                *self
+                    .param_handles
+                    .get(&param.id())
+                    .ok_or_else(|| Error::ParamNotInTape {
+                        param_id: param.id(),
+                        param_name: param.name().map(|n| n.to_string()),
+                    })?;
 
             match grads.get(&handle) {
                 Some(grad) => param.set_grad(grad.clone()),
@@ -116,10 +120,14 @@ where
                 continue;
             }
 
-            let handle = *self.param_handles.get(&param.id()).ok_or_else(|| Error::ParamNotInTape {
-                param_id: param.id(),
-                param_name: param.name().map(|n| n.to_string()),
-            })?;
+            let handle =
+                *self
+                    .param_handles
+                    .get(&param.id())
+                    .ok_or_else(|| Error::ParamNotInTape {
+                        param_id: param.id(),
+                        param_name: param.name().map(|n| n.to_string()),
+                    })?;
 
             if let Some(grad) = grads.get(&handle) {
                 inner.insert(param.id(), grad.clone());

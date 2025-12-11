@@ -14,4 +14,3 @@ pub use context::{Context, Rng};
 pub use error::{Error, Result};
 pub use mode::{Eval, Grad, Mode};
 pub use model::Model;
-

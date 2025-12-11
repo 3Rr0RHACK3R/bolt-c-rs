@@ -38,10 +38,16 @@ fn test_frozen_param_no_gradient() {
     grad_ctx.backward(&loss, &mut layer.params_mut()).unwrap();
 
     // Frozen param should NOT have gradient
-    assert!(layer.weight.grad().is_none(), "Frozen param should not receive gradient");
+    assert!(
+        layer.weight.grad().is_none(),
+        "Frozen param should not receive gradient"
+    );
 
     // Bias (not frozen) should have gradient
-    assert!(layer.bias.as_ref().unwrap().grad().is_some(), "Unfrozen param should receive gradient");
+    assert!(
+        layer.bias.as_ref().unwrap().grad().is_some(),
+        "Unfrozen param should receive gradient"
+    );
 }
 
 #[test]
@@ -51,7 +57,6 @@ fn test_unfreeze_enables_gradient() {
 
     let mut layer = linear(2, 1).build(&backend).unwrap();
 
-    // Freeze then unfreeze
     layer.weight.freeze();
     assert!(!layer.weight.requires_grad());
 
@@ -66,7 +71,10 @@ fn test_unfreeze_enables_gradient() {
 
     grad_ctx.backward(&loss, &mut layer.params_mut()).unwrap();
 
-    assert!(layer.weight.grad().is_some(), "Unfrozen param should receive gradient");
+    assert!(
+        layer.weight.grad().is_some(),
+        "Unfrozen param should receive gradient"
+    );
 }
 
 // ============ Test 2: param_frozen() Never Tracks ============
@@ -77,7 +85,7 @@ fn test_param_frozen_never_tracks() {
 
     let w_data = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[2, 1]).unwrap();
     let mut param = Parameter::new(w_data);
-    
+
     // Also create a tracked param so backward has something to work with
     let other_data = Tensor::<B, D>::from_slice(&backend, &[0.5], &[1]).unwrap();
     let mut other_param = Parameter::new(other_data);
@@ -87,22 +95,29 @@ fn test_param_frozen_never_tracks() {
 
     let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
 
-    // Use param_frozen even though requires_grad is true
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
     let x_ad = grad_ctx.input(&x);
-    let w_ad = grad_ctx.param_frozen(&param);  // Force no tracking
-    let other_ad = grad_ctx.param(&other_param);  // This one is tracked
+    let w_ad = grad_ctx.param_frozen(&param); // Force no tracking
+    let other_ad = grad_ctx.param(&other_param); // This one is tracked
 
     let y = x_ad.matmul(&w_ad).unwrap().add(&other_ad).unwrap();
     let loss = y.sum(None, false).unwrap();
 
-    grad_ctx.backward(&loss, &mut [&mut param, &mut other_param]).unwrap();
+    grad_ctx
+        .backward(&loss, &mut [&mut param, &mut other_param])
+        .unwrap();
 
     // param_frozen should NOT have gradient even though we passed it to backward
-    assert!(param.grad().is_none(), "param_frozen should never track gradients");
-    
+    assert!(
+        param.grad().is_none(),
+        "param_frozen should never track gradients"
+    );
+
     // The tracked param should have gradient
-    assert!(other_param.grad().is_some(), "normally tracked param should have gradient");
+    assert!(
+        other_param.grad().is_some(),
+        "normally tracked param should have gradient"
+    );
 }
 
 // ============ Test 3: Parameter Sharing (Weight Tying) ============
@@ -117,11 +132,9 @@ fn test_parameter_sharing_deduplication() {
 
     let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
 
-    // Access same param multiple times
     let w1 = grad_ctx.param(&shared_param);
     let w2 = grad_ctx.param(&shared_param);
 
-    // Both should work and produce valid output
     let x = grad_ctx.input(&Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap());
     let y1 = x.matmul(&w1).unwrap();
     let y2 = y1.matmul(&w2.transpose(-1, -2).unwrap()).unwrap();
@@ -130,7 +143,10 @@ fn test_parameter_sharing_deduplication() {
     grad_ctx.backward(&loss, &mut [&mut shared_param]).unwrap();
 
     // Should have accumulated gradient from both uses
-    assert!(shared_param.grad().is_some(), "Shared param should receive gradient");
+    assert!(
+        shared_param.grad().is_some(),
+        "Shared param should receive gradient"
+    );
 }
 
 // ============ Test 4: Inference After Training ============
@@ -150,9 +166,10 @@ fn test_inference_after_training() {
         let loss = output.sum(None, false).unwrap();
         grad_ctx.backward(&loss, &mut layer.params_mut()).unwrap();
 
-        // Update weights
         if let Some(grad) = layer.weight.grad() {
-            let update = grad.mul(&Tensor::full(&backend, &[], 0.1f32).unwrap()).unwrap();
+            let update = grad
+                .mul(&Tensor::full(&backend, &[], 0.1f32).unwrap())
+                .unwrap();
             *layer.weight.tensor_mut() = layer.weight.tensor().sub(&update).unwrap();
         }
         layer.weight.zero_grad();
@@ -186,7 +203,11 @@ fn test_low_level_api_raw_params() {
     let b_ad = grad_ctx.param(&b);
 
     // Manual forward: y = x @ W + b
-    let y = x.matmul(&w_ad.transpose(-1, -2).unwrap()).unwrap().add(&b_ad).unwrap();
+    let y = x
+        .matmul(&w_ad.transpose(-1, -2).unwrap())
+        .unwrap()
+        .add(&b_ad)
+        .unwrap();
     let loss = y.sum(None, false).unwrap();
 
     grad_ctx.backward(&loss, &mut [&mut w, &mut b]).unwrap();
@@ -220,10 +241,22 @@ fn test_multi_layer_gradient_flow() {
     grad_ctx.backward(&loss, &mut all_params).unwrap();
 
     // All params should have gradients
-    assert!(layer1.weight.grad().is_some(), "Layer1 weight should have gradient");
-    assert!(layer1.bias.as_ref().unwrap().grad().is_some(), "Layer1 bias should have gradient");
-    assert!(layer2.weight.grad().is_some(), "Layer2 weight should have gradient");
-    assert!(layer2.bias.as_ref().unwrap().grad().is_some(), "Layer2 bias should have gradient");
+    assert!(
+        layer1.weight.grad().is_some(),
+        "Layer1 weight should have gradient"
+    );
+    assert!(
+        layer1.bias.as_ref().unwrap().grad().is_some(),
+        "Layer1 bias should have gradient"
+    );
+    assert!(
+        layer2.weight.grad().is_some(),
+        "Layer2 weight should have gradient"
+    );
+    assert!(
+        layer2.bias.as_ref().unwrap().grad().is_some(),
+        "Layer2 bias should have gradient"
+    );
 }
 
 // ============ Test 7: Separate Contexts for Train vs Predict ============
@@ -245,7 +278,11 @@ fn test_gan_style_alternating_optimization() {
         // G forward with frozen params (no grad)
         let g_w = ctx.param_frozen(&model_g.weight);
         let g_b = ctx.param_frozen(model_g.bias.as_ref().unwrap());
-        let fake = noise.matmul(&g_w.transpose(-1, -2).unwrap()).unwrap().add(&g_b).unwrap();
+        let fake = noise
+            .matmul(&g_w.transpose(-1, -2).unwrap())
+            .unwrap()
+            .add(&g_b)
+            .unwrap();
 
         // D forward with tracked params
         let d_out = model_d.forward(&ctx, fake).unwrap();
@@ -254,8 +291,14 @@ fn test_gan_style_alternating_optimization() {
         ctx.backward(&d_loss, &mut model_d.params_mut()).unwrap();
 
         // D should have grad, G should not
-        assert!(model_d.weight.grad().is_some(), "Discriminator should have grad");
-        assert!(model_g.weight.grad().is_none(), "Generator should not have grad (frozen)");
+        assert!(
+            model_d.weight.grad().is_some(),
+            "Discriminator should have grad"
+        );
+        assert!(
+            model_g.weight.grad().is_none(),
+            "Generator should not have grad (frozen)"
+        );
     }
 
     // Phase 2: Train G with D frozen
@@ -272,13 +315,23 @@ fn test_gan_style_alternating_optimization() {
         // D forward with frozen params
         let d_w = ctx.param_frozen(&model_d.weight);
         let d_b = ctx.param_frozen(model_d.bias.as_ref().unwrap());
-        let d_out = fake.matmul(&d_w.transpose(-1, -2).unwrap()).unwrap().add(&d_b).unwrap();
+        let d_out = fake
+            .matmul(&d_w.transpose(-1, -2).unwrap())
+            .unwrap()
+            .add(&d_b)
+            .unwrap();
         let g_loss = d_out.sum(None, false).unwrap();
 
         ctx.backward(&g_loss, &mut model_g.params_mut()).unwrap();
 
-        assert!(model_g.weight.grad().is_some(), "Generator should have grad");
-        assert!(model_d.weight.grad().is_none(), "Discriminator should not have grad (frozen)");
+        assert!(
+            model_g.weight.grad().is_some(),
+            "Generator should have grad"
+        );
+        assert!(
+            model_d.weight.grad().is_none(),
+            "Discriminator should not have grad (frozen)"
+        );
     }
 }
 
@@ -295,7 +348,7 @@ fn test_eval_context_returns_base_tensor() {
     let output = layer.forward(&eval_ctx, eval_ctx.input(&x)).unwrap();
 
     // Output type is Tensor<B, D> = Tensor<CpuBackend, f32>, NOT Tensor<Autodiff<...>, f32>
-    let _: Tensor<B, D> = output;  // This compiles, proving it's the base type
+    let _: Tensor<B, D> = output; // This compiles, proving it's the base type
 }
 
 // ============ Test 9: Fresh Context Per Batch ============
@@ -320,7 +373,11 @@ fn test_fresh_context_per_batch() {
         ctx.backward(&loss, &mut layer.params_mut()).unwrap();
 
         // Check gradient exists
-        assert!(layer.weight.grad().is_some(), "Batch {} should produce gradient", i);
+        assert!(
+            layer.weight.grad().is_some(),
+            "Batch {} should produce gradient",
+            i
+        );
 
         // Zero grad for next batch
         layer.weight.zero_grad();

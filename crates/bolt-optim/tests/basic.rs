@@ -18,7 +18,10 @@ fn dedupes_repeated_param_ids() -> Result<(), Box<dyn std::error::Error>> {
         let _ = seen.insert(id);
     }
 
-    assert_eq!(seen.len(), 1, "deduplication of ParamId should ignore repeats");
+    assert_eq!(
+        seen.len(),
+        1,
+        "deduplication of ParamId should ignore repeats"
+    );
     Ok(())
 }
-

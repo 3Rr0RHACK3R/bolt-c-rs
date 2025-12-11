@@ -1,11 +1,12 @@
-use bolt_core::{backend::{ArgmaxOp, Backend, CopyOp}, dtype::{FloatType, NativeType}, Tensor};
+use bolt_core::{
+    Tensor,
+    backend::{ArgmaxOp, Backend, CopyOp},
+    dtype::{FloatType, NativeType},
+};
 
 use crate::error::{Error, Result};
 
-pub fn accuracy_top1<B, D>(
-    logits: &Tensor<B, D>,
-    targets: &Tensor<B, i32>,
-) -> Result<f32>
+pub fn accuracy_top1<B, D>(logits: &Tensor<B, D>, targets: &Tensor<B, i32>) -> Result<f32>
 where
     B: Backend + ArgmaxOp<D> + CopyOp<i32>,
     D: FloatType + NativeType,
@@ -47,4 +48,3 @@ where
 
     Ok(correct as f32 / targets_vec.len() as f32)
 }
-
