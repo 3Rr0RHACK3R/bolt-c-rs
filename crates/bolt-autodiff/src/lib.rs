@@ -2,7 +2,6 @@
 
 mod backend;
 mod backward;
-pub mod device;
 pub mod error;
 mod float;
 mod function;
@@ -19,7 +18,6 @@ mod tensor_ext;
 mod utils;
 
 pub use backward::{BackwardContext, BackwardOp, MAX_INPUTS};
-pub use device::AutodiffDevice;
 pub use error::{Error, Result};
 pub use float::Float;
 pub use function::Function;

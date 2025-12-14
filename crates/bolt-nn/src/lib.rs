@@ -8,9 +8,9 @@ pub mod layers;
 mod mode;
 mod model;
 
+pub use bolt_autodiff::HasParams;
 #[cfg(feature = "losses")]
 pub use bolt_losses::*;
-pub use bolt_autodiff::HasParams;
 pub use context::{Context, Rng};
 pub use error::{Error, Result};
 pub use mode::{Eval, Grad, Mode};

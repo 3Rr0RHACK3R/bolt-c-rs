@@ -7,7 +7,6 @@ use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
 
 use crate::Float;
-use crate::device::AutodiffDevice;
 use crate::grad_tape::GradTape;
 use crate::graph::Graph;
 use crate::operations::Autodiff;
@@ -89,12 +88,12 @@ where
     B: BaseBackend,
     D: Float,
 {
-    type Device = AutodiffDevice<B::Device>;
+    type Device = B::Device;
     type Storage<T: NativeType> = AutodiffStorage<B::Storage<T>>;
     type Allocator<T: NativeType> = AutodiffAllocator<B::Allocator<T>>;
 
     fn device(&self) -> &Self::Device {
-        unsafe { &*(self.inner.device() as *const B::Device as *const AutodiffDevice<B::Device>) }
+        self.inner.device()
     }
 
     fn allocator<T: NativeType>(&self) -> Self::Allocator<T> {

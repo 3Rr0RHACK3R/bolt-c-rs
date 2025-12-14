@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{linear, HasParams};
+use bolt_nn::layers::{HasParams, linear};
 use bolt_nn::{Context, Eval, Model};
 use bolt_optim::Sgd;
 

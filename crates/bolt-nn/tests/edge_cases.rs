@@ -12,7 +12,7 @@ use std::sync::Arc;
 use bolt_autodiff::{AutodiffTensorExt, Parameter};
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{linear, HasParams};
+use bolt_nn::layers::{HasParams, linear};
 use bolt_nn::{Context, Eval, Grad, Model};
 
 type B = CpuBackend;
@@ -68,7 +68,12 @@ fn test_frozen_param_no_gradient() {
     );
 
     // Bias (not frozen) should have gradient = 1.0
-    let bias_grad = layer.bias.as_ref().unwrap().grad().expect("Bias should have gradient");
+    let bias_grad = layer
+        .bias
+        .as_ref()
+        .unwrap()
+        .grad()
+        .expect("Bias should have gradient");
     let bias_grad_val = tensor_to_vec(bias_grad);
     assert_close(bias_grad_val[0], 1.0, 1e-5, "Bias gradient");
 }
@@ -97,7 +102,10 @@ fn test_unfreeze_restores_gradient_tracking() {
 
     grad_ctx.backward(&loss, &mut layer.params_mut()).unwrap();
 
-    let weight_grad = layer.weight.grad().expect("Unfrozen weight should have gradient");
+    let weight_grad = layer
+        .weight
+        .grad()
+        .expect("Unfrozen weight should have gradient");
     let grad_vals = tensor_to_vec(weight_grad);
     assert_close(grad_vals[0], 1.0, 1e-5, "Weight gradient[0]");
     assert_close(grad_vals[1], 2.0, 1e-5, "Weight gradient[1]");
@@ -114,7 +122,10 @@ fn test_param_frozen_overrides_requires_grad_flag() {
     let other_data = Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap();
     let mut param_b = Parameter::new(other_data);
 
-    assert!(param_a.requires_grad(), "param_a should require grad by default");
+    assert!(
+        param_a.requires_grad(),
+        "param_a should require grad by default"
+    );
 
     let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
 
@@ -164,7 +175,9 @@ fn test_parameter_sharing_accumulates_gradients() {
 
     grad_ctx.backward(&loss, &mut [&mut shared_param]).unwrap();
 
-    let grad = shared_param.grad().expect("Shared param should have gradient");
+    let grad = shared_param
+        .grad()
+        .expect("Shared param should have gradient");
     let grad_vals = tensor_to_vec(grad);
 
     // Expected accumulated gradient: [[2, 3], [3, 4]] (row-major)
@@ -233,7 +246,11 @@ fn test_low_level_api_gradient_values() {
     let w_ad = grad_ctx.param(&w);
     let b_ad = grad_ctx.param(&b);
 
-    let y = x.matmul(&w_ad.transpose(-1, -2).unwrap()).unwrap().add(&b_ad).unwrap();
+    let y = x
+        .matmul(&w_ad.transpose(-1, -2).unwrap())
+        .unwrap()
+        .add(&b_ad)
+        .unwrap();
     let loss = y.sum(None, false).unwrap();
 
     grad_ctx.backward(&loss, &mut [&mut w, &mut b]).unwrap();
@@ -293,7 +310,12 @@ fn test_alternating_optimization_with_freeze_unfreeze() {
 
     // G: identity; D: weights [1,1]
     let mut model_g = linear(2, 2).bias(false).build(&backend).unwrap();
-    set_param(&mut model_g.weight, &backend, &[1.0, 0.0, 0.0, 1.0], &[2, 2]);
+    set_param(
+        &mut model_g.weight,
+        &backend,
+        &[1.0, 0.0, 0.0, 1.0],
+        &[2, 2],
+    );
 
     let mut model_d = linear(2, 1).bias(false).build(&backend).unwrap();
     set_param(&mut model_d.weight, &backend, &[1.0, 1.0], &[1, 2]);
@@ -475,18 +497,26 @@ fn test_has_params_freeze_unfreeze_all() {
 
     // Add a tracked dummy param that matches output shape for the add
     let ad_backend = ctx.autodiff();
-    let dummy_ad = Tensor::from_slice(&ad_backend, &[1.0, 1.0], &[1, 2]).unwrap().requires_grad();
+    let dummy_ad = Tensor::from_slice(&ad_backend, &[1.0, 1.0], &[1, 2])
+        .unwrap()
+        .requires_grad();
     let output_with_dummy = output.add(&dummy_ad).unwrap();
     let loss = output_with_dummy.sum(None, false).unwrap();
 
     let grads = loss.backward().unwrap();
 
-    assert!(layer.weight.grad().is_none(), "Frozen weight should have no grad");
+    assert!(
+        layer.weight.grad().is_none(),
+        "Frozen weight should have no grad"
+    );
     assert!(
         layer.bias.as_ref().unwrap().grad().is_none(),
         "Frozen bias should have no grad"
     );
-    assert!(grads.wrt(&dummy_ad).is_some(), "Dummy param should have grad");
+    assert!(
+        grads.wrt(&dummy_ad).is_some(),
+        "Dummy param should have grad"
+    );
 
     // Unfreeze and verify gradients flow
     layer.unfreeze();
@@ -498,7 +528,10 @@ fn test_has_params_freeze_unfreeze_all() {
     let loss2 = output2.sum(None, false).unwrap();
     ctx2.backward(&loss2, &mut layer.params_mut()).unwrap();
 
-    assert!(layer.weight.grad().is_some(), "Unfrozen weight should have grad");
+    assert!(
+        layer.weight.grad().is_some(),
+        "Unfrozen weight should have grad"
+    );
     assert!(
         layer.bias.as_ref().unwrap().grad().is_some(),
         "Unfrozen bias should have grad"
@@ -526,7 +559,10 @@ fn test_has_params_zero_grad_all() {
     // Zero all via trait method
     layer.zero_grad();
 
-    assert!(layer.weight.grad().is_none(), "Weight grad should be cleared");
+    assert!(
+        layer.weight.grad().is_none(),
+        "Weight grad should be cleared"
+    );
     assert!(
         layer.bias.as_ref().unwrap().grad().is_none(),
         "Bias grad should be cleared"
