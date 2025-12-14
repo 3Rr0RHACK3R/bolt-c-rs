@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bolt_autodiff::{Autodiff, Float, Parameter};
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
-use bolt_core::{BaseBackend, OneValue, Tensor};
+use bolt_core::{BaseBackend, Tensor};
 
 use crate::error::Result;
 use crate::mode::{Eval, Grad, Mode};
@@ -86,7 +86,6 @@ where
     ) -> Result<()>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         self.mode.backward(loss, params)
     }

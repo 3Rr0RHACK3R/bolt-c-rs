@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
-use bolt_core::BaseBackend;
-use bolt_core::OneValue;
-use bolt_core::Tensor;
 use bolt_core::backend::FillOp;
 use bolt_core::error::{Error, Result};
 use bolt_core::layout::Layout;
+use bolt_core::{BaseBackend, Float, Tensor};
 
-use crate::Float;
 use crate::error::Result as AutodiffResult;
 use crate::operations::Autodiff;
 
@@ -93,10 +90,10 @@ pub(crate) fn create_backward_seed<B, D>(
 ) -> AutodiffResult<Tensor<B, D>>
 where
     B: BaseBackend + FillOp<D>,
-    D: Float + OneValue,
+    D: Float,
 {
     let seed = if loss_tensor.numel() == 1 {
-        Tensor::full(backend, &[], OneValue::one())?
+        Tensor::full(backend, &[], D::one())?
     } else {
         Tensor::ones(backend, loss_tensor.shape())?
     };

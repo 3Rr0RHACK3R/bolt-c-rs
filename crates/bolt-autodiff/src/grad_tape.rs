@@ -2,15 +2,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
-use bolt_core::{BaseBackend, OneValue, Tensor};
+use bolt_core::{BaseBackend, Float, Tensor};
 use tinyvec::ArrayVec;
 
+use crate::Handle;
 use crate::error::{Error, Result};
 use crate::operations::Autodiff;
 use crate::parameter::{ParamId, Parameter};
 use crate::scope::GradContext;
 use crate::storage::AutodiffStorage;
-use crate::{Float, Handle};
 
 pub struct GradTape<'a, B, D>
 where
@@ -74,7 +74,6 @@ where
     ) -> Result<()>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         let grads = self.ctx.backward(loss)?;
         let mut seen = HashSet::new();
@@ -109,7 +108,6 @@ where
     ) -> Result<ParamGrads<B, D>>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         let grads = self.ctx.backward(loss)?;
         let mut inner = HashMap::new();

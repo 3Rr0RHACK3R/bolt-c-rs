@@ -3,7 +3,6 @@
 mod backend;
 mod backward;
 pub mod error;
-mod float;
 mod function;
 mod grad_tape;
 mod gradients;
@@ -18,8 +17,8 @@ mod tensor_ext;
 mod utils;
 
 pub use backward::{BackwardContext, BackwardOp, MAX_INPUTS};
+pub use bolt_core::Float;
 pub use error::{Error, Result};
-pub use float::Float;
 pub use function::Function;
 pub use grad_tape::{GradTape, ParamGrads};
 pub use gradients::Gradients;

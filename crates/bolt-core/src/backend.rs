@@ -1,7 +1,7 @@
 use crate::{
     allocator::StorageAllocator,
     device::{BackendDevice, DeviceKind},
-    dtype::{FloatType, NativeType},
+    dtype::{Float, NativeType},
     error::Result,
     layout::Layout,
 };
@@ -90,7 +90,7 @@ pub trait MatmulOp<D: NativeType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait MeanOp<D: FloatType>: Backend {
+pub trait MeanOp<D: Float>: Backend {
     fn mean(
         &self,
         layout: &Layout,
@@ -116,7 +116,7 @@ pub trait AbsOp<D: NativeType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait ExpOp<D: FloatType>: Backend {
+pub trait ExpOp<D: Float>: Backend {
     fn exp(
         &self,
         layout: &Layout,
@@ -124,7 +124,7 @@ pub trait ExpOp<D: FloatType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait LogOp<D: FloatType>: Backend {
+pub trait LogOp<D: Float>: Backend {
     fn log(
         &self,
         layout: &Layout,
@@ -132,7 +132,7 @@ pub trait LogOp<D: FloatType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait SqrtOp<D: FloatType>: Backend {
+pub trait SqrtOp<D: Float>: Backend {
     fn sqrt(
         &self,
         layout: &Layout,
@@ -140,7 +140,7 @@ pub trait SqrtOp<D: FloatType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait SinOp<D: FloatType>: Backend {
+pub trait SinOp<D: Float>: Backend {
     fn sin(
         &self,
         layout: &Layout,
@@ -148,7 +148,7 @@ pub trait SinOp<D: FloatType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait CosOp<D: FloatType>: Backend {
+pub trait CosOp<D: Float>: Backend {
     fn cos(
         &self,
         layout: &Layout,
@@ -156,7 +156,7 @@ pub trait CosOp<D: FloatType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait TanhOp<D: FloatType>: Backend {
+pub trait TanhOp<D: Float>: Backend {
     fn tanh(
         &self,
         layout: &Layout,
@@ -182,7 +182,7 @@ pub trait DivOp<D: NativeType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
-pub trait PowOp<D: FloatType>: Backend {
+pub trait PowOp<D: Float>: Backend {
     fn pow(
         &self,
         lhs: &Self::Storage<D>,

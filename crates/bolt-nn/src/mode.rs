@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use bolt_autodiff::{Autodiff, AutodiffStorage, Float, GradContext, Handle, ParamId, Parameter};
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
-use bolt_core::{BaseBackend, OneValue, Tensor};
+use bolt_core::{BaseBackend, Tensor};
 use tinyvec::ArrayVec;
 
 use crate::error::{Error, Result};
@@ -87,7 +87,6 @@ where
     ) -> Result<()>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         let grad_ctx_opt = self.grad_ctx.borrow();
         let grad_ctx = grad_ctx_opt.as_ref().ok_or_else(|| {

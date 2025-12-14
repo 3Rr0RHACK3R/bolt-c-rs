@@ -3,15 +3,15 @@ use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
-use bolt_core::{BaseBackend, OneValue, Tensor};
+use bolt_core::{BaseBackend, Float, Tensor};
 
+use crate::Handle;
 use crate::backward::BackwardContext;
 use crate::error::{Error, Result};
 use crate::grad_tape::GradTape;
 use crate::gradients::{Gradients, insert_or_accumulate};
 use crate::operations::Autodiff;
 use crate::utils::create_backward_seed;
-use crate::{Float, Handle};
 
 pub struct GradContext<B, D>
 where
@@ -37,7 +37,6 @@ where
     pub fn backward(&self, loss: &Tensor<Autodiff<B, D>, D>) -> Result<Gradients<B, D>>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         let loss_handle = loss.storage().handle();
         self.backward_from_handle(loss_handle, loss)
@@ -50,7 +49,6 @@ where
     ) -> Result<Gradients<B, D>>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         let graph_ref = self.autodiff.graph().read().unwrap();
         let graph = graph_ref.as_ref().ok_or(Error::NoActiveGraph)?;

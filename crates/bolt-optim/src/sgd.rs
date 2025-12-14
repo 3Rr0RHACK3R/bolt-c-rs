@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use bolt_autodiff::{Float, ParamId, Parameter};
 use bolt_core::backend::{AddOp, FillOp, MulOp, SubOp};
 use bolt_core::{BaseBackend, Tensor};
-use num_traits::NumCast;
 
 use crate::error::{Error, Result};
 
@@ -251,12 +250,12 @@ fn validate_hyperparams(lr: f64, momentum: Option<f64>, weight_decay: Option<f64
     Ok(())
 }
 
-fn cast_scalar<D, F>(value: f64, err: F) -> Result<D>
+fn cast_scalar<D, F>(value: f64, _err: F) -> Result<D>
 where
     D: Float,
     F: FnOnce(f64) -> Error,
 {
-    NumCast::from(value).ok_or_else(|| err(value))
+    Ok(D::from_f64(value))
 }
 
 fn scalar_tensor<B, D>(like: &Tensor<B, D>, value: D) -> Result<Tensor<B, D>>

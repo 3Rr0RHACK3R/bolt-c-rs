@@ -1,7 +1,7 @@
 use bolt_core::{
     Tensor,
     backend::{Backend, ExpOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, SubOp, SumOp},
-    dtype::FloatType,
+    dtype::Float,
 };
 
 use crate::error::{Error, Result};
@@ -20,7 +20,7 @@ pub fn mse<B, D>(
 ) -> Result<Tensor<B, D>>
 where
     B: Backend + SubOp<D> + MulOp<D> + SumOp<D> + MeanOp<D>,
-    D: FloatType,
+    D: Float,
 {
     ensure_same_shape(pred, target)?;
 
@@ -44,7 +44,7 @@ where
         + LogOp<D>
         + MaxOp<D>
         + NegOp<D>,
-    D: FloatType,
+    D: Float,
 {
     ensure_same_shape(logits, target)?;
 
@@ -65,7 +65,7 @@ pub fn cross_entropy<B, D>(
 ) -> Result<Tensor<B, D>>
 where
     B: Backend + LogOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D>,
-    D: FloatType,
+    D: Float,
 {
     ensure_same_shape(probs, target)?;
     let log_probs = probs.log()?;
@@ -76,7 +76,7 @@ where
 fn apply_reduction<B, D>(tensor: Tensor<B, D>, reduction: Reduction) -> Result<Tensor<B, D>>
 where
     B: Backend + MeanOp<D> + SumOp<D>,
-    D: FloatType,
+    D: Float,
 {
     match reduction {
         Reduction::None => Ok(tensor),
@@ -88,7 +88,7 @@ where
 fn ensure_same_shape<B, D>(lhs: &Tensor<B, D>, rhs: &Tensor<B, D>) -> Result<()>
 where
     B: Backend,
-    D: FloatType,
+    D: Float,
 {
     if lhs.shape() != rhs.shape() {
         return Err(Error::ShapeMismatch {

@@ -18,7 +18,7 @@ pub use allocator::{AllocatorDiagnostics, AllocatorSnapshot, DiagnosticsCaps, St
 pub use backend::{Backend, TensorParts};
 pub use base_backend::BaseBackend;
 pub use device::DeviceKind;
-pub use dtype::{DType, NativeType, OneValue, ToF32};
+pub use dtype::{DType, Float, NativeType};
 pub use error::{Error, Result};
 pub use index::TensorIndex;
 pub use layout::{Layout, LayoutKind, TensorIndexer};

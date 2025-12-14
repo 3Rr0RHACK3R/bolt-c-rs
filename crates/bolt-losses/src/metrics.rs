@@ -1,7 +1,7 @@
 use bolt_core::{
     Tensor,
     backend::{ArgmaxOp, Backend, CopyOp},
-    dtype::{FloatType, NativeType},
+    dtype::Float,
 };
 
 use crate::error::{Error, Result};
@@ -9,7 +9,7 @@ use crate::error::{Error, Result};
 pub fn accuracy_top1<B, D>(logits: &Tensor<B, D>, targets: &Tensor<B, i32>) -> Result<f32>
 where
     B: Backend + ArgmaxOp<D> + CopyOp<i32>,
-    D: FloatType + NativeType,
+    D: Float,
 {
     let logits_shape = logits.shape();
     let target_shape = targets.shape();

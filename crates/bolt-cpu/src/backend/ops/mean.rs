@@ -1,6 +1,5 @@
 use bolt_core::{
-    StorageAllocator, TensorParts,
-    dtype::FloatType,
+    Float, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
     shape::{ConcreteShape, canonical_axes},
@@ -12,7 +11,7 @@ use super::reduction_helpers::{
     compute_multi_index_from_linear, compute_output_linear_index, compute_reduction_shape,
 };
 
-pub trait MeanKernel: FloatType {
+pub trait MeanKernel: Float {
     fn mean_kernel(
         _view: CpuTensorView<'_, Self>,
         _axes: Option<&[isize]>,
@@ -33,7 +32,7 @@ fn reduce_mean<D>(
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
 where
-    D: FloatType + num_traits::Float,
+    D: Float,
 {
     let view_shape = view.layout.shape();
 
@@ -79,7 +78,7 @@ where
                 sum = sum + unsafe { view_data[idx].assume_init() };
             }
         }
-        let mean = sum / D::from(count).unwrap();
+        let mean = sum / D::from_usize(count);
         out_data[0].write(mean);
     } else {
         let canonical = canonical.unwrap();
@@ -99,7 +98,7 @@ where
             logical_idx += 1;
         }
 
-        let count_per_output = D::from(count).unwrap();
+        let count_per_output = D::from_usize(count);
         for slot in out_data.iter_mut().take(output_numel) {
             let sum_val = unsafe { slot.assume_init() };
             slot.write(sum_val / count_per_output);

@@ -1,6 +1,5 @@
 use bolt_core::{
-    StorageAllocator, TensorParts,
-    dtype::FloatType,
+    Float, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
     shape::ConcreteShape,
@@ -10,7 +9,7 @@ use super::super::allocator::CpuAllocator;
 use super::super::storage::{CpuStorage, CpuTensorView};
 use super::can_use_fast_path_binary;
 
-pub trait PowKernel: FloatType {
+pub trait PowKernel: Float {
     fn pow_kernel(
         _lhs: CpuTensorView<'_, Self>,
         _rhs: CpuTensorView<'_, Self>,
@@ -29,7 +28,7 @@ pub fn pow<D>(
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
 where
-    D: FloatType + num_traits::Float,
+    D: Float,
 {
     let (lhs_layout, rhs_layout) = Layout::broadcast_binary(lhs.layout, rhs.layout)?;
     let shape = lhs_layout.shape();

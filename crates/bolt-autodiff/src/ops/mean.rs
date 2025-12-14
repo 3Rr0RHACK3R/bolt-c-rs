@@ -1,8 +1,7 @@
 use bolt_core::backend::{AddOp, BroadcastToOp, CopyOp, FillOp, MulOp, ReshapeOp};
-use bolt_core::{Backend, Tensor};
+use bolt_core::{Backend, Float, Tensor};
 use tinyvec::ArrayVec;
 
-use crate::Float;
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
 

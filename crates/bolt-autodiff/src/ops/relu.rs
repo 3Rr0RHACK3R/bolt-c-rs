@@ -1,9 +1,7 @@
 use bolt_core::backend::{AbsOp, AddOp, CopyOp, DivOp, FillOp, MulOp};
-use bolt_core::{Backend, Tensor};
-use num_traits::cast;
+use bolt_core::{Backend, Float, Tensor};
 use tinyvec::ArrayVec;
 
-use crate::Float;
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
 
@@ -27,15 +25,15 @@ where
     ) -> Result<ArrayVec<[Option<Tensor<B, D>>; MAX_INPUTS]>> {
         let input = ctx.saved(0);
 
-        let epsilon: D = cast(1e-8).unwrap();
+        let epsilon: D = D::from_f64(1e-8);
         let eps_tensor = Tensor::full(&input.backend(), input.shape(), epsilon)?;
         let abs_input = input.abs()?;
         let sign_denom = abs_input.add(&eps_tensor)?;
         let sign_like = input.div(&sign_denom)?;
 
-        let one = Tensor::full(&input.backend(), input.shape(), cast::<_, D>(1.0).unwrap())?;
+        let one = Tensor::full(&input.backend(), input.shape(), D::from_f64(1.0))?;
         let sign_plus_one = sign_like.add(&one)?;
-        let two: D = cast(2.0).unwrap();
+        let two: D = D::from_f64(2.0);
         let two_tensor = Tensor::full(&input.backend(), input.shape(), two)?;
         let mask = sign_plus_one.div(&two_tensor)?;
 

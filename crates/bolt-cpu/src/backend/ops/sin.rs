@@ -1,6 +1,5 @@
 use bolt_core::{
-    StorageAllocator, TensorParts,
-    dtype::FloatType,
+    Float, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
     shape::ConcreteShape,
@@ -9,7 +8,7 @@ use bolt_core::{
 use super::super::allocator::CpuAllocator;
 use super::super::storage::{CpuStorage, CpuTensorView};
 
-pub trait SinKernel: FloatType {
+pub trait SinKernel: Float {
     fn sin_kernel(
         _view: CpuTensorView<'_, Self>,
         _allocator: &CpuAllocator<Self>,
@@ -26,7 +25,7 @@ pub fn sin<D>(
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
 where
-    D: FloatType + num_traits::Float,
+    D: Float,
 {
     let shape = view.layout.shape();
     let numel: usize = shape.iter().product();

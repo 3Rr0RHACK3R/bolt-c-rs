@@ -1,8 +1,7 @@
 use std::ops::Mul;
 
 use bolt_core::{
-    StorageAllocator, TensorParts,
-    dtype::{NativeType, OneValue},
+    NativeType, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
     shape::{ConcreteShape, canonical_axes},
@@ -35,7 +34,7 @@ fn reduce_prod<D>(
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
 where
-    D: NativeType + Copy + Mul<Output = D> + OneValue,
+    D: NativeType + Copy + Mul<Output = D>,
 {
     let view_shape = view.layout.shape();
 

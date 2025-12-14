@@ -1,7 +1,7 @@
 use bolt_core::backend::{
     AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp, TensorParts, TransposeOp,
 };
-use bolt_core::dtype::{FloatType, NativeType};
+use bolt_core::dtype::{Float, NativeType};
 use bolt_core::error::Result;
 use bolt_core::layout::Layout;
 
@@ -224,7 +224,7 @@ impl<D: NativeType, B: MatmulOp<D> + Backend> MatmulOp<D> for ProfiledBackend<B>
     }
 }
 
-impl<D: FloatType, B: MeanOp<D> + Backend> MeanOp<D> for ProfiledBackend<B> {
+impl<D: Float, B: MeanOp<D> + Backend> MeanOp<D> for ProfiledBackend<B> {
     fn mean(
         &self,
         layout: &Layout,

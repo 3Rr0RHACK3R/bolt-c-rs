@@ -45,65 +45,143 @@ impl fmt::Display for DType {
 
 pub trait NativeType: Copy + Pod + Send + Sync + 'static + fmt::Debug + Default {
     const DTYPE: DType;
-}
 
-pub trait OneValue {
     fn one() -> Self;
 }
 
-pub trait ToF32 {
-    fn to_f32(self) -> f32;
-}
+pub trait Float:
+    NativeType
+    + std::ops::Neg<Output = Self>
+    + std::ops::Add<Output = Self>
+    + std::ops::Sub<Output = Self>
+    + std::ops::Mul<Output = Self>
+    + std::ops::Div<Output = Self>
+{
+    fn zero() -> Self;
+    fn from_f64(v: f64) -> Self;
+    fn from_usize(n: usize) -> Self;
 
-pub trait FloatType: NativeType {}
+    fn sin(self) -> Self;
+    fn cos(self) -> Self;
+    fn exp(self) -> Self;
+    fn ln(self) -> Self;
+    fn sqrt(self) -> Self;
+    fn tanh(self) -> Self;
+    fn powf(self, exp: Self) -> Self;
+    fn abs(self) -> Self;
+}
 
 impl NativeType for f32 {
     const DTYPE: DType = DType::F32;
-}
 
-impl FloatType for f32 {}
-
-impl ToF32 for f32 {
-    fn to_f32(self) -> f32 {
-        self
+    fn one() -> Self {
+        1.0
     }
 }
 
-impl OneValue for f32 {
-    fn one() -> Self {
-        1.0
+impl Float for f32 {
+    fn zero() -> Self {
+        0.0
+    }
+
+    fn from_f64(v: f64) -> Self {
+        v as f32
+    }
+
+    fn from_usize(n: usize) -> Self {
+        n as f32
+    }
+
+    fn sin(self) -> Self {
+        f32::sin(self)
+    }
+
+    fn cos(self) -> Self {
+        f32::cos(self)
+    }
+
+    fn exp(self) -> Self {
+        f32::exp(self)
+    }
+
+    fn ln(self) -> Self {
+        f32::ln(self)
+    }
+
+    fn sqrt(self) -> Self {
+        f32::sqrt(self)
+    }
+
+    fn tanh(self) -> Self {
+        f32::tanh(self)
+    }
+
+    fn powf(self, exp: Self) -> Self {
+        f32::powf(self, exp)
+    }
+
+    fn abs(self) -> Self {
+        f32::abs(self)
     }
 }
 
 impl NativeType for f64 {
     const DTYPE: DType = DType::F64;
-}
 
-impl FloatType for f64 {}
-
-impl ToF32 for f64 {
-    fn to_f32(self) -> f32 {
-        self as f32
-    }
-}
-
-impl OneValue for f64 {
     fn one() -> Self {
         1.0
     }
 }
 
-impl NativeType for i32 {
-    const DTYPE: DType = DType::I32;
-}
+impl Float for f64 {
+    fn zero() -> Self {
+        0.0
+    }
 
-impl ToF32 for i32 {
-    fn to_f32(self) -> f32 {
-        self as f32
+    fn from_f64(v: f64) -> Self {
+        v
+    }
+
+    fn from_usize(n: usize) -> Self {
+        n as f64
+    }
+
+    fn sin(self) -> Self {
+        f64::sin(self)
+    }
+
+    fn cos(self) -> Self {
+        f64::cos(self)
+    }
+
+    fn exp(self) -> Self {
+        f64::exp(self)
+    }
+
+    fn ln(self) -> Self {
+        f64::ln(self)
+    }
+
+    fn sqrt(self) -> Self {
+        f64::sqrt(self)
+    }
+
+    fn tanh(self) -> Self {
+        f64::tanh(self)
+    }
+
+    fn powf(self, exp: Self) -> Self {
+        f64::powf(self, exp)
+    }
+
+    fn abs(self) -> Self {
+        f64::abs(self)
     }
 }
 
-impl OneValue for i32 {
+impl NativeType for i32 {
+    const DTYPE: DType = DType::I32;
+
     fn one() -> Self {
         1
     }

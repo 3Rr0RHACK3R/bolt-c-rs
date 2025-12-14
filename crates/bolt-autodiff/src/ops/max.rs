@@ -1,11 +1,9 @@
 use bolt_core::backend::{
     AbsOp, AddOp, BroadcastToOp, DivOp, FillOp, MulOp, ReshapeOp, SubOp, SumOp,
 };
-use bolt_core::{Backend, Tensor};
-use num_traits::cast;
+use bolt_core::{Backend, Float, Tensor};
 use tinyvec::ArrayVec;
 
-use crate::Float;
 use crate::backward::{BackwardContext, BackwardOp, MAX_INPUTS};
 use crate::error::Result;
 
@@ -15,7 +13,7 @@ where
     D: Float,
 {
     let abs = tensor.abs()?;
-    let eps = Tensor::full(&tensor.backend(), abs.shape(), cast::<_, D>(1e-12).unwrap())?;
+    let eps = Tensor::full(&tensor.backend(), abs.shape(), D::from_f64(1e-12))?;
     let denom = abs.add(&eps)?;
     let ratio = abs.div(&denom)?;
     let one = Tensor::full(&tensor.backend(), tensor.shape(), D::one())?;

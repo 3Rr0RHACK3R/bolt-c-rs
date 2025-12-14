@@ -7,7 +7,7 @@ use crate::{
         FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
         ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
-    dtype::{FloatType, NativeType, OneValue},
+    dtype::{Float, NativeType},
     error::{Error, Result},
     index::TensorIndex,
     layout::Layout,
@@ -79,10 +79,9 @@ where
 
     pub fn ones(backend: &Arc<B>, shape: &[usize]) -> Result<Self>
     where
-        D: OneValue,
         B: FillOp<D>,
     {
-        Self::full(backend, shape, tensor_creation::one_value::<D>())
+        Self::full(backend, shape, D::one())
     }
 
     pub fn full(backend: &Arc<B>, shape: &[usize], value: D) -> Result<Self>
@@ -99,7 +98,6 @@ where
 
     pub fn ones_like(other: &Tensor<B, D>) -> Result<Self>
     where
-        D: OneValue,
         B: FillOp<D>,
     {
         let layout = Layout::with_strides(
@@ -107,9 +105,7 @@ where
             other.layout.strides(),
             0,
         )?;
-        let storage = other
-            .backend
-            .fill(&layout, tensor_creation::one_value::<D>())?;
+        let storage = other.backend.fill(&layout, D::one())?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
@@ -151,28 +147,21 @@ where
         Ok(tensor)
     }
 
-    pub fn eye(backend: &Arc<B>, rows: usize, cols: usize) -> Result<Self>
-    where
-        D: OneValue,
-    {
+    pub fn eye(backend: &Arc<B>, rows: usize, cols: usize) -> Result<Self> {
         let shape = ConcreteShape::from_slice(&[rows, cols])?;
         let numel = shape.num_elements();
         let mut values = vec![D::default(); numel];
         let diag = rows.min(cols);
         if cols > 0 {
             let stride = cols;
-            let diag_value = tensor_creation::one_value::<D>();
             for idx in 0..diag {
-                values[idx * stride + idx] = diag_value;
+                values[idx * stride + idx] = D::one();
             }
         }
         Self::from_vec(backend, values, &[rows, cols])
     }
 
-    pub fn identity(backend: &Arc<B>, size: usize) -> Result<Self>
-    where
-        D: OneValue,
-    {
+    pub fn identity(backend: &Arc<B>, size: usize) -> Result<Self> {
         Self::eye(backend, size, size)
     }
 
@@ -487,7 +476,7 @@ where
     pub fn mean(&self, axes: Option<&[isize]>, keepdims: bool) -> Result<Self>
     where
         B: MeanOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self
             .backend
@@ -526,7 +515,7 @@ where
     pub fn exp(&self) -> Result<Self>
     where
         B: ExpOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self.backend.exp(&self.layout, &self.storage)?;
         Ok(Self::from_parts(
@@ -539,7 +528,7 @@ where
     pub fn log(&self) -> Result<Self>
     where
         B: LogOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self.backend.log(&self.layout, &self.storage)?;
         Ok(Self::from_parts(
@@ -552,7 +541,7 @@ where
     pub fn sqrt(&self) -> Result<Self>
     where
         B: SqrtOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self.backend.sqrt(&self.layout, &self.storage)?;
         Ok(Self::from_parts(
@@ -565,7 +554,7 @@ where
     pub fn sin(&self) -> Result<Self>
     where
         B: SinOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self.backend.sin(&self.layout, &self.storage)?;
         Ok(Self::from_parts(
@@ -578,7 +567,7 @@ where
     pub fn cos(&self) -> Result<Self>
     where
         B: CosOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self.backend.cos(&self.layout, &self.storage)?;
         Ok(Self::from_parts(
@@ -591,7 +580,7 @@ where
     pub fn tanh(&self) -> Result<Self>
     where
         B: TanhOp<D>,
-        D: FloatType,
+        D: Float,
     {
         let parts = self.backend.tanh(&self.layout, &self.storage)?;
         Ok(Self::from_parts(
@@ -631,7 +620,7 @@ where
     pub fn pow(&self, other: &Self) -> Result<Self>
     where
         B: PowOp<D>,
-        D: FloatType,
+        D: Float,
     {
         self.ensure_same_backend(other)?;
         let parts = self

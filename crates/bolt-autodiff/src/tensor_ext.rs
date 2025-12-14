@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
 use bolt_core::backend::{AddOp, Backend, CopyOp, FillOp, SumOp};
-use bolt_core::{BaseBackend, OneValue, Tensor};
+use bolt_core::{BaseBackend, Float, Tensor};
 
+use crate::Handle;
 use crate::backward::BackwardContext;
 use crate::error::{Error, Result};
 use crate::gradients::{Gradients, insert_or_accumulate};
 use crate::operations::Autodiff;
 use crate::storage::AutodiffStorage;
 use crate::utils::create_backward_seed;
-use crate::{Float, Handle};
 
 pub trait AutodiffBackend<D: Float>: Backend {
     type InnerBackend: BaseBackend;
@@ -44,8 +44,7 @@ where
     fn is_tracked(&self) -> bool;
     fn backward(&self) -> Result<Gradients<B, D>>
     where
-        B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue;
+        B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>;
 }
 
 impl<B, D> AutodiffTensorExt<B, D> for Tensor<Autodiff<B, D>, D>
@@ -89,7 +88,6 @@ where
     fn backward(&self) -> Result<Gradients<B, D>>
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-        D: OneValue,
     {
         let backend = self.backend();
 

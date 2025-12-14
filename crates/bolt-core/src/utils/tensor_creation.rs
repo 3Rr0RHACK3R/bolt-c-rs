@@ -1,16 +1,9 @@
 use bytemuck::cast;
 
 use crate::{
-    dtype::{DType, NativeType, OneValue},
+    dtype::{DType, NativeType},
     error::{Error, Result},
 };
-
-pub(crate) fn one_value<D>() -> D
-where
-    D: NativeType + OneValue,
-{
-    D::one()
-}
 
 pub(crate) fn ensure_float_dtype(dtype: DType) -> Result<()> {
     if dtype.is_float() {
