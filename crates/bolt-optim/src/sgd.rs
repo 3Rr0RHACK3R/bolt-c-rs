@@ -1,10 +1,19 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 
-use bolt_autodiff::{Float, ParamId, Parameter};
-use bolt_core::backend::{AddOp, FillOp, MulOp, SubOp};
-use bolt_core::{BaseBackend, Tensor};
+use bolt_autodiff::Float;
+use bolt_autodiff::HasParams;
+use bolt_autodiff::ParamId;
+use bolt_autodiff::Parameter;
+use bolt_core::backend::AddOp;
+use bolt_core::backend::FillOp;
+use bolt_core::backend::MulOp;
+use bolt_core::backend::SubOp;
+use bolt_core::BaseBackend;
+use bolt_core::Tensor;
 
-use crate::error::{Error, Result};
+use crate::error::Error;
+use crate::error::Result;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SgdConfig {
@@ -148,6 +157,50 @@ where
             }
 
             self.update_parameter(param, lr_value, momentum_value, weight_decay_value)?;
+        }
+
+        self.state.step = self.state.step.saturating_add(1);
+        Ok(())
+    }
+
+    pub fn step_on<M>(&mut self, model: &mut M) -> Result<()>
+    where
+        M: HasParams<B, D>,
+    {
+        let lr_value = cast_scalar::<D, _>(self.config.learning_rate, |value| {
+            Error::InvalidLearningRate { value }
+        })?;
+        let momentum_value = self
+            .config
+            .momentum
+            .map(|m| cast_scalar::<D, _>(m, |value| Error::InvalidMomentum { value }))
+            .transpose()?;
+        let weight_decay_value = self
+            .config
+            .weight_decay
+            .map(|wd| cast_scalar::<D, _>(wd, |value| Error::InvalidWeightDecay { value }))
+            .transpose()?;
+
+        let mut seen = HashSet::new();
+        let mut err: Option<Error> = None;
+
+        model.visit_params_mut(&mut |param| {
+            if err.is_some() {
+                return;
+            }
+            if !seen.insert(param.id()) {
+                return;
+            }
+
+            if let Err(e) =
+                self.update_parameter(param, lr_value, momentum_value, weight_decay_value)
+            {
+                err = Some(e);
+            }
+        });
+
+        if let Some(e) = err {
+            return Err(e);
         }
 
         self.state.step = self.state.step.saturating_add(1);

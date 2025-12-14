@@ -10,8 +10,12 @@ use std::sync::Arc;
 
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{HasParams, linear};
-use bolt_nn::{Context, Eval, Model};
+use bolt_nn::layers::HasParams;
+use bolt_nn::layers::Linear;
+use bolt_nn::layers::linear;
+use bolt_nn::Context;
+use bolt_nn::Eval;
+use bolt_nn::Model;
 use bolt_optim::Sgd;
 
 type B = CpuBackend;
@@ -24,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let x_data = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[4, 1])?;
     let y_data = Tensor::<B, D>::from_slice(&backend, &[3.0, 5.0, 7.0, 9.0], &[4, 1])?;
 
-    let mut layer: bolt_nn::layers::Linear<B, D> = linear(1, 1).build(&backend)?;
+    let mut layer = linear(1, 1).build(&backend)?;
 
     let mut optimizer = Sgd::<B, D>::builder()
         .learning_rate(0.1)

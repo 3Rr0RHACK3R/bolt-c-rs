@@ -1,10 +1,17 @@
 use std::sync::Arc;
 
-use bolt_autodiff::{Float, HasParams, Parameter};
+use bolt_autodiff::Float;
+use bolt_autodiff::HasParams;
+use bolt_autodiff::Parameter;
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
-use bolt_core::backend::{AddOp, Backend, FillOp, MatmulOp, TransposeOp};
-use serde::{Deserialize, Serialize};
+use bolt_core::backend::AddOp;
+use bolt_core::backend::Backend;
+use bolt_core::backend::FillOp;
+use bolt_core::backend::MatmulOp;
+use bolt_core::backend::TransposeOp;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::context::Context;
 use crate::error::Result;
@@ -69,20 +76,22 @@ where
     B: BaseBackend,
     D: Float,
 {
-    fn params(&self) -> Vec<&Parameter<B, D>> {
-        let mut params = vec![&self.weight];
+    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>)) {
+        f(&self.weight);
         if let Some(ref b) = self.bias {
-            params.push(b);
+            f(b);
         }
-        params
     }
 
-    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
-        let mut params = vec![&mut self.weight];
+    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {
+        f(&mut self.weight);
         if let Some(ref mut b) = self.bias {
-            params.push(b);
+            f(b);
         }
-        params
+    }
+
+    fn param_count(&self) -> usize {
+        1 + self.bias.is_some() as usize
     }
 }
 

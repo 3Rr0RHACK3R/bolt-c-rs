@@ -1,7 +1,10 @@
-use bolt_autodiff::{Float, HasParams, Parameter};
+use bolt_autodiff::Float;
+use bolt_autodiff::HasParams;
+use bolt_autodiff::Parameter;
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
-use bolt_core::backend::{Backend, ReluOp};
+use bolt_core::backend::Backend;
+use bolt_core::backend::ReluOp;
 
 use crate::context::Context;
 use crate::error::Result;
@@ -27,12 +30,10 @@ where
     B: BaseBackend,
     D: Float,
 {
-    fn params(&self) -> Vec<&Parameter<B, D>> {
-        vec![]
-    }
-
-    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
-        vec![]
+    fn visit_params<'a>(&'a self, _f: &mut dyn FnMut(&'a Parameter<B, D>)) {}
+    fn visit_params_mut<'a>(&'a mut self, _f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {}
+    fn param_count(&self) -> usize {
+        0
     }
 }
 

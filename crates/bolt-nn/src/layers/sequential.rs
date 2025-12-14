@@ -1,11 +1,15 @@
-use bolt_autodiff::{Float, HasParams, Parameter};
+use bolt_autodiff::Float;
+use bolt_autodiff::HasParams;
+use bolt_autodiff::Parameter;
 use bolt_core::Backend;
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 
 use crate::context::Context;
 use crate::error::Result;
-use crate::mode::{Eval, Grad, Mode};
+use crate::mode::Eval;
+use crate::mode::Grad;
+use crate::mode::Mode;
 use crate::model::Model;
 
 pub struct Then<A, B> {
@@ -26,16 +30,18 @@ where
     A: HasParams<Bk, D>,
     B: HasParams<Bk, D>,
 {
-    fn params(&self) -> Vec<&Parameter<Bk, D>> {
-        let mut params = self.first.params();
-        params.extend(self.second.params());
-        params
+    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<Bk, D>)) {
+        self.first.visit_params(f);
+        self.second.visit_params(f);
     }
 
-    fn params_mut(&mut self) -> Vec<&mut Parameter<Bk, D>> {
-        let mut params = self.first.params_mut();
-        params.extend(self.second.params_mut());
-        params
+    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<Bk, D>)) {
+        self.first.visit_params_mut(f);
+        self.second.visit_params_mut(f);
+    }
+
+    fn param_count(&self) -> usize {
+        self.first.param_count() + self.second.param_count()
     }
 }
 
@@ -164,19 +170,19 @@ where
     D: Float,
     M: Mode<B, D>,
 {
-    fn params(&self) -> Vec<&Parameter<B, D>> {
-        let mut all = Vec::new();
+    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>)) {
         for layer in &self.layers {
-            all.extend(layer.params());
+            layer.visit_params(f);
         }
-        all
     }
 
-    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
-        let mut all = Vec::new();
+    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {
         for layer in &mut self.layers {
-            all.extend(layer.params_mut());
+            layer.visit_params_mut(f);
         }
-        all
+    }
+
+    fn param_count(&self) -> usize {
+        self.layers.iter().map(|l| l.param_count()).sum()
     }
 }

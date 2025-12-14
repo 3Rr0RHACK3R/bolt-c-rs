@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
@@ -21,25 +22,37 @@ where
     B: BaseBackend,
     D: Float,
 {
-    fn params(&self) -> Vec<&Parameter<B, D>>;
-    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>>;
+    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>));
+    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>));
+
+    fn param_count(&self) -> usize {
+        let mut count = 0;
+        self.visit_params(&mut |_| count += 1);
+        count
+    }
+
+    fn params(&self) -> Vec<&Parameter<B, D>> {
+        let mut params = Vec::with_capacity(self.param_count());
+        self.visit_params(&mut |p| params.push(p));
+        params
+    }
+
+    fn params_mut(&mut self) -> Vec<&mut Parameter<B, D>> {
+        let mut params = Vec::with_capacity(self.param_count());
+        self.visit_params_mut(&mut |p| params.push(p));
+        params
+    }
 
     fn freeze(&mut self) {
-        for p in self.params_mut() {
-            p.freeze();
-        }
+        self.visit_params_mut(&mut |p| p.freeze());
     }
 
     fn unfreeze(&mut self) {
-        for p in self.params_mut() {
-            p.unfreeze();
-        }
+        self.visit_params_mut(&mut |p| p.unfreeze());
     }
 
     fn zero_grad(&mut self) {
-        for p in self.params_mut() {
-            p.zero_grad();
-        }
+        self.visit_params_mut(&mut |p| p.zero_grad());
     }
 }
 
