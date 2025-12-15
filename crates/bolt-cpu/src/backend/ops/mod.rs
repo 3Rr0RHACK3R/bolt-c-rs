@@ -15,6 +15,7 @@ pub mod mul;
 pub mod neg;
 pub mod pow;
 pub mod prod;
+pub mod random;
 pub mod reduction_helpers;
 pub mod relu;
 pub mod sin;

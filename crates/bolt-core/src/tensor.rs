@@ -4,7 +4,7 @@ use crate::{
     allocator::StorageAllocator,
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
-        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
+        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, RandomOp, ReluOp,
         ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     dtype::{Float, NativeType},
@@ -131,6 +131,38 @@ where
         )?;
         let storage = other.backend.fill(&layout, value)?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn uniform(
+        backend: &Arc<B>,
+        shape: &[usize],
+        low: D,
+        high: D,
+        seed: Option<u64>,
+    ) -> Result<Self>
+    where
+        B: RandomOp<D>,
+    {
+        let parts = backend.uniform(shape, low, high, seed)?;
+        let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn normal(
+        backend: &Arc<B>,
+        shape: &[usize],
+        mean: D,
+        std: D,
+        seed: Option<u64>,
+    ) -> Result<Self>
+    where
+        B: RandomOp<D>,
+    {
+        let parts = backend.normal(shape, mean, std, seed)?;
+        let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
     }

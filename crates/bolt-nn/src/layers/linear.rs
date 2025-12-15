@@ -18,11 +18,16 @@ use crate::error::Result;
 use crate::mode::Mode;
 use crate::model::Model;
 
-#[derive(Clone, Serialize, Deserialize)]
+use bolt_core::backend::RandomOp;
+use crate::init::{FanMode, Init, Nonlinearity};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LinearSpec {
     pub in_features: usize,
     pub out_features: usize,
     pub bias: bool,
+    pub weight_init: Init,
+    pub bias_init: Init,
 }
 
 impl LinearSpec {
@@ -31,6 +36,12 @@ impl LinearSpec {
             in_features,
             out_features,
             bias: true,
+            weight_init: Init::KaimingUniform {
+                a: (5.0f32).sqrt(),
+                mode: FanMode::FanIn,
+                nonlinearity: Nonlinearity::LeakyReLU,
+            },
+            bias_init: Init::Zeros,
         }
     }
 
@@ -38,21 +49,31 @@ impl LinearSpec {
         self.bias = bias;
         self
     }
+    
+    pub fn with_weight_init(mut self, init: Init) -> Self {
+        self.weight_init = init;
+        self
+    }
+
+    pub fn with_bias_init(mut self, init: Init) -> Self {
+        self.bias_init = init;
+        self
+    }
 
     pub fn build<B, D>(&self, backend: &Arc<B>) -> Result<Linear<B, D>>
     where
-        B: BaseBackend + FillOp<D>,
+        B: BaseBackend + FillOp<D> + RandomOp<D>,
         D: Float,
     {
-        let weight_tensor = Tensor::full(
-            backend,
-            &[self.out_features, self.in_features],
-            D::default(),
+        let weight_tensor = self.weight_init.init(
+            backend, 
+            &[self.out_features, self.in_features]
         )?;
+        
         let weight = Parameter::with_name(weight_tensor, "weight");
 
         let bias = if self.bias {
-            let bias_tensor = Tensor::full(backend, &[self.out_features], D::default())?;
+            let bias_tensor = self.bias_init.init(backend, &[self.out_features])?;
             Some(Parameter::with_name(bias_tensor, "bias"))
         } else {
             None

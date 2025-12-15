@@ -59,6 +59,7 @@ pub trait Float:
 {
     fn zero() -> Self;
     fn from_f64(v: f64) -> Self;
+    fn to_f64(self) -> f64;
     fn from_usize(n: usize) -> Self;
 
     fn sin(self) -> Self;
@@ -86,6 +87,10 @@ impl Float for f32 {
 
     fn from_f64(v: f64) -> Self {
         v as f32
+    }
+
+    fn to_f64(self) -> f64 {
+        self as f64
     }
 
     fn from_usize(n: usize) -> Self {
@@ -140,6 +145,10 @@ impl Float for f64 {
 
     fn from_f64(v: f64) -> Self {
         v
+    }
+
+    fn to_f64(self) -> f64 {
+        self
     }
 
     fn from_usize(n: usize) -> Self {

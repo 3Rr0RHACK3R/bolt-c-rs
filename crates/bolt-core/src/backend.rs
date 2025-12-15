@@ -343,3 +343,21 @@ pub trait BroadcastToOp<D: NativeType>: Backend {
         })
     }
 }
+
+pub trait RandomOp<D: NativeType>: Backend {
+    fn uniform(
+        &self,
+        shape: &[usize],
+        low: D,
+        high: D,
+        seed: Option<u64>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+
+    fn normal(
+        &self,
+        shape: &[usize],
+        mean: D,
+        std: D,
+        seed: Option<u64>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}

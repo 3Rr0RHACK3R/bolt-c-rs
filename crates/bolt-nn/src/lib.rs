@@ -5,6 +5,7 @@
 mod context;
 pub mod error;
 pub mod layers;
+pub mod init;
 mod mode;
 mod model;
 
