@@ -39,7 +39,7 @@ struct ScopeBaseline {
 
 #[cfg(feature = "diagnostics")]
 thread_local! {
-    static SCOPE_BASELINES: RefCell<Vec<ScopeBaseline>> = RefCell::new(Vec::new());
+    static SCOPE_BASELINES: RefCell<Vec<ScopeBaseline>> = const { RefCell::new(Vec::new()) };
 }
 
 #[cfg(feature = "diagnostics")]
@@ -81,14 +81,15 @@ impl CpuAllocTelemetry {
     }
 
     fn snapshot(&self) -> AllocatorSnapshot {
-        let mut snapshot = AllocatorSnapshot::default();
-        snapshot.bytes_requested = self.bytes_requested.load(Ordering::Relaxed);
-        snapshot.bytes_granted = self.bytes_granted.load(Ordering::Relaxed);
-        snapshot.alloc_count = self.alloc_count.load(Ordering::Relaxed);
-        snapshot.dealloc_count = self.dealloc_count.load(Ordering::Relaxed);
-        snapshot.peak_in_scope = self.scope_peak.load(Ordering::Relaxed);
-        snapshot.persistent_peak = self.persistent_peak.load(Ordering::Relaxed);
-        snapshot
+        AllocatorSnapshot {
+            bytes_requested: self.bytes_requested.load(Ordering::Relaxed),
+            bytes_granted: self.bytes_granted.load(Ordering::Relaxed),
+            alloc_count: self.alloc_count.load(Ordering::Relaxed),
+            dealloc_count: self.dealloc_count.load(Ordering::Relaxed),
+            peak_in_scope: self.scope_peak.load(Ordering::Relaxed),
+            persistent_peak: self.persistent_peak.load(Ordering::Relaxed),
+            ..Default::default()
+        }
     }
 
     fn bump_peak(&self, target: &AtomicU64, value: u64) {
@@ -254,13 +255,9 @@ impl<D: NativeType> AllocatorDiagnostics for CpuAllocator<D> {
 
     fn snapshot(&self) -> AllocatorSnapshot {
         #[cfg(feature = "diagnostics")]
-        {
-            return self.diagnostics.snapshot();
-        }
+        { self.diagnostics.snapshot() }
         #[cfg(not(feature = "diagnostics"))]
-        {
-            return AllocatorSnapshot::default();
-        }
+        { AllocatorSnapshot::default() }
     }
 
     fn begin_scope(&self) {
@@ -292,24 +289,25 @@ impl<D: NativeType> AllocatorDiagnostics for CpuAllocator<D> {
                 }
             };
             let current = self.diagnostics.snapshot();
-            let mut delta = AllocatorSnapshot::default();
-            delta.bytes_requested = current
-                .bytes_requested
-                .saturating_sub(baseline.snapshot.bytes_requested);
-            delta.bytes_granted = current
-                .bytes_granted
-                .saturating_sub(baseline.snapshot.bytes_granted);
-            delta.alloc_count = current
-                .alloc_count
-                .saturating_sub(baseline.snapshot.alloc_count);
-            delta.dealloc_count = current
-                .dealloc_count
-                .saturating_sub(baseline.snapshot.dealloc_count);
-            delta.peak_in_scope = self.diagnostics.scope_peak_delta(baseline.live_bytes);
-            delta.persistent_peak = current.persistent_peak;
-            delta.fragmentation_pct = current.fragmentation_pct;
-            delta.scratch_bytes = current.scratch_bytes;
-            delta.extensions = current.extensions.clone();
+            let delta = AllocatorSnapshot {
+                bytes_requested: current
+                    .bytes_requested
+                    .saturating_sub(baseline.snapshot.bytes_requested),
+                bytes_granted: current
+                    .bytes_granted
+                    .saturating_sub(baseline.snapshot.bytes_granted),
+                alloc_count: current
+                    .alloc_count
+                    .saturating_sub(baseline.snapshot.alloc_count),
+                dealloc_count: current
+                    .dealloc_count
+                    .saturating_sub(baseline.snapshot.dealloc_count),
+                peak_in_scope: self.diagnostics.scope_peak_delta(baseline.live_bytes),
+                persistent_peak: current.persistent_peak,
+                fragmentation_pct: current.fragmentation_pct,
+                scratch_bytes: current.scratch_bytes,
+                extensions: current.extensions.clone(),
+            };
 
             let prev_depth = self
                 .diagnostics

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
+use bolt_nn::Eval;
 use bolt_nn::layers::HasParams;
 use bolt_nn::layers::Linear;
 use bolt_nn::layers::ModelExt;
 use bolt_nn::layers::Seq;
 use bolt_nn::layers::linear;
 use bolt_nn::layers::relu;
-use bolt_nn::Eval;
 
 type B = CpuBackend;
 type D = f32;

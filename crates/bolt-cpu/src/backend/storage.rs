@@ -152,10 +152,14 @@ impl<D: NativeType> CpuStorage<D> {
         self.block.as_uninit_slice()
     }
 
+    /// # Safety
+    /// The underlying storage must be fully initialized. No uninitialized data may be read.
     pub unsafe fn as_slice(&self) -> &[D] {
         unsafe { self.block.assume_init_slice() }
     }
 
+    /// # Safety
+    /// Caller must ensure exclusive access to this storage and that writes uphold type invariants.
     pub unsafe fn try_as_mut_slice(&mut self) -> Result<&mut [D]> {
         let block = Arc::get_mut(&mut self.block).ok_or_else(|| {
             Error::OpError("cannot write to shared tensor storage; clone before mutating".into())

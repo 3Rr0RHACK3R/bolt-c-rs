@@ -539,8 +539,8 @@ fn prod_multi_axis_f32() -> Result<()> {
     let result = tensor.prod(Some(&[0, 2]), false)?;
     assert_eq!(result.shape(), &[3]);
     let result_vec = result.to_vec()?;
-    assert!((result_vec[0] - 1.0483200e+06).abs() < 1.0);
-    assert!((result_vec[1] - 1.9535040e+08).abs() < 1000.0);
+    assert!((result_vec[0] - 1.048_32e6).abs() < 1.0);
+    assert!((result_vec[1] - 1.953_504e8).abs() < 1000.0);
     assert!((result_vec[2] - 3.0296852e+09).abs() < 100000.0);
     Ok(())
 }

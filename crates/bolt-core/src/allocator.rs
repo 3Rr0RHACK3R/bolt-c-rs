@@ -21,7 +21,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AllocatorSnapshot {
     /// Total bytes requested by callers before allocator alignment.
     pub bytes_requested: u64,
@@ -41,22 +41,6 @@ pub struct AllocatorSnapshot {
     pub scratch_bytes: Option<u64>,
     /// Backend-specific extension metrics.
     pub extensions: HashMap<&'static str, i64>,
-}
-
-impl Default for AllocatorSnapshot {
-    fn default() -> Self {
-        Self {
-            bytes_requested: 0,
-            bytes_granted: 0,
-            alloc_count: 0,
-            dealloc_count: 0,
-            peak_in_scope: 0,
-            persistent_peak: 0,
-            fragmentation_pct: None,
-            scratch_bytes: None,
-            extensions: HashMap::new(),
-        }
-    }
 }
 
 /// Aggregate allocator diagnostics. Implementations should report global totals;

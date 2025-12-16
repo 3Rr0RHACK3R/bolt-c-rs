@@ -5,12 +5,12 @@ use bolt_autodiff::Float;
 use bolt_autodiff::HasParams;
 use bolt_autodiff::ParamId;
 use bolt_autodiff::Parameter;
+use bolt_core::BaseBackend;
+use bolt_core::Tensor;
 use bolt_core::backend::AddOp;
 use bolt_core::backend::FillOp;
 use bolt_core::backend::MulOp;
 use bolt_core::backend::SubOp;
-use bolt_core::BaseBackend;
-use bolt_core::Tensor;
 
 use crate::error::Error;
 use crate::error::Result;

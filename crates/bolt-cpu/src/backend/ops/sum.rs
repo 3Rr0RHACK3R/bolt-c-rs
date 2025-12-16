@@ -75,8 +75,11 @@ where
     } else {
         let canonical = canonical.unwrap();
 
-        let mut logical_idx = 0;
-        for idx in view.layout.iter_element_indices(D::DTYPE)? {
+        for (logical_idx, idx) in view
+            .layout
+            .iter_element_indices(D::DTYPE)?
+            .enumerate()
+        {
             let value = unsafe { view_data[idx].assume_init() };
 
             let input_indices = compute_multi_index_from_linear(logical_idx, view_shape);
@@ -86,8 +89,7 @@ where
 
             let current = unsafe { out_data[output_linear_idx].assume_init_ref() };
             out_data[output_linear_idx].write(*current + value);
-
-            logical_idx += 1;
+            
         }
     }
 

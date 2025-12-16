@@ -107,8 +107,11 @@ where
         let mut min_vals: Vec<Option<D>> = vec![None; output_numel];
         let mut min_indices: Vec<i32> = vec![0; output_numel];
 
-        let mut logical_idx = 0;
-        for idx in view.layout.iter_element_indices(D::DTYPE)? {
+        for (logical_idx, idx) in view
+            .layout
+            .iter_element_indices(D::DTYPE)?
+            .enumerate()
+        {
             let value = unsafe { view_data[idx].assume_init() };
 
             let input_indices = compute_multi_index_from_linear(logical_idx, view_shape);
@@ -130,8 +133,7 @@ where
                     }
                 }
             }
-
-            logical_idx += 1;
+            
         }
 
         for (i, idx_val) in min_indices.iter().enumerate() {

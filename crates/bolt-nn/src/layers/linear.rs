@@ -18,8 +18,8 @@ use crate::error::Result;
 use crate::mode::Mode;
 use crate::model::Model;
 
-use bolt_core::backend::RandomOp;
 use crate::init::{FanMode, Init, Nonlinearity};
+use bolt_core::backend::RandomOp;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LinearSpec {
@@ -49,7 +49,7 @@ impl LinearSpec {
         self.bias = bias;
         self
     }
-    
+
     pub fn with_weight_init(mut self, init: Init) -> Self {
         self.weight_init = init;
         self
@@ -65,11 +65,10 @@ impl LinearSpec {
         B: BaseBackend + FillOp<D> + RandomOp<D>,
         D: Float,
     {
-        let weight_tensor = self.weight_init.init(
-            backend, 
-            &[self.out_features, self.in_features]
-        )?;
-        
+        let weight_tensor = self
+            .weight_init
+            .init(backend, &[self.out_features, self.in_features])?;
+
         let weight = Parameter::with_name(weight_tensor, "weight");
 
         let bias = if self.bias {

@@ -61,16 +61,19 @@ fn exp_f32() -> Result<()> {
 
     let result = tensor.exp()?.to_vec()?;
     assert!((result[0] - 1.0).abs() < 1e-6);
-    assert!((result[1] - 2.718281828).abs() < 1e-6);
-    assert!((result[2] - 7.389056099).abs() < 1e-6);
+    assert!((result[1] - std::f32::consts::E).abs() < 1e-6);
+    assert!((result[2] - std::f32::consts::E.powi(2)).abs() < 1e-6);
     Ok(())
 }
 
 #[test]
 fn log_f32() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
-    let tensor =
-        Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.718281828, 7.389056099], &[3])?;
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(
+        &backend,
+        &[1.0, std::f32::consts::E, std::f32::consts::E.powi(2)],
+        &[3],
+    )?;
 
     let result = tensor.log()?.to_vec()?;
     assert!((result[0] - 0.0).abs() < 1e-6);
@@ -148,8 +151,8 @@ fn tanh_f32() -> Result<()> {
 
     let result = tensor.tanh()?.to_vec()?;
     assert!((result[0] - 0.0).abs() < 1e-6);
-    assert!((result[1] - 0.7615941559).abs() < 1e-6);
-    assert!((result[2] - (-0.7615941559)).abs() < 1e-6);
+    assert!((result[1] - 1.0f32.tanh()).abs() < 1e-6);
+    assert!((result[2] - (-1.0f32).tanh()).abs() < 1e-6);
     Ok(())
 }
 
@@ -215,7 +218,7 @@ fn unary_ops_on_scalar() -> Result<()> {
     assert_eq!(neg_result, vec![-2.0]);
 
     let sqrt_result = tensor.sqrt()?.to_vec()?;
-    assert!((sqrt_result[0] - 1.414213562).abs() < 1e-6);
+    assert!((sqrt_result[0] - std::f32::consts::SQRT_2).abs() < 1e-6);
     Ok(())
 }
 

@@ -114,8 +114,7 @@ fn from_vec_size_mismatch_errors() {
 #[test]
 fn zeros_like_resets_offset_and_values() {
     let backend = Arc::new(B::new());
-    let base =
-        Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+    let base = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
     let view = base.slice(0, 1, 2, 1).unwrap();
     assert!(view.layout().offset_bytes() > 0);
 
@@ -180,7 +179,7 @@ fn uniform_random_f32() {
 
     let data = t1.to_vec().unwrap();
     for v in data {
-        assert!(v >= 0.0 && v < 1.0);
+        assert!((0.0..1.0).contains(&v));
     }
 }
 

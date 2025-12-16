@@ -36,10 +36,10 @@ impl MemoryPool {
         // 1. Try to pop from cache
         {
             let mut blocks = self.blocks.lock().unwrap();
-            if let Some(stack) = blocks.get_mut(&key) {
-                if let Some(wrapper) = stack.pop() {
-                    return wrapper.0;
-                }
+            if let Some(stack) = blocks.get_mut(&key)
+                && let Some(wrapper) = stack.pop()
+            {
+                return wrapper.0;
             }
         }
 
@@ -70,6 +70,10 @@ impl MemoryPool {
         let mut blocks = self.blocks.lock().unwrap();
         blocks.entry(key).or_default().push(Ptr(ptr));
     }
+}
+
+impl Default for MemoryPool {
+    fn default() -> Self { Self::new() }
 }
 
 impl Drop for MemoryPool {

@@ -4,8 +4,8 @@
 
 mod context;
 pub mod error;
-pub mod layers;
 pub mod init;
+pub mod layers;
 mod mode;
 mod model;
 

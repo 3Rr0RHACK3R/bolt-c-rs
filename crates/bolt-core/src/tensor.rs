@@ -4,8 +4,9 @@ use crate::{
     allocator::StorageAllocator,
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
-        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, RandomOp, ReluOp,
-        ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
+        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, RandomOp,
+        ReluOp, ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
+        UnsqueezeOp,
     },
     dtype::{Float, NativeType},
     error::{Error, Result},
