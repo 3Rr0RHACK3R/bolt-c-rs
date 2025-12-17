@@ -1,12 +1,15 @@
 use std::{fmt, mem};
 
 use bytemuck::Pod;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DType {
+    U8,
+    I32,
+    I64,
     F32,
     F64,
-    I32,
 }
 
 pub const MAX_NATIVE_TYPE_SIZE: usize = mem::size_of::<f64>();
@@ -14,9 +17,11 @@ pub const MAX_NATIVE_TYPE_SIZE: usize = mem::size_of::<f64>();
 impl DType {
     pub fn size_in_bytes(self) -> usize {
         match self {
+            DType::U8 => std::mem::size_of::<u8>(),
+            DType::I32 => std::mem::size_of::<i32>(),
+            DType::I64 => std::mem::size_of::<i64>(),
             DType::F32 => std::mem::size_of::<f32>(),
             DType::F64 => std::mem::size_of::<f64>(),
-            DType::I32 => std::mem::size_of::<i32>(),
         }
     }
 
@@ -26,9 +31,11 @@ impl DType {
 
     pub fn name(self) -> &'static str {
         match self {
+            DType::U8 => "u8",
+            DType::I32 => "i32",
+            DType::I64 => "i64",
             DType::F32 => "f32",
             DType::F64 => "f64",
-            DType::I32 => "i32",
         }
     }
 
@@ -190,6 +197,22 @@ impl Float for f64 {
 
 impl NativeType for i32 {
     const DTYPE: DType = DType::I32;
+
+    fn one() -> Self {
+        1
+    }
+}
+
+impl NativeType for i64 {
+    const DTYPE: DType = DType::I64;
+
+    fn one() -> Self {
+        1
+    }
+}
+
+impl NativeType for u8 {
+    const DTYPE: DType = DType::U8;
 
     fn one() -> Self {
         1

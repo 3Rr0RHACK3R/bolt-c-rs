@@ -37,6 +37,16 @@ where
             cast::<D, i32>(end),
             cast::<D, i32>(step),
         ),
+        DType::I64 => int_arange_len(
+            cast::<D, i64>(start) as i32,
+            cast::<D, i64>(end) as i32,
+            cast::<D, i64>(step) as i32,
+        ),
+        DType::U8 => int_arange_len(
+            cast::<D, u8>(start) as i32,
+            cast::<D, u8>(end) as i32,
+            cast::<D, u8>(step) as i32,
+        ),
     }
 }
 
@@ -85,6 +95,36 @@ where
             }
             Ok(values)
         }
+        DType::I64 => {
+            let start_i128 = cast::<D, i64>(start) as i128;
+            let step_i128 = cast::<D, i64>(step) as i128;
+            let mut current = start_i128;
+            let mut values = Vec::with_capacity(len);
+            for _ in 0..len {
+                let value = i64::try_from(current)
+                    .map_err(|_| Error::invalid_shape("arange value overflows i64 range"))?;
+                values.push(cast(value));
+                current = current.checked_add(step_i128).ok_or_else(|| {
+                    Error::invalid_shape("arange value overflow during iteration")
+                })?;
+            }
+            Ok(values)
+        }
+        DType::U8 => {
+            let start_u16 = cast::<D, u8>(start) as u16;
+            let step_u16 = cast::<D, u8>(step) as u16;
+            let mut current = start_u16;
+            let mut values = Vec::with_capacity(len);
+            for _ in 0..len {
+                let value = u8::try_from(current)
+                    .map_err(|_| Error::invalid_shape("arange value overflows u8 range"))?;
+                values.push(cast(value));
+                current = current.checked_add(step_u16).ok_or_else(|| {
+                    Error::invalid_shape("arange value overflow during iteration")
+                })?;
+            }
+            Ok(values)
+        }
     }
 }
 
@@ -105,7 +145,7 @@ where
             let values = build_linspace_f64(cast::<D, f64>(start), cast::<D, f64>(end), steps);
             Ok(values.into_iter().map(cast).collect())
         }
-        DType::I32 => unreachable!(),
+        DType::I32 | DType::I64 | DType::U8 => unreachable!(),
     }
 }
 
@@ -136,7 +176,7 @@ where
             )?;
             Ok(values.into_iter().map(cast).collect())
         }
-        DType::I32 => unreachable!(),
+        DType::I32 | DType::I64 | DType::U8 => unreachable!(),
     }
 }
 

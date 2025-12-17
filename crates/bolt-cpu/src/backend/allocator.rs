@@ -255,9 +255,13 @@ impl<D: NativeType> AllocatorDiagnostics for CpuAllocator<D> {
 
     fn snapshot(&self) -> AllocatorSnapshot {
         #[cfg(feature = "diagnostics")]
-        { self.diagnostics.snapshot() }
+        {
+            self.diagnostics.snapshot()
+        }
         #[cfg(not(feature = "diagnostics"))]
-        { AllocatorSnapshot::default() }
+        {
+            AllocatorSnapshot::default()
+        }
     }
 
     fn begin_scope(&self) {

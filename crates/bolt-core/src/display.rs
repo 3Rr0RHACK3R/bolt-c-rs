@@ -167,8 +167,16 @@ where
 
     fn format_value(&self, value: D) -> String {
         match D::DTYPE {
+            DType::U8 => {
+                let v: u8 = cast(value);
+                format!("{v}")
+            }
             DType::I32 => {
                 let v: i32 = cast(value);
+                format!("{v}")
+            }
+            DType::I64 => {
+                let v: i64 = cast(value);
                 format!("{v}")
             }
             DType::F32 => {

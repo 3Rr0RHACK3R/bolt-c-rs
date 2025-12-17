@@ -93,11 +93,7 @@ where
 
         let mut initialized = vec![false; output_numel];
 
-        for (logical_idx, idx) in view
-            .layout
-            .iter_element_indices(D::DTYPE)?
-            .enumerate()
-        {
+        for (logical_idx, idx) in view.layout.iter_element_indices(D::DTYPE)?.enumerate() {
             let value = unsafe { view_data[idx].assume_init() };
 
             let input_indices = compute_multi_index_from_linear(logical_idx, view_shape);
@@ -114,7 +110,6 @@ where
                     out_data[output_linear_idx].write(value);
                 }
             }
-            
         }
     }
 

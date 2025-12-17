@@ -52,3 +52,58 @@ fn test_mixing_tracked_and_untracked_tensors() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_no_accumulate_for_distinct_untracked_inputs() -> Result<()> {
+    // Regression test: ensure gradients for different untracked inputs (Handle::NONE)
+    // are not accumulated together, which previously caused shape-mismatch errors.
+    let cpu_backend = Arc::new(CpuBackend::new());
+    let autodiff = Arc::new(Autodiff::wrap(cpu_backend.clone()));
+
+    let _ctx = autodiff.begin_grad();
+
+    // Shapes
+    let batch = 4usize;
+    let in_dim = 5usize;
+    let hidden = 3usize;
+    let classes = 2usize;
+
+    // Two distinct untracked inputs with different shapes: x [B,in], t [B,classes]
+    let x_data = vec![1.0_f32; batch * in_dim];
+    let t_data = vec![0.5_f32; batch * classes];
+    let x = Tensor::from_slice(&autodiff, &x_data, &[batch, in_dim])?; // NOT requires_grad
+    let t = Tensor::from_slice(&autodiff, &t_data, &[batch, classes])?; // NOT requires_grad
+
+    // Trainable weights
+    // w1: [in_dim, hidden], w2: [hidden, classes]
+    let w1 = Tensor::from_slice(
+        &autodiff,
+        &vec![0.1_f32; in_dim * hidden],
+        &[in_dim, hidden],
+    )?
+    .requires_grad();
+    let w2 = Tensor::from_slice(
+        &autodiff,
+        &vec![0.2_f32; hidden * classes],
+        &[hidden, classes],
+    )?
+    .requires_grad();
+
+    // Forward: y = (x @ w1) @ w2
+    let h = x.matmul(&w1)?; // [B, hidden]
+    let y = h.matmul(&w2)?; // [B, classes]
+
+    // Loss ~ MSE(y, t): mean((y - t)^2)
+    let diff = y.sub(&t)?;
+    let sq = diff.mul(&diff)?;
+    let loss = sq.mean(None, false)?; // scalar
+
+    // Backward should succeed and produce grads for w1 and w2 without shape mismatch.
+    let grads = loss.backward()?;
+    assert!(grads.wrt(&w1).is_some());
+    assert!(grads.wrt(&w2).is_some());
+    assert!(grads.wrt(&x).is_none()); // x is untracked
+    assert!(grads.wrt(&t).is_none()); // t is untracked
+
+    Ok(())
+}

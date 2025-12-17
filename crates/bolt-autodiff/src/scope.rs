@@ -84,6 +84,9 @@ where
             let input_grads = backward_entry.op.backward(&grad_output, &ctx)?;
 
             for (input_handle, input_grad) in node.inputs.iter().zip(input_grads.into_iter()) {
+                if input_handle.is_none() {
+                    continue;
+                }
                 if let Some(grad) = input_grad {
                     insert_or_accumulate(&mut grad_map, *input_handle, grad)?;
                 }

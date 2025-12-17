@@ -3,11 +3,13 @@ members = [
     "crates/bolt-autodiff",
     "crates/bolt-core",
     "crates/bolt-cpu",
-    "crates/bolt-losses",
+    "crates/bolt-data",
+    "crates/bolt-datasets",
     "crates/bolt-examples",
     "crates/bolt-nn",
     "crates/bolt-profiler",
     "crates/bolt-optim",
+    "crates/bolt-losses",
 ]
 resolver = "2"
 
@@ -20,3 +22,6 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 thiserror = "2"
 bytemuck = "1"
+serde = { version = "1", features = ["derive"] }
+seahash = "4"
+bincode = "1"

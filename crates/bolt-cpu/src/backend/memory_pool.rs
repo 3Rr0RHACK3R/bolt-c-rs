@@ -73,7 +73,9 @@ impl MemoryPool {
 }
 
 impl Default for MemoryPool {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Drop for MemoryPool {
