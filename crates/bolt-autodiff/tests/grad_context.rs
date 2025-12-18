@@ -112,3 +112,27 @@ fn test_requires_grad_propagation() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_backward_delegation_cross_graph() -> Result<()> {
+    let cpu = Arc::new(CpuBackend::new());
+    let ad1 = Arc::new(Autodiff::wrap(cpu.clone()));
+    let ad2 = Arc::new(Autodiff::wrap(cpu.clone()));
+
+    let _ctx1 = ad1.begin_grad();
+    let _ctx2 = ad2.begin_grad();
+
+    let x = Tensor::from_slice(&ad1, &[2.0_f32], &[1])?.requires_grad();
+    let y = x.mul(&x)?; // y is in ad1's graph
+
+    // Even if we use ctx2, it should work because it delegates to y.backward(),
+    // which uses y's backend (ad1).
+    let ad2_ctx = ad2.begin_grad();
+    let grads = ad2_ctx.backward(&y)?;
+
+    assert!(grads.wrt(&x).is_some());
+    let dx = grads.wrt(&x).unwrap().to_vec()?;
+    assert_eq!(dx[0], 4.0); // d(x^2)/dx = 2x = 4.0
+
+    Ok(())
+}

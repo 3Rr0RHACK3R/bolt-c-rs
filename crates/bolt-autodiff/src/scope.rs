@@ -1,17 +1,14 @@
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, SumOp};
 use bolt_core::{BaseBackend, Float, Tensor};
 
-use crate::Handle;
-use crate::backward::BackwardContext;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::grad_tape::GradTape;
-use crate::gradients::{Gradients, insert_or_accumulate};
+use crate::gradients::Gradients;
 use crate::operations::Autodiff;
-use crate::utils::create_backward_seed;
+use crate::tensor_ext::AutodiffTensorExt;
 
 pub struct GradContext<B, D>
 where
@@ -38,73 +35,7 @@ where
     where
         B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
     {
-        let loss_handle = loss.storage().handle();
-        self.backward_from_handle(loss_handle, loss)
-    }
-
-    fn backward_from_handle(
-        &self,
-        loss_handle: Handle,
-        loss_tensor: &Tensor<Autodiff<B, D>, D>,
-    ) -> Result<Gradients<B, D>>
-    where
-        B: AddOp<D> + FillOp<D> + CopyOp<D> + SumOp<D>,
-    {
-        let graph_ref = self.autodiff.graph().read().unwrap();
-        let graph = graph_ref.as_ref().ok_or(Error::NoActiveGraph)?;
-
-        if !self.autodiff.is_grad_enabled() {
-            return Err(Error::GradDisabled);
-        }
-
-        let loss_node = graph.get_node(loss_handle)?;
-        if !loss_node.requires_grad {
-            return Err(Error::LossNoGrad);
-        }
-
-        let inner_backend = self.autodiff.inner();
-
-        let seed = create_backward_seed(inner_backend, loss_tensor)?;
-
-        let mut grad_map: HashMap<Handle, Tensor<B, D>> = HashMap::new();
-        grad_map.insert(loss_handle, seed);
-
-        for node in graph.nodes_iter().rev() {
-            let grad_output = match grad_map.get(&node.handle) {
-                Some(g) => g.clone(),
-                None => continue,
-            };
-
-            let backward_entry = match &node.backward_op {
-                Some(entry) => entry,
-                None => continue,
-            };
-
-            let ctx = BackwardContext::new(&backward_entry.saved_tensors, inner_backend);
-            let input_grads = backward_entry.op.backward(&grad_output, &ctx)?;
-
-            for (input_handle, input_grad) in node.inputs.iter().zip(input_grads.into_iter()) {
-                if input_handle.is_none() {
-                    continue;
-                }
-                if let Some(grad) = input_grad {
-                    insert_or_accumulate(&mut grad_map, *input_handle, grad)?;
-                }
-            }
-        }
-
-        let generation = graph.generation();
-        let leaf_grads: HashMap<Handle, Tensor<B, D>> = grad_map
-            .into_iter()
-            .filter(|(handle, _)| {
-                graph
-                    .get_node(*handle)
-                    .map(|n| n.is_leaf && n.requires_grad)
-                    .unwrap_or(false)
-            })
-            .collect();
-
-        Ok(Gradients::new(leaf_grads, generation))
+        loss.backward()
     }
 
     pub fn tape(&self) -> GradTape<'_, B, D> {
