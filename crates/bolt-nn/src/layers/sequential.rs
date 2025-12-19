@@ -7,83 +7,8 @@ use bolt_core::Tensor;
 
 use crate::context::Context;
 use crate::error::Result;
-use crate::mode::Eval;
-use crate::mode::Grad;
 use crate::mode::Mode;
 use crate::model::Model;
-
-pub struct Then<A, B> {
-    first: A,
-    second: B,
-}
-
-impl<A, B> Then<A, B> {
-    pub fn new(first: A, second: B) -> Self {
-        Self { first, second }
-    }
-}
-
-impl<Bk, D, A, B> HasParams<Bk, D> for Then<A, B>
-where
-    Bk: BaseBackend,
-    D: Float,
-    A: HasParams<Bk, D>,
-    B: HasParams<Bk, D>,
-{
-    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<Bk, D>)) {
-        self.first.visit_params(f);
-        self.second.visit_params(f);
-    }
-
-    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<Bk, D>)) {
-        self.first.visit_params_mut(f);
-        self.second.visit_params_mut(f);
-    }
-
-    fn param_count(&self) -> usize {
-        self.first.param_count() + self.second.param_count()
-    }
-}
-
-impl<Bk, D, M, A, B> Model<Bk, D, M> for Then<A, B>
-where
-    Bk: BaseBackend,
-    D: Float,
-    M: Mode<Bk, D>,
-    M::Backend: Backend,
-    A: Model<Bk, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>>,
-    B: Model<Bk, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>>,
-{
-    type Input = Tensor<M::Backend, D>;
-    type Output = Result<Tensor<M::Backend, D>>;
-
-    fn forward(&self, ctx: &Context<Bk, D, M>, input: Self::Input) -> Self::Output {
-        let mid = self.first.forward(ctx, input)?;
-        self.second.forward(ctx, mid)
-    }
-}
-
-pub trait ModelExt<B, D>: Sized
-where
-    B: BaseBackend,
-    D: Float,
-{
-    fn then<N>(self, next: N) -> Then<Self, N>
-    where
-        Self: Model<B, D, Eval<B, D>> + Model<B, D, Grad<B, D>>,
-        N: Model<B, D, Eval<B, D>> + Model<B, D, Grad<B, D>>,
-    {
-        Then::new(self, next)
-    }
-}
-
-impl<T, B, D> ModelExt<B, D> for T
-where
-    T: Model<B, D, Eval<B, D>> + Model<B, D, Grad<B, D>>,
-    B: BaseBackend,
-    D: Float,
-{
-}
 
 pub trait Layer<B, D, M>:
     Model<B, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>>

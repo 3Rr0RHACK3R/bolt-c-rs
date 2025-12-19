@@ -4,7 +4,6 @@ use bolt_cpu::CpuBackend;
 use bolt_nn::Eval;
 use bolt_nn::layers::HasParams;
 use bolt_nn::layers::Linear;
-use bolt_nn::layers::ModelExt;
 use bolt_nn::layers::Seq;
 use bolt_nn::layers::linear;
 use bolt_nn::layers::relu;
@@ -24,25 +23,6 @@ fn linear_visits_weight_then_bias() {
 
     assert_eq!(layer.param_count(), expected.len());
     assert_eq!(actual, expected);
-}
-
-#[test]
-fn then_visits_left_then_right() {
-    let backend = Arc::new(CpuBackend::new());
-
-    let left: Linear<B, D> = linear(2, 2).bias(false).build(&backend).unwrap();
-    let left_weight = left.weight.id();
-
-    let right: Linear<B, D> = linear(2, 2).bias(false).build(&backend).unwrap();
-    let right_weight = right.weight.id();
-
-    let model = left.then(right);
-
-    let mut actual = Vec::new();
-    model.visit_params(&mut |p| actual.push(p.id()));
-
-    assert_eq!(model.param_count(), 2);
-    assert_eq!(actual, vec![left_weight, right_weight]);
 }
 
 #[test]

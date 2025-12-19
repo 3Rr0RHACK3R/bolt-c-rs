@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bolt_autodiff::Parameter;
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{HasParams, ModelExt, Seq, linear};
+use bolt_nn::layers::{HasParams, Seq, linear};
 use bolt_nn::{Context, Grad, Model};
 
 type B = CpuBackend;
@@ -27,56 +27,6 @@ fn tensor_to_vec(t: &Tensor<B, D>) -> Vec<f32> {
 
 fn set_param(param: &mut Parameter<B, D>, backend: &Arc<B>, values: &[f32], shape: &[usize]) {
     *param.tensor_mut() = Tensor::<B, D>::from_slice(backend, values, shape).unwrap();
-}
-
-#[test]
-fn test_then_forward_and_backward_grads() {
-    let backend = Arc::new(CpuBackend::new());
-
-    let mut l1 = linear(2, 2).bias(false).build(&backend).unwrap();
-    set_param(&mut l1.weight, &backend, &[1.0, 0.0, 0.0, 1.0], &[2, 2]);
-
-    let mut l2 = linear(2, 1).bias(false).build(&backend).unwrap();
-    set_param(&mut l2.weight, &backend, &[1.0, 1.0], &[1, 2]);
-
-    let mut model = l1.then(l2);
-
-    let ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
-    let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-
-    let y = model.forward(&ctx, ctx.input(&x)).unwrap();
-    let loss = y.sum(None, false).unwrap();
-
-    ctx.backward(&loss, &mut model.params_mut()).unwrap();
-
-    let params = model.params();
-    assert_eq!(params.len(), 2);
-
-    let mut l1_grad: Option<Vec<f32>> = None;
-    let mut l2_grad: Option<Vec<f32>> = None;
-
-    for p in params {
-        if let Some(g) = p.grad() {
-            let vals = tensor_to_vec(g);
-            match vals.len() {
-                4 => l1_grad = Some(vals),
-                2 => l2_grad = Some(vals),
-                _ => panic!("unexpected gradient length {}", vals.len()),
-            }
-        }
-    }
-
-    let l1_grad = l1_grad.expect("layer1 grad missing");
-    let l2_grad = l2_grad.expect("layer2 grad missing");
-
-    // Expected from chain rule: dL/dW2 = [1, 2], dL/dW1 = [[1, 2], [1, 2]]
-    assert_close(l2_grad[0], 1.0, 1e-5, "l2 grad[0]");
-    assert_close(l2_grad[1], 2.0, 1e-5, "l2 grad[1]");
-
-    assert_close(l1_grad[0], 1.0, 1e-5, "l1 grad[0]");
-    assert_close(l1_grad[1], 2.0, 1e-5, "l1 grad[1]");
-    assert_close(l1_grad[2], 1.0, 1e-5, "l1 grad[2]");
-    assert_close(l1_grad[3], 2.0, 1e-5, "l1 grad[3]");
 }
 
 #[test]

@@ -7,4 +7,4 @@ pub use activations::{ReLU, relu};
 pub use bolt_autodiff::HasParams;
 pub use flatten::{Flatten, flatten};
 pub use linear::{Linear, LinearSpec, linear};
-pub use sequential::{ModelExt, Seq, Then};
+pub use sequential::Seq;
