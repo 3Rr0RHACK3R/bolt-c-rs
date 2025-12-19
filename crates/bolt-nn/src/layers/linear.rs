@@ -5,14 +5,12 @@ use bolt_autodiff::HasParams;
 use bolt_autodiff::Parameter;
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
-use bolt_core::backend::AddOp;
-use bolt_core::backend::Backend;
 use bolt_core::backend::FillOp;
-use bolt_core::backend::MatmulOp;
-use bolt_core::backend::TransposeOp;
+use bolt_core::backend::RandomOp;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::compute::{Compute, ComputeOps};
 use crate::context::Context;
 use crate::error::Result;
 use crate::mode::Mode;
@@ -20,7 +18,6 @@ use crate::model::Model;
 use crate::run_mode::Trainable;
 
 use crate::init::{FanMode, Init, Nonlinearity};
-use bolt_core::backend::RandomOp;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LinearSpec {
@@ -125,10 +122,10 @@ where
 
 impl<B, D, M> Model<B, D, M> for Linear<B, D>
 where
-    B: BaseBackend + MatmulOp<D> + AddOp<D> + TransposeOp<D>,
+    B: Compute<D>,
     D: Float,
     M: Mode<B, D>,
-    M::Backend: Backend + MatmulOp<D> + AddOp<D> + TransposeOp<D>,
+    M::Backend: ComputeOps<D>,
 {
     type Input = Tensor<M::Backend, D>;
     type Output = Result<Tensor<M::Backend, D>>;

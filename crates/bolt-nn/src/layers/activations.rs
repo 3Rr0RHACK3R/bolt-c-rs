@@ -3,9 +3,8 @@ use bolt_autodiff::HasParams;
 use bolt_autodiff::Parameter;
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
-use bolt_core::backend::Backend;
-use bolt_core::backend::ReluOp;
 
+use crate::compute::{Compute, ComputeOps};
 use crate::context::Context;
 use crate::error::Result;
 use crate::mode::Mode;
@@ -42,10 +41,10 @@ where
 
 impl<B, D, M> Model<B, D, M> for ReLU
 where
-    B: BaseBackend,
+    B: Compute<D>,
     D: Float,
     M: Mode<B, D>,
-    M::Backend: Backend + ReluOp<D>,
+    M::Backend: ComputeOps<D>,
 {
     type Input = Tensor<M::Backend, D>;
     type Output = Result<Tensor<M::Backend, D>>;

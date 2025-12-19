@@ -3,6 +3,7 @@
 //! Demonstrates:
 //! - Using functional data pipeline with collate
 //! - Training a simple MLP on CPU
+//! - Custom model struct implementing Model trait directly
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -10,13 +11,14 @@ use std::sync::Arc;
 
 use bolt_autodiff::AutodiffTensorExt;
 use bolt_autodiff::HasParams;
+use bolt_autodiff::Parameter;
 use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_datasets::mnist::{self, INPUT_DIM, NUM_CLASSES};
 use bolt_losses::{Reduction, cross_entropy_from_logits, metrics::accuracy_top1};
 use bolt_nn::init::Init;
-use bolt_nn::layers::{Seq, flatten, linear, relu};
-use bolt_nn::{Context, Model};
+use bolt_nn::layers::{Linear, linear};
+use bolt_nn::{Compute, ComputeOps, Context, Mode, Model, Trainable};
 use bolt_optim::Sgd;
 use bolt_vision::{ops::tensor, types::ImageLayout};
 use rand::SeedableRng;
@@ -25,34 +27,90 @@ use rand::rngs::StdRng;
 const MEAN: [f32; 1] = [0.1307];
 const STD: [f32; 1] = [0.3081];
 
-type MnistModel<B, D> = Seq<B, D>;
+pub struct MnistMLP<B, D>
+where
+    B: Compute<D>,
+    D: bolt_autodiff::Float,
+{
+    fc1: Linear<B, D>,
+    fc2: Linear<B, D>,
+}
 
-fn build_model(backend: &Arc<CpuBackend>) -> Result<MnistModel<CpuBackend, f32>, Box<dyn Error>> {
-    let hidden_dim = 128;
+impl<B, D> MnistMLP<B, D>
+where
+    B: Compute<D> + bolt_core::backend::RandomOp<D>,
+    D: bolt_autodiff::Float,
+{
+    pub fn new(backend: &Arc<B>, hidden_dim: usize) -> bolt_nn::Result<Self> {
+        let fc1 = linear(INPUT_DIM, hidden_dim)
+            .with_weight_init(Init::KaimingUniform {
+                a: (5.0f32).sqrt(),
+                mode: bolt_nn::init::FanMode::FanIn,
+                nonlinearity: bolt_nn::init::Nonlinearity::ReLU,
+            })
+            .with_bias_init(Init::Zeros)
+            .build(backend)?;
 
-    let layer1 = linear(INPUT_DIM, hidden_dim)
-        .with_weight_init(Init::KaimingUniform {
-            a: (5.0f32).sqrt(),
-            mode: bolt_nn::init::FanMode::FanIn,
-            nonlinearity: bolt_nn::init::Nonlinearity::ReLU,
-        })
-        .with_bias_init(Init::Zeros)
-        .build(backend)?;
+        let fc2 = linear(hidden_dim, NUM_CLASSES)
+            .with_weight_init(Init::KaimingUniform {
+                a: (5.0f32).sqrt(),
+                mode: bolt_nn::init::FanMode::FanIn,
+                nonlinearity: bolt_nn::init::Nonlinearity::Linear,
+            })
+            .with_bias_init(Init::Zeros)
+            .build(backend)?;
 
-    let layer2 = linear(hidden_dim, NUM_CLASSES)
-        .with_weight_init(Init::KaimingUniform {
-            a: (5.0f32).sqrt(),
-            mode: bolt_nn::init::FanMode::FanIn,
-            nonlinearity: bolt_nn::init::Nonlinearity::Linear,
-        })
-        .with_bias_init(Init::Zeros)
-        .build(backend)?;
+        Ok(Self { fc1, fc2 })
+    }
+}
 
-    Ok(Seq::new()
-        .push(flatten(1))
-        .push(layer1)
-        .push(relu())
-        .push(layer2))
+impl<B, D> Trainable for MnistMLP<B, D>
+where
+    B: Compute<D>,
+    D: bolt_autodiff::Float,
+{
+}
+
+impl<B, D> HasParams<B, D> for MnistMLP<B, D>
+where
+    B: Compute<D>,
+    D: bolt_autodiff::Float,
+{
+    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>)) {
+        self.fc1.visit_params(f);
+        self.fc2.visit_params(f);
+    }
+
+    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {
+        self.fc1.visit_params_mut(f);
+        self.fc2.visit_params_mut(f);
+    }
+
+    fn param_count(&self) -> usize {
+        self.fc1.param_count() + self.fc2.param_count()
+    }
+}
+
+impl<B, D, M> Model<B, D, M> for MnistMLP<B, D>
+where
+    B: Compute<D>,
+    D: bolt_autodiff::Float,
+    M: Mode<B, D>,
+    M::Backend: ComputeOps<D>,
+{
+    type Input = Tensor<M::Backend, D>;
+    type Output = bolt_nn::Result<Tensor<M::Backend, D>>;
+
+    fn forward(&self, ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output {
+        let batch_size = input.shape()[0];
+        let x = input.reshape(&[batch_size, INPUT_DIM])?;
+
+        let x = self.fc1.forward(ctx, x)?;
+        let x = x.relu()?;
+        let x = self.fc2.forward(ctx, x)?;
+
+        Ok(x)
+    }
 }
 
 struct ExperimentConfig {
@@ -66,7 +124,7 @@ fn run_experiment(
     cfg: &ExperimentConfig,
     data_root: &PathBuf,
     backend: &Arc<CpuBackend>,
-    mut model: MnistModel<CpuBackend, f32>,
+    mut model: MnistMLP<CpuBackend, f32>,
 ) -> Result<(), Box<dyn Error>> {
     type B = CpuBackend;
     type D = f32;
@@ -191,9 +249,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let backend = Arc::new(CpuBackend::new());
 
-    let model = build_model(&backend)?;
+    let model = MnistMLP::new(&backend, 128)?;
 
-    println!("\n=== Baseline ===");
+    println!("\n=== Custom MLP Model ===");
     run_experiment(
         &ExperimentConfig {
             seed: 42,
