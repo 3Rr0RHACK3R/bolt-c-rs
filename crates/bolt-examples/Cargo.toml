@@ -15,4 +15,5 @@ bolt-optim = { path = "../bolt-optim" }
 bolt-data = { path = "../bolt-data" }
 bolt-datasets = { path = "../bolt-datasets" }
 bolt-losses = { path = "../bolt-losses" }
+bolt-vision = { path = "../bolt-vision" }
 rand = "0.8"

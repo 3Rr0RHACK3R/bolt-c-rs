@@ -1,6 +1,6 @@
 use bolt_core::{
     Tensor,
-    backend::{Backend, ExpOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, SubOp, SumOp},
+    backend::{Backend, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, SubOp, SumOp},
     dtype::Float,
 };
 
@@ -71,6 +71,46 @@ where
     let log_probs = probs.log()?;
     let per_sample = target.mul(&log_probs)?.sum(Some(&[-1]), false)?.neg()?;
     apply_reduction(per_sample, reduction)
+}
+
+pub fn cross_entropy_from_logits_sparse<B, D>(
+    logits: &Tensor<B, D>,
+    targets: &Tensor<B, i32>,
+    num_classes: usize,
+    reduction: Reduction,
+) -> Result<Tensor<B, D>>
+where
+    B: Backend
+        + SubOp<D>
+        + MulOp<D>
+        + SumOp<D>
+        + MeanOp<D>
+        + ExpOp<D>
+        + LogOp<D>
+        + MaxOp<D>
+        + NegOp<D>
+        + FillOp<D>
+        + CopyOp<i32>,
+    D: Float,
+{
+    let mut target_one_hot = vec![0.0f32; targets.numel() * num_classes];
+    let targets_vec = targets.to_vec().map_err(|e| Error::Core(e))?;
+    for (i, &t) in targets_vec.iter().enumerate() {
+        target_one_hot[i * num_classes + t as usize] = 1.0;
+    }
+
+    let target_data: Vec<D> = target_one_hot
+        .into_iter()
+        .map(|v| D::from_f64(v as f64))
+        .collect();
+    let target_tensor = Tensor::from_vec(
+        &logits.backend(),
+        target_data,
+        &[targets.numel(), num_classes],
+    )
+    .map_err(|e| Error::Core(e))?;
+
+    cross_entropy_from_logits(logits, &target_tensor, reduction)
 }
 
 fn apply_reduction<B, D>(tensor: Tensor<B, D>, reduction: Reduction) -> Result<Tensor<B, D>>

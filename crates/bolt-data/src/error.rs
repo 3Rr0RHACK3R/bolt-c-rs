@@ -5,6 +5,9 @@ pub enum DataError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("core error: {0}")]
+    Core(#[from] bolt_core::Error),
+
     #[error("invalid magic number: expected {expected}, got {actual}")]
     InvalidMagic { expected: u32, actual: u32 },
 

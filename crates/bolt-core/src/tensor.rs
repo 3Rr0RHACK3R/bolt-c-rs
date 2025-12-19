@@ -16,6 +16,27 @@ use crate::{
     utils::tensor_creation,
 };
 
+pub trait ToBackend<B: Backend> {
+    type Output;
+    fn to_backend(self, backend: &Arc<B>) -> Result<Self::Output>;
+}
+
+impl<B1, B2, D> ToBackend<B2> for Tensor<B1, D>
+where
+    B1: Backend,
+    B2: Backend,
+    D: NativeType,
+{
+    type Output = Tensor<B2, D>;
+
+    fn to_backend(self, backend: &Arc<B2>) -> Result<Self::Output> {
+        if self.backend().device_kind() == backend.device_kind() {
+            return Ok(unsafe { std::mem::transmute_copy(&self) });
+        }
+        todo!("implement cross-device tensor transfer")
+    }
+}
+
 #[derive(Clone)]
 pub struct Tensor<B, D>
 where
@@ -218,6 +239,51 @@ where
         let tensor = Self::from_parts(backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
+    }
+
+    pub fn stack<'a, I>(backend: &Arc<B>, tensors: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = &'a Tensor<B, D>>,
+        B: CopyOp<D>,
+        D: 'a,
+    {
+        let tensors: Vec<_> = tensors.into_iter().collect();
+        if tensors.is_empty() {
+            return Err(Error::invalid_shape("cannot stack empty tensor list"));
+        }
+        let first_shape = tensors[0].shape();
+        for t in &tensors[1..] {
+            if t.shape() != first_shape {
+                return Err(Error::invalid_shape(
+                    "all tensors must have the same shape for stacking",
+                ));
+            }
+        }
+        let n = tensors.len();
+        let elem_count = first_shape.iter().product::<usize>();
+        let total = n * elem_count;
+        let mut buf = Vec::with_capacity(total);
+        for t in &tensors {
+            buf.extend_from_slice(&t.to_vec()?);
+        }
+        let mut out_shape = Vec::with_capacity(first_shape.len() + 1);
+        out_shape.push(n);
+        out_shape.extend_from_slice(first_shape);
+        Tensor::from_vec(backend, buf, &out_shape)
+    }
+
+    pub fn from_iter<I>(backend: &Arc<B>, iter: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = D>,
+    {
+        let data: Vec<D> = iter.into_iter().collect();
+        let len = data.len();
+        if len == 0 {
+            return Err(Error::invalid_shape(
+                "cannot create tensor from empty iterator",
+            ));
+        }
+        Tensor::from_vec(backend, data, &[len])
     }
 
     pub fn backend(&self) -> Arc<B> {

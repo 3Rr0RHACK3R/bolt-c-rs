@@ -32,6 +32,85 @@ where
     }
 }
 
+pub struct TryMapSource<E, E2, F>
+where
+    F: Fn(E) -> Result<E2> + Send + Sync + 'static,
+{
+    pub(crate) inner: Box<dyn Source<E>>,
+    pub(crate) f: F,
+}
+
+impl<E, E2, F> Source<E2> for TryMapSource<E, E2, F>
+where
+    F: Fn(E) -> Result<E2> + Send + Sync + 'static,
+{
+    fn next(&mut self) -> Result<Option<E2>> {
+        match self.inner.next()? {
+            Some(e) => Ok(Some((self.f)(e)?)),
+            None => Ok(None),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+pub struct MapWithSource<C, E, E2, F>
+where
+    C: Send + 'static,
+    F: Fn(&C, E) -> E2 + Send + Sync + 'static,
+{
+    pub(crate) inner: Box<dyn Source<E>>,
+    pub(crate) ctx: C,
+    pub(crate) f: F,
+}
+
+impl<C, E, E2, F> Source<E2> for MapWithSource<C, E, E2, F>
+where
+    C: Send + 'static,
+    F: Fn(&C, E) -> E2 + Send + Sync + 'static,
+{
+    fn next(&mut self) -> Result<Option<E2>> {
+        match self.inner.next()? {
+            Some(e) => Ok(Some((self.f)(&self.ctx, e))),
+            None => Ok(None),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+pub struct TryMapWithSource<C, E, E2, F>
+where
+    C: Send + 'static,
+    F: Fn(&C, E) -> Result<E2> + Send + Sync + 'static,
+{
+    pub(crate) inner: Box<dyn Source<E>>,
+    pub(crate) ctx: C,
+    pub(crate) f: F,
+}
+
+impl<C, E, E2, F> Source<E2> for TryMapWithSource<C, E, E2, F>
+where
+    C: Send + 'static,
+    F: Fn(&C, E) -> Result<E2> + Send + Sync + 'static,
+{
+    fn next(&mut self) -> Result<Option<E2>> {
+        match self.inner.next()? {
+            Some(e) => Ok(Some((self.f)(&self.ctx, e)?)),
+            None => Ok(None),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+
 pub struct ShuffleSource<E, R>
 where
     R: rand::Rng + Clone + Send + 'static,

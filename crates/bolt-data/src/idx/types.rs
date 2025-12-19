@@ -1,4 +1,3 @@
-
 #[derive(Clone, Copy, Debug)]
 pub struct IdxSpec {
     pub rows: usize,
