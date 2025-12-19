@@ -10,6 +10,7 @@ use crate::context::Context;
 use crate::error::Result;
 use crate::mode::Mode;
 use crate::model::Model;
+use crate::run_mode::Trainable;
 
 pub struct ReLU;
 
@@ -24,6 +25,8 @@ impl Default for ReLU {
         Self::new()
     }
 }
+
+impl Trainable for ReLU {}
 
 impl<B, D> HasParams<B, D> for ReLU
 where

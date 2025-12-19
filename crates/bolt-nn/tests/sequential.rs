@@ -39,7 +39,7 @@ fn test_seq_params_and_grad_flow() {
     let mut l2 = linear(2, 1).bias(false).build(&backend).unwrap();
     set_param(&mut l2.weight, &backend, &[1.0, 1.0], &[1, 2]);
 
-    let mut model: Seq<B, D, Grad<B, D>> = Seq::new().push(l1).push(l2);
+    let mut model: Seq<B, D> = Seq::new().push(l1).push(l2);
 
     let ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
@@ -86,7 +86,7 @@ fn test_seq_freeze_unfreeze_and_zero_grad() {
     set_param(&mut layer.weight, &backend, &[2.0], &[1, 1]);
     set_param(layer.bias.as_mut().unwrap(), &backend, &[0.5], &[1]);
 
-    let mut model: Seq<B, D, Grad<B, D>> = Seq::new().push(layer);
+    let mut model: Seq<B, D> = Seq::new().push(layer);
 
     // Freeze: no grads should be populated
     model.freeze();

@@ -17,6 +17,7 @@ use crate::context::Context;
 use crate::error::Result;
 use crate::mode::Mode;
 use crate::model::Model;
+use crate::run_mode::Trainable;
 
 use crate::init::{FanMode, Init, Nonlinearity};
 use bolt_core::backend::RandomOp;
@@ -89,6 +90,13 @@ where
 {
     pub weight: Parameter<B, D>,
     pub bias: Option<Parameter<B, D>>,
+}
+
+impl<B, D> Trainable for Linear<B, D>
+where
+    B: BaseBackend,
+    D: Float,
+{
 }
 
 impl<B, D> HasParams<B, D> for Linear<B, D>

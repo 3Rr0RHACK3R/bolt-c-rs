@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::Eval;
 use bolt_nn::layers::HasParams;
 use bolt_nn::layers::Linear;
 use bolt_nn::layers::Seq;
@@ -35,7 +34,7 @@ fn seq_visits_layers_in_insertion_order() {
     let last: Linear<B, D> = linear(2, 2).bias(false).build(&backend).unwrap();
     let last_weight = last.weight.id();
 
-    let model: Seq<B, D, Eval<B, D>> = Seq::new().push(first).push(relu()).push(last);
+    let model: Seq<B, D> = Seq::new().push(first).push(relu()).push(last);
 
     let mut actual = Vec::new();
     model.visit_params(&mut |p| actual.push(p.id()));

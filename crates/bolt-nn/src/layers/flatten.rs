@@ -10,10 +10,13 @@ use crate::context::Context;
 use crate::error::Result;
 use crate::mode::Mode;
 use crate::model::Model;
+use crate::run_mode::Trainable;
 
 pub struct Flatten {
     start_dim: usize,
 }
+
+impl Trainable for Flatten {}
 
 impl Flatten {
     pub fn new(start_dim: usize) -> Self {

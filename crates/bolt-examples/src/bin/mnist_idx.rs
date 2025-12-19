@@ -9,17 +9,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use bolt_autodiff::AutodiffTensorExt;
-use bolt_core::BaseBackend;
+use bolt_autodiff::HasParams;
 use bolt_core::Tensor;
-use bolt_core::backend::{FillOp, RandomOp};
 use bolt_cpu::CpuBackend;
 use bolt_datasets::mnist::{self, INPUT_DIM, NUM_CLASSES};
 use bolt_losses::{Reduction, cross_entropy_from_logits, metrics::accuracy_top1};
 use bolt_nn::init::Init;
-use bolt_autodiff::Parameter;
-use bolt_nn::layers::{Flatten, Linear, ReLU, flatten, linear, relu};
-use bolt_nn::{Context, HasParams, Mode, Model, Result as NnResult};
-use bolt_nn::ops::{BaseMlpOps, TensorMlpOps};
+use bolt_nn::layers::{Seq, flatten, linear, relu};
+use bolt_nn::{Context, Model};
 use bolt_optim::Sgd;
 use bolt_vision::{ops::tensor, types::ImageLayout};
 use rand::SeedableRng;
@@ -28,63 +25,9 @@ use rand::rngs::StdRng;
 const MEAN: [f32; 1] = [0.1307];
 const STD: [f32; 1] = [0.3081];
 
-pub struct MnistMlp<B, D>
-where
-    B: BaseBackend,
-    D: bolt_autodiff::Float,
-{
-    flatten: Flatten,
-    fc1: Linear<B, D>,
-    act: ReLU,
-    fc2: Linear<B, D>,
-}
+type MnistModel<B, D> = Seq<B, D>;
 
-impl<B, D> HasParams<B, D> for MnistMlp<B, D>
-where
-    B: BaseBackend,
-    D: bolt_autodiff::Float,
-{
-    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>)) {
-        self.flatten.visit_params(f);
-        self.fc1.visit_params(f);
-        self.act.visit_params(f);
-        self.fc2.visit_params(f);
-    }
-
-    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {
-        self.flatten.visit_params_mut(f);
-        self.fc1.visit_params_mut(f);
-        self.act.visit_params_mut(f);
-        self.fc2.visit_params_mut(f);
-    }
-
-    fn param_count(&self) -> usize {
-        self.fc1.param_count() + self.fc2.param_count()
-    }
-}
-
-impl<B, D, M> Model<B, D, M> for MnistMlp<B, D>
-where
-    B: BaseMlpOps<D>,
-    D: bolt_autodiff::Float,
-    M: Mode<B, D>,
-    M::Backend: TensorMlpOps<D>,
-{
-    type Input = Tensor<M::Backend, D>;
-    type Output = NnResult<Tensor<M::Backend, D>>;
-
-    fn forward(&self, ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output {
-        let x = self.flatten.forward(ctx, input)?;
-        let x = self.fc1.forward(ctx, x)?;
-        let x = self.act.forward(ctx, x)?;
-        self.fc2.forward(ctx, x)
-    }
-}
-
-fn build_model<B>(backend: &Arc<B>) -> Result<MnistMlp<B, f32>, Box<dyn Error>>
-where
-    B: BaseBackend + FillOp<f32> + RandomOp<f32>,
-{
+fn build_model(backend: &Arc<CpuBackend>) -> Result<MnistModel<CpuBackend, f32>, Box<dyn Error>> {
     let hidden_dim = 128;
 
     let layer1 = linear(INPUT_DIM, hidden_dim)
@@ -105,12 +48,11 @@ where
         .with_bias_init(Init::Zeros)
         .build(backend)?;
 
-    Ok(MnistMlp {
-        flatten: flatten(1),
-        fc1: layer1,
-        act: relu(),
-        fc2: layer2,
-    })
+    Ok(Seq::new()
+        .push(flatten(1))
+        .push(layer1)
+        .push(relu())
+        .push(layer2))
 }
 
 struct ExperimentConfig {
@@ -124,7 +66,7 @@ fn run_experiment(
     cfg: &ExperimentConfig,
     data_root: &PathBuf,
     backend: &Arc<CpuBackend>,
-    mut model: MnistMlp<CpuBackend, f32>,
+    mut model: MnistModel<CpuBackend, f32>,
 ) -> Result<(), Box<dyn Error>> {
     type B = CpuBackend;
     type D = f32;

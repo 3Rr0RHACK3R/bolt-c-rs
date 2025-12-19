@@ -1,113 +1,206 @@
-use bolt_autodiff::Float;
-use bolt_autodiff::HasParams;
-use bolt_autodiff::Parameter;
-use bolt_core::Backend;
+use bolt_autodiff::{Autodiff, Float, HasParams, Parameter};
 use bolt_core::BaseBackend;
 use bolt_core::Tensor;
 
 use crate::context::Context;
+use crate::dual::DualModel;
 use crate::error::Result;
-use crate::mode::Mode;
+use crate::mode::{Eval, Grad};
 use crate::model::Model;
+use crate::run_mode::{RunMode, Trainable};
+use crate::visit::NamedParams;
 
-pub trait Layer<B, D, M>:
-    Model<B, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>>
-    + HasParams<B, D>
+pub trait Layer<B, D>:
+    DualModel<B, D> + Model<B, D, Eval<B, D>, Input = Tensor<B, D>, Output = Result<Tensor<B, D>>>
+    + Model<
+        B,
+        D,
+        Grad<B, D>,
+        Input = Tensor<Autodiff<B, D>, D>,
+        Output = Result<Tensor<Autodiff<B, D>, D>>,
+    >
 where
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
 {
 }
 
-impl<T, B, D, M> Layer<B, D, M> for T
+impl<T, B, D> Layer<B, D> for T
 where
-    T: Model<B, D, M, Input = Tensor<M::Backend, D>, Output = Result<Tensor<M::Backend, D>>>
-        + HasParams<B, D>,
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
-    M::Backend: Backend,
+    T: DualModel<B, D>
+        + Model<B, D, Eval<B, D>, Input = Tensor<B, D>, Output = Result<Tensor<B, D>>>
+        + Model<
+            B,
+            D,
+            Grad<B, D>,
+            Input = Tensor<Autodiff<B, D>, D>,
+            Output = Result<Tensor<Autodiff<B, D>, D>>,
+        >,
 {
 }
 
-pub struct Seq<B, D, M>
+pub struct Seq<B, D>
 where
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
 {
-    layers: Vec<Box<dyn Layer<B, D, M> + Send + Sync>>,
+    layers: Vec<LayerEntry<B, D>>,
+    run_mode: RunMode,
 }
 
-impl<B, D, M> Seq<B, D, M>
+struct LayerEntry<B, D>
 where
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
+{
+    name: String,
+    layer: Box<dyn Layer<B, D> + Send + Sync>,
+}
+
+impl<B, D> Seq<B, D>
+where
+    B: BaseBackend,
+    D: Float,
 {
     pub fn new() -> Self {
-        Self { layers: Vec::new() }
+        Self {
+            layers: Vec::new(),
+            run_mode: RunMode::Train,
+        }
     }
 
     pub fn push<L>(mut self, layer: L) -> Self
     where
-        L: Layer<B, D, M> + Send + Sync + 'static,
+        L: Layer<B, D> + Send + Sync + 'static,
     {
-        self.layers.push(Box::new(layer));
+        let name = self.layers.len().to_string();
+        self.layers.push(LayerEntry {
+            name,
+            layer: Box::new(layer),
+        });
+        self
+    }
+
+    pub fn push_named<L>(mut self, name: impl Into<String>, layer: L) -> Self
+    where
+        L: Layer<B, D> + Send + Sync + 'static,
+    {
+        self.layers.push(LayerEntry {
+            name: name.into(),
+            layer: Box::new(layer),
+        });
         self
     }
 }
 
-impl<B, D, M> Default for Seq<B, D, M>
+impl<B, D> Default for Seq<B, D>
 where
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B, D, M> Model<B, D, M> for Seq<B, D, M>
+impl<B, D> Model<B, D, Eval<B, D>> for Seq<B, D>
 where
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
-    M::Backend: Backend,
+    B: bolt_core::Backend,
 {
-    type Input = Tensor<M::Backend, D>;
-    type Output = Result<Tensor<M::Backend, D>>;
+    type Input = Tensor<B, D>;
+    type Output = Result<Tensor<B, D>>;
 
-    fn forward(&self, ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output {
+    fn forward(&self, ctx: &Context<B, D, Eval<B, D>>, input: Self::Input) -> Self::Output {
         let mut x = input;
         for layer in &self.layers {
-            x = layer.forward(ctx, x)?;
+            x = layer.layer.forward_eval(ctx, x)?;
         }
         Ok(x)
     }
 }
 
-impl<B, D, M> HasParams<B, D> for Seq<B, D, M>
+impl<B, D> Model<B, D, Grad<B, D>> for Seq<B, D>
 where
     B: BaseBackend,
     D: Float,
-    M: Mode<B, D>,
+{
+    type Input = Tensor<Autodiff<B, D>, D>;
+    type Output = Result<Tensor<Autodiff<B, D>, D>>;
+
+    fn forward(&self, ctx: &Context<B, D, Grad<B, D>>, input: Self::Input) -> Self::Output {
+        let mut x = input;
+        for layer in &self.layers {
+            x = layer.layer.forward_grad(ctx, x)?;
+        }
+        Ok(x)
+    }
+}
+
+impl<B, D> HasParams<B, D> for Seq<B, D>
+where
+    B: BaseBackend,
+    D: Float,
 {
     fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>)) {
         for layer in &self.layers {
-            layer.visit_params(f);
+            layer.layer.visit_params(f);
         }
     }
 
     fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {
         for layer in &mut self.layers {
-            layer.visit_params_mut(f);
+            layer.layer.visit_params_mut(f);
         }
     }
 
     fn param_count(&self) -> usize {
-        self.layers.iter().map(|l| l.param_count()).sum()
+        self.layers.iter().map(|l| l.layer.param_count()).sum()
+    }
+}
+
+impl<B, D> NamedParams<B, D> for Seq<B, D>
+where
+    B: BaseBackend,
+    D: Float,
+{
+    fn visit_named_params(&self, f: &mut dyn FnMut(&str, &Parameter<B, D>)) {
+        for entry in &self.layers {
+            let layer_prefix = format!("layers.{}", entry.name);
+            let mut i = 0usize;
+            entry.layer.visit_params(&mut |p| {
+                let key = format!("{}.p{}.{}", layer_prefix, i, p.display_name());
+                i += 1;
+                f(&key, p);
+            });
+        }
+    }
+
+    fn visit_named_params_mut(&mut self, f: &mut dyn FnMut(&str, &mut Parameter<B, D>)) {
+        for entry in &mut self.layers {
+            let layer_prefix = format!("layers.{}", entry.name);
+            let mut i = 0usize;
+            entry.layer.visit_params_mut(&mut |p| {
+                let key = format!("{}.p{}.{}", layer_prefix, i, p.display_name());
+                i += 1;
+                f(&key, p);
+            });
+        }
+    }
+}
+
+impl<B, D> Trainable for Seq<B, D>
+where
+    B: BaseBackend,
+    D: Float,
+{
+    fn set_run_mode(&mut self, mode: RunMode) {
+        self.run_mode = mode;
+        for entry in &mut self.layers {
+            entry.layer.set_run_mode(mode);
+        }
     }
 }
