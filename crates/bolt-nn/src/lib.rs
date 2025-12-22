@@ -1,24 +1,15 @@
-//! Neural network helpers built on Bolt backends.
-//! Losses and metrics are re-exported from `bolt-losses` when the `losses`
-//! feature is enabled (default).
+#![deny(unused_must_use)]
 
-mod compute;
-mod context;
-pub mod error;
-pub mod init;
+mod error;
+mod init;
+mod module;
+mod state_dict;
+mod store;
+
 pub mod layers;
-pub mod run_mode;
-pub mod state_dict;
-pub mod visit;
-mod mode;
-mod model;
 
-pub use bolt_autodiff::HasParams;
-#[cfg(feature = "losses")]
-pub use bolt_losses::*;
-pub use compute::{Compute, ComputeOps};
-pub use context::{Context, Rng};
 pub use error::{Error, Result};
-pub use mode::{Eval, Grad, Mode};
-pub use model::Model;
-pub use run_mode::{RunMode, Trainable};
+pub use init::Init;
+pub use module::Module;
+pub use state_dict::{LoadOptions, LoadReport, StateDict};
+pub use store::{Buffer, Kind, Param, Store};

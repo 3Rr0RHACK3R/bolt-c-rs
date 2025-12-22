@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
-bolt-autodiff = { path = "../bolt-autodiff" }
-thiserror.workspace = true
+bolt-nn = { path = "../bolt-nn" }
+bolt-tensor = { path = "../bolt-tensor" }
 
 [dev-dependencies]
 bolt-cpu = { path = "../bolt-cpu" }

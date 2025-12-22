@@ -10,6 +10,9 @@ bolt-core = { path = "../bolt-core" }
 rand = "0.8"
 rand_distr = "0.4"
 
+[dev-dependencies]
+bolt-tensor = { path = "../bolt-tensor" }
+
 [features]
 default = ["diagnostics"]
 diagnostics = []

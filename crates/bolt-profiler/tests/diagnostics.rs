@@ -4,9 +4,10 @@ use bolt_core::device::{BackendDevice, DeviceKind};
 use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
 use bolt_core::shape::ConcreteShape;
-use bolt_core::{AllocatorDiagnostics, StorageAllocator, Tensor};
+use bolt_core::{AllocatorDiagnostics, StorageAllocator};
 use bolt_cpu::CpuBackend;
 use bolt_profiler::{OpCategory, ProfiledBackend};
+use bolt_tensor::Tensor;
 use std::sync::Arc;
 
 #[derive(Clone)]

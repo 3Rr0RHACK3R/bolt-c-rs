@@ -1,60 +1,53 @@
 use std::sync::Arc;
 
-use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{HasParams, Linear, linear};
-use bolt_nn::{Context, Eval, Model};
+use bolt_nn::layers::{Linear, Relu};
+use bolt_nn::{Module, Store};
+use bolt_tensor::Tensor;
 
 type B = CpuBackend;
 type D = f32;
-type M = Eval<B, D>;
 
 #[test]
-fn test_linear_forward() {
+fn linear_forward_produces_expected_shape() {
     let backend = Arc::new(CpuBackend::new());
-    let ctx = Context::<B, D, M>::eval(&backend);
-
-    let spec = linear(4, 2);
-    let layer: Linear<B, D> = spec.build(&backend).unwrap();
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+    let layer = Linear::init(&store.sub("linear"), 4, 2, true).unwrap();
 
     let input = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 4]).unwrap();
-    let output = layer.forward(&ctx, ctx.input(&input)).unwrap();
+    let output = layer.forward(input, false).unwrap();
     assert_eq!(output.shape(), &[1, 2]);
 }
 
 #[test]
-fn test_relu_forward() {
-    use bolt_nn::layers::relu;
-
+fn relu_forward_clamps_negative_values() {
     let backend = Arc::new(CpuBackend::new());
-    let ctx = Context::<B, D, M>::eval(&backend);
-
     let input = Tensor::<B, D>::from_slice(&backend, &[-1.0, 0.0, 1.0, 2.0], &[4]).unwrap();
-    let layer = relu();
-    let output = layer.forward(&ctx, ctx.input(&input)).unwrap();
 
+    let layer = Relu::new();
+    let output = layer.forward(input, false).unwrap();
     let data = output.to_vec().unwrap();
     assert_eq!(data, vec![0.0, 0.0, 1.0, 2.0]);
 }
 
 #[test]
-fn test_context_backend_access() {
+fn store_registers_linear_params_with_expected_keys() {
     let backend = Arc::new(CpuBackend::new());
-    let ctx = Context::<B, D, M>::eval(&backend);
+    let store = Store::<B, D>::new(backend, 0);
+    let _ = Linear::init(&store.sub("linear"), 2, 3, true).unwrap();
 
-    let _ = ctx.backend();
-    let _ = ctx.device();
-}
+    let keys: Vec<String> = store
+        .named_trainable()
+        .into_iter()
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(
+        keys,
+        vec!["linear.bias".to_string(), "linear.weight".to_string()]
+    );
 
-#[test]
-fn test_linear_params_access() {
-    let backend = Arc::new(CpuBackend::new());
-
-    let layer: Linear<B, D> = linear(4, 2).build(&backend).unwrap();
-
-    let params = layer.params();
+    let params = store.trainable();
     assert_eq!(params.len(), 2);
-
-    assert_eq!(params[0].tensor().shape(), &[2, 4]);
-    assert_eq!(params[1].tensor().shape(), &[2]);
+    assert_eq!(params[0].shape(), &[3]);
+    assert_eq!(params[1].shape(), &[3, 2]);
 }

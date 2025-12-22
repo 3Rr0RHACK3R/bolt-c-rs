@@ -1,8 +1,8 @@
 use bolt_core::{
-    Tensor,
     backend::{ArgmaxOp, Backend, CopyOp},
     dtype::Float,
 };
+use bolt_tensor::Tensor;
 
 use crate::error::{Error, Result};
 

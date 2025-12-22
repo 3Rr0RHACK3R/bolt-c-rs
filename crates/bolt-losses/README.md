@@ -6,7 +6,7 @@ supporting the required ops.
 
 ```rust
 use std::sync::Arc;
-use bolt_core::Tensor;
+use bolt_tensor::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_losses::{cross_entropy_from_logits, accuracy_top1, Reduction};
 
@@ -21,4 +21,3 @@ let acc = accuracy_top1(&logits, &labels)?;
 
 The crate is re-exported from `bolt-nn` behind the `losses` feature (enabled by
 default).
-

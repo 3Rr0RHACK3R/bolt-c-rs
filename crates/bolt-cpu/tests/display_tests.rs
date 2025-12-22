@@ -1,5 +1,5 @@
-use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 use std::sync::Arc;
 
 #[test]

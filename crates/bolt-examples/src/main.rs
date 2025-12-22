@@ -1,7 +1,7 @@
 use std::{error::Error, sync::Arc};
 
-use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let backend = Arc::new(CpuBackend::new());

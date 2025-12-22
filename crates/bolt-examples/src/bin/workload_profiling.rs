@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_profiler::{HostMemTracker, ProfiledBackend};
+use bolt_tensor::Tensor;
 
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 

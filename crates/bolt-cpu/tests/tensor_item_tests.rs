@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use bolt_core::{error::Error, error::Result, tensor::Tensor};
+use bolt_core::{error::Error, error::Result};
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 
 #[test]
 fn item_returns_scalar_value() -> Result<()> {

@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use bolt_core::{Error, Tensor};
+use bolt_core::Error;
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 
 type B = CpuBackend;
 type D = f32;

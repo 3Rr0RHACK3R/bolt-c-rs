@@ -1,63 +1,68 @@
 use std::sync::Arc;
 
-use bolt_autodiff::{Autodiff, Parameter};
-use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_optim::{Error, Sgd};
+use bolt_nn::{Init, Store};
+use bolt_optim::{Sgd, SgdCfg};
+use bolt_tensor::Tensor;
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
-type Opt = Sgd<CpuBackend, f32>;
+type B = CpuBackend;
+type D = f32;
 
 #[test]
-fn step_errors_on_missing_gradient() -> TestResult {
-    let base = Arc::new(CpuBackend::new());
-    let autodiff = Autodiff::wrap(base.clone());
+fn missing_gradient_does_not_update_parameter() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 0);
 
-    let mut p = Parameter::with_name(Tensor::from_slice(&base, &[1.0f32], &[1])?, "p");
-    let mut q = Parameter::with_name(Tensor::from_slice(&base, &[2.0f32], &[1])?, "q");
+    let p = store.param("p", &[1], Init::Zeros).unwrap();
+    let q = store.param("q", &[1], Init::Zeros).unwrap();
 
-    let mut opt: Opt = Opt::builder().learning_rate(0.1).init(&[&p, &q])?;
+    p.set_tensor(Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap())
+        .unwrap();
+    q.set_tensor(Tensor::<B, D>::from_slice(&backend, &[2.0], &[1]).unwrap())
+        .unwrap();
 
-    autodiff.with_tape(|tape| {
-        let pv = tape.param(&mut p);
-        let loss = pv.sum(None, false)?;
-        tape.backward_into_params(&loss, &mut [&mut p])
-    })?;
+    p.set_grad(Some(
+        Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap(),
+    ));
+    q.set_grad(None);
 
-    let err = opt.step(&mut [&mut p, &mut q]).unwrap_err();
-    match err {
-        Error::MissingGradient { param_id, .. } => assert_eq!(param_id, q.id()),
-        other => panic!("unexpected error: {other:?}"),
-    }
+    let mut opt = Sgd::<B, D>::new(SgdCfg {
+        lr: 1.0,
+        momentum: 0.0,
+        weight_decay: 0.0,
+    })
+    .unwrap();
 
-    Ok(())
+    opt.step(&store.trainable()).unwrap();
+
+    let p_after = p.tensor().to_vec().unwrap();
+    let q_after = q.tensor().to_vec().unwrap();
+
+    assert_eq!(p_after, vec![0.0]);
+    assert_eq!(q_after, vec![2.0]);
 }
 
 #[test]
-fn weight_decay_applies_l2_penalty() -> TestResult {
-    let base = Arc::new(CpuBackend::new());
-    let autodiff = Autodiff::wrap(base.clone());
+fn weight_decay_applies_l2_penalty() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 0);
 
-    let mut p = Parameter::with_name(Tensor::from_slice(&base, &[2.0f32], &[1])?, "p");
-    let mut opt: Opt = Opt::builder()
-        .learning_rate(1.0)
-        .weight_decay(0.5)
-        .init(&[&p])?;
+    let p = store.param("p", &[1], Init::Zeros).unwrap();
+    p.set_tensor(Tensor::<B, D>::from_slice(&backend, &[2.0], &[1]).unwrap())
+        .unwrap();
+    p.set_grad(Some(
+        Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap(),
+    ));
 
-    autodiff.with_tape(|tape| {
-        let pv = tape.param(&mut p);
-        let loss = pv.sum(None, false)?;
-        tape.backward_into_params(&loss, &mut [&mut p])
-    })?;
+    let mut opt = Sgd::<B, D>::new(SgdCfg {
+        lr: 1.0,
+        momentum: 0.0,
+        weight_decay: 0.5,
+    })
+    .unwrap();
 
-    opt.step(&mut [&mut p])?;
-    let after = p.tensor().to_vec()?;
+    opt.step(&store.trainable()).unwrap();
+    let after = p.tensor().to_vec().unwrap();
 
-    // grad=1, decay=0.5*value=1.0 => effective grad 2.0, lr=1 => value should hit 0.0
-    assert!(
-        (after[0] - 0.0).abs() < 1e-6,
-        "weight decay not applied: {after:?}"
-    );
-
-    Ok(())
+    assert!((after[0] - 0.0).abs() < 1e-6, "weight decay not applied");
 }

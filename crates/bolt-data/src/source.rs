@@ -110,7 +110,6 @@ where
     }
 }
 
-
 pub struct ShuffleSource<E, R>
 where
     R: rand::Rng + Clone + Send + 'static,

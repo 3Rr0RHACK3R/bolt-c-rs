@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "crates/bolt-autodiff",
     "crates/bolt-core",
     "crates/bolt-cpu",
     "crates/bolt-data",
@@ -10,6 +9,7 @@ members = [
     "crates/bolt-profiler",
     "crates/bolt-optim",
     "crates/bolt-losses",
+    "crates/bolt-tensor",
     "crates/bolt-vision",
 ]
 resolver = "2"

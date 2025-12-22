@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
+bolt-tensor = { path = "../bolt-tensor" }
 bolt-cpu = { path = "../bolt-cpu" }
-bolt-autodiff = { path = "../bolt-autodiff" }
 bolt-profiler = { path = "../bolt-profiler" }
 bolt-nn = { path = "../bolt-nn" }
 bolt-optim = { path = "../bolt-optim" }

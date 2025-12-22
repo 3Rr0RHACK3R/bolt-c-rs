@@ -1,65 +1,37 @@
 use std::sync::Arc;
 
-use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::linear;
-use bolt_nn::{Context, Grad, Model};
+use bolt_nn::Module;
+use bolt_nn::Store;
+use bolt_nn::layers::Linear;
+use bolt_tensor::Tensor;
 
 type B = CpuBackend;
 type D = f32;
 
 #[test]
-fn test_grad_context_creation() {
+fn backward_populates_parameter_gradients() {
     let backend = Arc::new(CpuBackend::new());
-    let ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+    let layer = Linear::init(&store.sub("linear"), 2, 1, true).unwrap();
 
-    let _ = ctx.autodiff();
-}
-
-#[test]
-fn test_linear_forward_with_grad() {
-    let backend = Arc::new(CpuBackend::new());
-    let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
-
-    let spec = linear(4, 2);
-    let layer = spec.build(&backend).unwrap();
-
-    let input = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 4]).unwrap();
-
-    let output = layer.forward(&grad_ctx, grad_ctx.input(&input)).unwrap();
-    assert_eq!(output.shape(), &[1, 2]);
-}
-
-#[test]
-fn test_backward_with_context() {
-    let backend = Arc::new(CpuBackend::new());
-    let grad_ctx = Context::<B, D, Grad<B, D>>::grad(&backend);
-
-    let mut layer = linear(2, 1).build(&backend).unwrap();
+    store.zero_grad();
 
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
+    let y = layer.forward(x, true).unwrap();
+    let loss = y.sum(None, false).unwrap();
 
-    let output = layer.forward(&grad_ctx, grad_ctx.input(&x)).unwrap();
-
-    let loss = output.sum(None, false).unwrap();
-
-    let mut weight = &mut layer.weight;
-    let mut bias = layer.bias.as_mut().unwrap();
-    grad_ctx
-        .backward(&loss, &mut [&mut weight, &mut bias])
-        .unwrap();
+    store.backward(&loss).unwrap();
 
     assert!(layer.weight.grad().is_some());
     assert!(layer.bias.as_ref().unwrap().grad().is_some());
 }
 
 #[test]
-fn test_parameter_freeze() {
-    use bolt_nn::layers::Linear;
-
+fn freeze_unfreeze_toggles_requires_grad() {
     let backend = Arc::new(CpuBackend::new());
-
-    let mut layer: Linear<B, D> = linear(4, 2).build(&backend).unwrap();
+    let store = Store::<B, D>::new(backend, 0);
+    let layer = Linear::init(&store.sub("linear"), 2, 1, true).unwrap();
 
     assert!(layer.weight.requires_grad());
     assert!(layer.bias.as_ref().unwrap().requires_grad());
@@ -72,15 +44,17 @@ fn test_parameter_freeze() {
 }
 
 #[test]
-fn test_zero_grad() {
-    use bolt_nn::layers::Linear;
-
+fn zero_grad_clears_cached_gradients() {
     let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+    let layer = Linear::init(&store.sub("linear"), 2, 1, true).unwrap();
 
-    let mut layer: Linear<B, D> = linear(4, 2).build(&backend).unwrap();
+    let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
+    let y = layer.forward(x, true).unwrap();
+    let loss = y.sum(None, false).unwrap();
+    store.backward(&loss).unwrap();
 
-    assert!(layer.weight.grad().is_none());
-
-    layer.weight.zero_grad();
+    assert!(layer.weight.grad().is_some());
+    store.zero_grad();
     assert!(layer.weight.grad().is_none());
 }

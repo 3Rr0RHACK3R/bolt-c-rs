@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
+bolt-tensor = { path = "../bolt-tensor" }

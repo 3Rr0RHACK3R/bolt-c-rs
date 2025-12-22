@@ -54,6 +54,7 @@ pub trait NativeType: Copy + Pod + Send + Sync + 'static + fmt::Debug + Default 
     const DTYPE: DType;
 
     fn one() -> Self;
+    fn from_usize(n: usize) -> Self;
 }
 
 pub trait Float:
@@ -67,7 +68,6 @@ pub trait Float:
     fn zero() -> Self;
     fn from_f64(v: f64) -> Self;
     fn to_f64(self) -> f64;
-    fn from_usize(n: usize) -> Self;
 
     fn sin(self) -> Self;
     fn cos(self) -> Self;
@@ -85,6 +85,10 @@ impl NativeType for f32 {
     fn one() -> Self {
         1.0
     }
+
+    fn from_usize(n: usize) -> Self {
+        n as f32
+    }
 }
 
 impl Float for f32 {
@@ -98,10 +102,6 @@ impl Float for f32 {
 
     fn to_f64(self) -> f64 {
         self as f64
-    }
-
-    fn from_usize(n: usize) -> Self {
-        n as f32
     }
 
     fn sin(self) -> Self {
@@ -143,6 +143,10 @@ impl NativeType for f64 {
     fn one() -> Self {
         1.0
     }
+
+    fn from_usize(n: usize) -> Self {
+        n as f64
+    }
 }
 
 impl Float for f64 {
@@ -156,10 +160,6 @@ impl Float for f64 {
 
     fn to_f64(self) -> f64 {
         self
-    }
-
-    fn from_usize(n: usize) -> Self {
-        n as f64
     }
 
     fn sin(self) -> Self {
@@ -201,6 +201,10 @@ impl NativeType for i32 {
     fn one() -> Self {
         1
     }
+
+    fn from_usize(n: usize) -> Self {
+        n as i32
+    }
 }
 
 impl NativeType for i64 {
@@ -209,6 +213,10 @@ impl NativeType for i64 {
     fn one() -> Self {
         1
     }
+
+    fn from_usize(n: usize) -> Self {
+        n as i64
+    }
 }
 
 impl NativeType for u8 {
@@ -216,5 +224,9 @@ impl NativeType for u8 {
 
     fn one() -> Self {
         1
+    }
+
+    fn from_usize(n: usize) -> Self {
+        n as u8
     }
 }

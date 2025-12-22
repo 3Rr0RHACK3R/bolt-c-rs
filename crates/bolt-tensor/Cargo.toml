@@ -1,0 +1,13 @@
+[package]
+name = "bolt-tensor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+bolt-core = { path = "../bolt-core" }
+bytemuck.workspace = true
+
+[dev-dependencies]
+bolt-cpu = { path = "../bolt-cpu" }

@@ -1,4 +1,5 @@
-use bolt_core::{Backend, NativeType, Tensor, ToBackend};
+use bolt_core::{Backend, NativeType};
+use bolt_tensor::{Tensor, ToBackend};
 
 pub enum ImageLayout {
     NHWC,

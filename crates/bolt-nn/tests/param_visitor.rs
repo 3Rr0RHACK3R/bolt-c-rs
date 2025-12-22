@@ -1,44 +1,31 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::HasParams;
+use bolt_nn::Store;
 use bolt_nn::layers::Linear;
-use bolt_nn::layers::Seq;
-use bolt_nn::layers::linear;
-use bolt_nn::layers::relu;
 
 type B = CpuBackend;
 type D = f32;
 
 #[test]
-fn linear_visits_weight_then_bias() {
+fn store_named_trainable_is_deterministic_and_keyed() {
     let backend = Arc::new(CpuBackend::new());
-    let layer: Linear<B, D> = linear(2, 3).build(&backend).unwrap();
+    let store = Store::<B, D>::new(backend, 0);
 
-    let expected = vec![layer.weight.id(), layer.bias.as_ref().unwrap().id()];
+    let _ = Linear::init(&store.sub("a"), 2, 3, true).unwrap();
+    let _ = Linear::init(&store.sub("b"), 2, 3, false).unwrap();
 
-    let mut actual = Vec::new();
-    layer.visit_params(&mut |p| actual.push(p.id()));
-
-    assert_eq!(layer.param_count(), expected.len());
-    assert_eq!(actual, expected);
-}
-
-#[test]
-fn seq_visits_layers_in_insertion_order() {
-    let backend = Arc::new(CpuBackend::new());
-
-    let first: Linear<B, D> = linear(2, 2).bias(false).build(&backend).unwrap();
-    let first_weight = first.weight.id();
-
-    let last: Linear<B, D> = linear(2, 2).bias(false).build(&backend).unwrap();
-    let last_weight = last.weight.id();
-
-    let model: Seq<B, D> = Seq::new().push(first).push(relu()).push(last);
-
-    let mut actual = Vec::new();
-    model.visit_params(&mut |p| actual.push(p.id()));
-
-    assert_eq!(model.param_count(), 2);
-    assert_eq!(actual, vec![first_weight, last_weight]);
+    let keys: Vec<String> = store
+        .named_trainable()
+        .into_iter()
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(
+        keys,
+        vec![
+            "a.bias".to_string(),
+            "a.weight".to_string(),
+            "b.weight".to_string(),
+        ]
+    );
 }

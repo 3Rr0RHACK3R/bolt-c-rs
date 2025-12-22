@@ -1,128 +1,90 @@
-use bolt_core::backend::{FillOp, RandomOp};
-use bolt_core::dtype::Float;
-use bolt_core::error::Result;
-use bolt_core::tensor::Tensor;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::f64::consts::PI;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum Nonlinearity {
-    ReLU,
-    LeakyReLU,
-    Tanh,
-    Sigmoid,
-    Linear,
-}
+use bolt_core::Float;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum FanMode {
-    FanIn,
-    FanOut,
-}
+use crate::{Error, Result};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Init {
-    KaimingUniform {
-        a: f32,
-        mode: FanMode,
-        nonlinearity: Nonlinearity,
-    },
-    XavierUniform {
-        gain: f32,
-    },
-    Normal {
-        mean: f32,
-        std: f32,
-    },
-    Uniform {
-        low: f32,
-        high: f32,
-    },
-    Constant {
-        val: f32,
-    },
+#[derive(Clone, Copy, Debug)]
+pub enum Init<D: Float> {
     Zeros,
-    Ones,
+    Uniform { low: D, high: D },
+    Normal { mean: D, std: D },
+    KaimingUniform { a: D },
 }
 
-impl Init {
-    pub fn init<B, D>(&self, backend: &Arc<B>, shape: &[usize]) -> Result<Tensor<B, D>>
-    where
-        B: RandomOp<D> + FillOp<D>,
-        D: Float,
-    {
-        match self {
-            Init::KaimingUniform {
-                a,
-                mode,
-                nonlinearity,
-            } => {
-                let fan = calculate_fan(shape, *mode);
-                let gain = calculate_gain(*nonlinearity, *a);
-                let std = gain / (fan as f32).sqrt();
-                let bound = (3.0f32).sqrt() * std;
-                let low = D::from_f64(-bound as f64);
-                let high = D::from_f64(bound as f64);
-                Tensor::uniform(backend, shape, low, high, None)
+#[derive(Debug)]
+pub struct Rng {
+    state: u64,
+}
+
+impl Rng {
+    pub fn new(seed: u64) -> Self {
+        let s = if seed == 0 { 0x9E3779B97F4A7C15 } else { seed };
+        Self { state: s }
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let mut x = self.state;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.state = x;
+        x.wrapping_mul(0x2545F4914F6CDD1D)
+    }
+
+    fn next_f64(&mut self) -> f64 {
+        let u = (self.next_u64() >> 11) as u64;
+        (u as f64) / ((1u64 << 53) as f64)
+    }
+
+    pub fn uniform_f64(&mut self, low: f64, high: f64) -> f64 {
+        low + (high - low) * self.next_f64()
+    }
+
+    pub fn normal_f64(&mut self, mean: f64, std: f64) -> f64 {
+        let u1 = self.next_f64().max(1e-12);
+        let u2 = self.next_f64();
+        let z0 = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos();
+        mean + std * z0
+    }
+}
+
+pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut Rng) -> Result<Vec<D>> {
+    let numel: usize = shape.iter().product();
+    let mut out = vec![D::zero(); numel];
+
+    match init {
+        Init::Zeros => {}
+        Init::Uniform { low, high } => {
+            let low = low.to_f64();
+            let high = high.to_f64();
+            for x in &mut out {
+                *x = D::from_f64(rng.uniform_f64(low, high));
             }
-            Init::XavierUniform { gain } => {
-                let (fan_in, fan_out) = calculate_fans(shape);
-                let std = *gain * (2.0 / (fan_in as f32 + fan_out as f32)).sqrt();
-                let bound = (3.0f32).sqrt() * std;
-                let low = D::from_f64(-bound as f64);
-                let high = D::from_f64(bound as f64);
-                Tensor::uniform(backend, shape, low, high, None)
+        }
+        Init::Normal { mean, std } => {
+            let mean = mean.to_f64();
+            let std = std.to_f64();
+            for x in &mut out {
+                *x = D::from_f64(rng.normal_f64(mean, std));
             }
-            Init::Normal { mean, std } => {
-                let m = D::from_f64(*mean as f64);
-                let s = D::from_f64(*std as f64);
-                Tensor::normal(backend, shape, m, s, None)
+        }
+        Init::KaimingUniform { a } => {
+            if shape.len() < 2 {
+                return Err(Error::State(
+                    "kaiming_uniform expects at least 2D weight".into(),
+                ));
             }
-            Init::Uniform { low, high } => {
-                let l = D::from_f64(*low as f64);
-                let h = D::from_f64(*high as f64);
-                Tensor::uniform(backend, shape, l, h, None)
+            let fan_in = shape[1] as f64;
+            let a = a.to_f64();
+            let gain = (2.0 / (1.0 + a * a)).sqrt();
+            let std = gain / fan_in.sqrt();
+            let bound = (3.0f64).sqrt() * std;
+            for x in &mut out {
+                *x = D::from_f64(rng.uniform_f64(-bound, bound));
             }
-            Init::Constant { val } => {
-                let v = D::from_f64(*val as f64);
-                Tensor::full(backend, shape, v)
-            }
-            Init::Zeros => Tensor::full(backend, shape, D::zero()),
-            Init::Ones => Tensor::full(backend, shape, D::one()),
         }
     }
-}
 
-fn calculate_fan(shape: &[usize], mode: FanMode) -> usize {
-    let (fan_in, fan_out) = calculate_fans(shape);
-    match mode {
-        FanMode::FanIn => fan_in,
-        FanMode::FanOut => fan_out,
-    }
-}
-
-fn calculate_fans(shape: &[usize]) -> (usize, usize) {
-    if shape.len() < 2 {
-        let size = if shape.is_empty() { 1 } else { shape[0] };
-        return (size, size);
-    }
-    let num_input_fmaps = shape[1];
-    let num_output_fmaps = shape[0];
-    let mut receptive_field_size = 1;
-    if shape.len() > 2 {
-        receptive_field_size = shape[2..].iter().product();
-    }
-    let fan_in = num_input_fmaps * receptive_field_size;
-    let fan_out = num_output_fmaps * receptive_field_size;
-    (fan_in, fan_out)
-}
-
-fn calculate_gain(nonlinearity: Nonlinearity, param: f32) -> f32 {
-    match nonlinearity {
-        Nonlinearity::Linear => 1.0,
-        Nonlinearity::ReLU => (2.0f32).sqrt(),
-        Nonlinearity::LeakyReLU => (2.0f32 / (1.0 + param.powi(2))).sqrt(),
-        Nonlinearity::Tanh => 5.0 / 3.0,
-        Nonlinearity::Sigmoid => 1.0,
-    }
+    Ok(out)
 }

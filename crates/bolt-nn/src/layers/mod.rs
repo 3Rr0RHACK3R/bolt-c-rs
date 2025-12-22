@@ -1,10 +1,7 @@
-mod activations;
-mod flatten;
 mod linear;
+mod relu;
 mod sequential;
 
-pub use activations::{ReLU, relu};
-pub use bolt_autodiff::HasParams;
-pub use flatten::{Flatten, flatten};
-pub use linear::{Linear, LinearSpec, linear};
+pub use linear::Linear;
+pub use relu::Relu;
 pub use sequential::Seq;

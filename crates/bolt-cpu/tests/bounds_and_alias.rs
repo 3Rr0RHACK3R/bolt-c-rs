@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use bolt_core::shape::ConcreteShape;
-use bolt_core::{Backend, Error, Layout, Tensor};
+use bolt_core::{Backend, Error, Layout};
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 
 #[test]
 fn read_rejects_out_of_bounds_layout() {

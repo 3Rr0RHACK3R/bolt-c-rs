@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
 use bolt_losses::{Reduction, accuracy_top1, cross_entropy, cross_entropy_from_logits, mse};
+use bolt_tensor::Tensor;
 
 type B = CpuBackend;
 type D = f32;

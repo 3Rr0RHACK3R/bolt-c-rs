@@ -1,8 +1,9 @@
 mod batch;
 mod download;
 
-use bolt_core::{Backend, Tensor};
+use bolt_core::Backend;
 use bolt_data::{IdxExample, IdxSpec, IdxSplit, Stream, idx_dataset};
+use bolt_tensor::Tensor;
 use std::path::Path;
 use std::sync::Arc;
 

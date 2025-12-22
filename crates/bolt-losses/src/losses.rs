@@ -1,8 +1,8 @@
 use bolt_core::{
-    Tensor,
-    backend::{Backend, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, SubOp, SumOp},
+    backend::{Backend, BroadcastToOp, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp},
     dtype::Float,
 };
+use bolt_tensor::Tensor;
 
 use crate::error::{Error, Result};
 
@@ -19,8 +19,8 @@ pub fn mse<B, D>(
     reduction: Reduction,
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend + SubOp<D> + MulOp<D> + SumOp<D> + MeanOp<D>,
-    D: Float,
+    B: Backend + CopyOp<D> + SubOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D>,
+    D: Float + PartialEq + PartialOrd,
 {
     ensure_same_shape(pred, target)?;
 
@@ -36,6 +36,7 @@ pub fn cross_entropy_from_logits<B, D>(
 ) -> Result<Tensor<B, D>>
 where
     B: Backend
+        + CopyOp<D>
         + SubOp<D>
         + MulOp<D>
         + SumOp<D>
@@ -43,16 +44,21 @@ where
         + ExpOp<D>
         + LogOp<D>
         + MaxOp<D>
-        + NegOp<D>,
-    D: Float,
+        + NegOp<D>
+        + BroadcastToOp<D>
+        + ReshapeOp<D>
+        + SumOp<D>,
+    D: Float + PartialEq + PartialOrd,
 {
     ensure_same_shape(logits, target)?;
 
     // log_softmax for numerical stability: logits - logsumexp(logits)
     let max = logits.max(Some(&[-1]), true)?;
-    let shifted = logits.sub(&max)?;
+    let max_broadcast = max.broadcast_to(logits.shape())?;
+    let shifted = logits.sub(&max_broadcast)?;
     let logsumexp = shifted.exp()?.sum(Some(&[-1]), true)?.log()?;
-    let log_probs = shifted.sub(&logsumexp)?;
+    let logsumexp_broadcast = logsumexp.broadcast_to(shifted.shape())?;
+    let log_probs = shifted.sub(&logsumexp_broadcast)?;
 
     let per_sample = target.mul(&log_probs)?.sum(Some(&[-1]), false)?.neg()?;
     apply_reduction(per_sample, reduction)
@@ -64,7 +70,7 @@ pub fn cross_entropy<B, D>(
     reduction: Reduction,
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend + LogOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D>,
+    B: Backend + CopyOp<D> + LogOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D>,
     D: Float,
 {
     ensure_same_shape(probs, target)?;
@@ -81,6 +87,7 @@ pub fn cross_entropy_from_logits_sparse<B, D>(
 ) -> Result<Tensor<B, D>>
 where
     B: Backend
+        + CopyOp<D>
         + SubOp<D>
         + MulOp<D>
         + SumOp<D>
@@ -90,8 +97,11 @@ where
         + MaxOp<D>
         + NegOp<D>
         + FillOp<D>
-        + CopyOp<i32>,
-    D: Float,
+        + CopyOp<i32>
+        + BroadcastToOp<D>
+        + ReshapeOp<D>
+        + SumOp<D>,
+    D: Float + PartialEq + PartialOrd,
 {
     let mut target_one_hot = vec![0.0f32; targets.numel() * num_classes];
     let targets_vec = targets.to_vec().map_err(|e| Error::Core(e))?;
@@ -115,7 +125,7 @@ where
 
 fn apply_reduction<B, D>(tensor: Tensor<B, D>, reduction: Reduction) -> Result<Tensor<B, D>>
 where
-    B: Backend + MeanOp<D> + SumOp<D>,
+    B: Backend + CopyOp<D> + MeanOp<D> + SumOp<D>,
     D: Float,
 {
     match reduction {

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use bolt_core::Result;
 use bolt_core::error::Error;
-use bolt_core::tensor::Tensor;
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 
 #[test]
 fn broadcast_scalar_to_vector() -> Result<()> {

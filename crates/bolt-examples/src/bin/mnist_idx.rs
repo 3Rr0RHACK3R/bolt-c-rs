@@ -1,199 +1,62 @@
-//! MNIST training example using bolt-datasets.
-//!
-//! Demonstrates:
-//! - Using functional data pipeline with collate
-//! - Training a simple MLP on CPU
-//! - Custom model struct implementing Model trait directly
-
-use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
-use bolt_autodiff::AutodiffTensorExt;
-use bolt_autodiff::HasParams;
-use bolt_autodiff::Parameter;
-use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
-use bolt_datasets::mnist::{self, INPUT_DIM, NUM_CLASSES};
-use bolt_losses::{Reduction, cross_entropy_from_logits, metrics::accuracy_top1};
-use bolt_nn::init::Init;
-use bolt_nn::layers::{Linear, linear};
-use bolt_nn::{Compute, ComputeOps, Context, Mode, Model, Trainable};
-use bolt_optim::Sgd;
+use bolt_data::Stream;
+use bolt_datasets::mnist::{self, MnistBatch, INPUT_DIM, NUM_CLASSES};
+use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
+use bolt_nn::layers::Linear;
+use bolt_nn::{Module, Store};
+use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
+use bolt_tensor::{Tensor, no_grad};
 use bolt_vision::{ops::tensor, types::ImageLayout};
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+
+type B = CpuBackend;
+type D = f32;
+type Batch = MnistBatch<B>;
+type BoxErr = Box<dyn std::error::Error>;
 
 const MEAN: [f32; 1] = [0.1307];
 const STD: [f32; 1] = [0.3081];
 
-pub struct MnistMLP<B, D>
-where
-    B: Compute<D>,
-    D: bolt_autodiff::Float,
-{
+struct MnistMLP {
     fc1: Linear<B, D>,
     fc2: Linear<B, D>,
 }
 
-impl<B, D> MnistMLP<B, D>
-where
-    B: Compute<D> + bolt_core::backend::RandomOp<D>,
-    D: bolt_autodiff::Float,
-{
-    pub fn new(backend: &Arc<B>, hidden_dim: usize) -> bolt_nn::Result<Self> {
-        let fc1 = linear(INPUT_DIM, hidden_dim)
-            .with_weight_init(Init::KaimingUniform {
-                a: (5.0f32).sqrt(),
-                mode: bolt_nn::init::FanMode::FanIn,
-                nonlinearity: bolt_nn::init::Nonlinearity::ReLU,
-            })
-            .with_bias_init(Init::Zeros)
-            .build(backend)?;
-
-        let fc2 = linear(hidden_dim, NUM_CLASSES)
-            .with_weight_init(Init::KaimingUniform {
-                a: (5.0f32).sqrt(),
-                mode: bolt_nn::init::FanMode::FanIn,
-                nonlinearity: bolt_nn::init::Nonlinearity::Linear,
-            })
-            .with_bias_init(Init::Zeros)
-            .build(backend)?;
-
+impl MnistMLP {
+    fn init(store: &Store<B, D>, hidden: usize) -> bolt_nn::Result<Self> {
+        let fc1 = Linear::init(&store.sub("fc1"), INPUT_DIM, hidden, true)?;
+        let fc2 = Linear::init(&store.sub("fc2"), hidden, NUM_CLASSES, true)?;
         Ok(Self { fc1, fc2 })
     }
 }
 
-impl<B, D> Trainable for MnistMLP<B, D>
-where
-    B: Compute<D>,
-    D: bolt_autodiff::Float,
-{
-}
-
-impl<B, D> HasParams<B, D> for MnistMLP<B, D>
-where
-    B: Compute<D>,
-    D: bolt_autodiff::Float,
-{
-    fn visit_params<'a>(&'a self, f: &mut dyn FnMut(&'a Parameter<B, D>)) {
-        self.fc1.visit_params(f);
-        self.fc2.visit_params(f);
-    }
-
-    fn visit_params_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Parameter<B, D>)) {
-        self.fc1.visit_params_mut(f);
-        self.fc2.visit_params_mut(f);
-    }
-
-    fn param_count(&self) -> usize {
-        self.fc1.param_count() + self.fc2.param_count()
-    }
-}
-
-impl<B, D, M> Model<B, D, M> for MnistMLP<B, D>
-where
-    B: Compute<D>,
-    D: bolt_autodiff::Float,
-    M: Mode<B, D>,
-    M::Backend: ComputeOps<D>,
-{
-    type Input = Tensor<M::Backend, D>;
-    type Output = bolt_nn::Result<Tensor<M::Backend, D>>;
-
-    fn forward(&self, ctx: &Context<B, D, M>, input: Self::Input) -> Self::Output {
-        let batch_size = input.shape()[0];
-        let x = input.reshape(&[batch_size, INPUT_DIM])?;
-
-        let x = self.fc1.forward(ctx, x)?;
-        let x = x.relu()?;
-        let x = self.fc2.forward(ctx, x)?;
-
-        Ok(x)
-    }
-}
-
-struct ExperimentConfig {
-    seed: u64,
-    batch_size: usize,
-    epochs: usize,
-    shuffle_buffer: usize,
-}
-
-fn run_experiment(
-    cfg: &ExperimentConfig,
-    data_root: &PathBuf,
-    backend: &Arc<CpuBackend>,
-    mut model: MnistMLP<CpuBackend, f32>,
-) -> Result<(), Box<dyn Error>> {
-    type B = CpuBackend;
-    type D = f32;
-
-    let mut optimizer = Sgd::<B, D>::builder()
-        .learning_rate(0.1)
-        .init(&model.params())?;
-
-    println!("Training for {} epochs ...", cfg.epochs);
-
-    for epoch in 0..cfg.epochs {
-        let rng = StdRng::seed_from_u64(cfg.seed + epoch as u64);
-        let base_stream = mnist::train(data_root)?;
-
-        let train_stream = base_stream
-            .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
-            .try_map(|mut s| {
-                s.image = tensor::scale(1.0 / 255.0, s.image)?;
-                Ok::<_, bolt_data::DataError>(s)
-            })
-            .try_map(|mut s| {
-                s.image = tensor::normalize(&MEAN, &STD, ImageLayout::NCHW, s.image)?;
-                Ok::<_, bolt_data::DataError>(s)
-            })
-            .shuffle(cfg.shuffle_buffer, rng)
-            .batch(cfg.batch_size)
-            .try_map_with(backend.clone(), |b, xs| {
-                let images = Tensor::stack(b, xs.iter().map(|s| &s.image))?;
-                let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
-                Ok::<_, bolt_data::DataError>(mnist::MnistBatch { images, labels })
-            });
-
-        for (step, batch_res) in train_stream.iter().enumerate() {
-            let batch = batch_res?;
-            let ctx = Context::grad(backend);
-
-            let logits = model.forward(&ctx, ctx.input(&batch.images))?;
-
-            let labels_vec = batch.labels.to_vec()?;
-            let mut targets_buf = vec![0.0f32; labels_vec.len() * NUM_CLASSES];
-            for (i, &label) in labels_vec.iter().enumerate() {
-                targets_buf[i * NUM_CLASSES + label as usize] = 1.0;
-            }
-            let targets = ctx.input(&bolt_core::Tensor::from_slice(
-                backend,
-                &targets_buf,
-                &[labels_vec.len(), NUM_CLASSES],
-            )?);
-            let loss = cross_entropy_from_logits(&logits, &targets, Reduction::Mean)?;
-
-            ctx.backward(&loss, &mut model.params_mut())?;
-            optimizer.step(&mut model.params_mut())?;
-            model.zero_grad();
-
-            if (step + 1) % 50 == 0 || step == 0 {
-                let acc = accuracy_top1(&logits.detach(), &batch.labels)?;
-                let loss_val = loss.to_vec()?.get(0).copied().unwrap_or(0.0);
-                println!(
-                    "  epoch {:>2} | step {:>4} | step-loss = {:>8.4} | step-acc = {:>5.1}%",
-                    epoch + 1,
-                    step + 1,
-                    loss_val,
-                    acc * 100.0
-                );
-            }
+impl Module<B, D> for MnistMLP {
+    fn forward(&self, x: Tensor<B, D>, train: bool) -> bolt_nn::Result<Tensor<B, D>> {
+        let shape = x.shape();
+        if shape.len() != 4 {
+            return Err(bolt_nn::Error::Shape(format!(
+                "expected [batch, channels, height, width], got {:?}",
+                shape
+            )));
         }
+        let batch = shape[0];
+        let x = x.reshape(&[batch, INPUT_DIM])?;
+        let x = self.fc1.forward(x, train)?;
+        let x = x.relu()?;
+        self.fc2.forward(x, train)
     }
+}
 
-    let test_stream = mnist::test(data_root)?
+fn train_loader(
+    root: &Path,
+    backend: Arc<B>,
+    batch_size: usize,
+    rng: StdRng,
+) -> Result<Stream<Batch>, BoxErr> {
+    let stream = mnist::train(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
         .try_map(|mut s| {
             s.image = tensor::scale(1.0 / 255.0, s.image)?;
@@ -203,66 +66,147 @@ fn run_experiment(
             s.image = tensor::normalize(&MEAN, &STD, ImageLayout::NCHW, s.image)?;
             Ok::<_, bolt_data::DataError>(s)
         })
-        .batch(256)
-        .try_map_with(backend.clone(), |b, xs| {
+        .shuffle(10_000, rng)
+        .batch(batch_size)
+        .try_map_with(backend, |b, xs| {
             let images = Tensor::stack(b, xs.iter().map(|s| &s.image))?;
             let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
-            Ok::<_, bolt_data::DataError>(mnist::MnistBatch { images, labels })
-        });
-
-    let eval_ctx = Context::eval(backend);
-    let mut total_correct = 0;
-    let mut total_samples = 0;
-
-    for batch_res in test_stream.iter() {
-        let batch = batch_res?;
-        let logits = model.forward(&eval_ctx, eval_ctx.input(&batch.images))?;
-
-        let batch_size = batch.labels.shape()[0];
-        let acc = accuracy_top1(&logits, &batch.labels)?;
-
-        let batch_correct = (acc * batch_size as f32).round() as usize;
-        total_correct += batch_correct;
-        total_samples += batch_size;
-    }
-
-    let final_accuracy = if total_samples > 0 {
-        (total_correct as f32 / total_samples as f32) * 100.0
-    } else {
-        0.0
-    };
-
-    println!(
-        "\n  Final Test Accuracy: {:.2}% ({}/{} samples)",
-        final_accuracy, total_correct, total_samples
-    );
-
-    Ok(())
+            Ok::<_, bolt_data::DataError>(MnistBatch { images, labels })
+        })
+        .take(10);
+    Ok(stream)
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let data_dir = std::env::var("MNIST_DIR").unwrap_or_else(|_| "data/mnist".to_string());
-    let data_root = PathBuf::from(data_dir);
+fn test_loader(
+    root: &Path,
+    backend: Arc<B>,
+    batch_size: usize,
+) -> Result<Stream<Batch>, BoxErr> {
+    let stream = mnist::test(root)?
+        .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
+        .try_map(|mut s| {
+            s.image = tensor::scale(1.0 / 255.0, s.image)?;
+            Ok::<_, bolt_data::DataError>(s)
+        })
+        .try_map(|mut s| {
+            s.image = tensor::normalize(&MEAN, &STD, ImageLayout::NCHW, s.image)?;
+            Ok::<_, bolt_data::DataError>(s)
+        })
+        .batch(batch_size)
+        .try_map_with(backend, |b, xs| {
+            let images = Tensor::stack(b, xs.iter().map(|s| &s.image))?;
+            let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
+            Ok::<_, bolt_data::DataError>(MnistBatch { images, labels })
+        })
+        .take(10);
+    Ok(stream)
+}
 
-    println!("Using MNIST data directory: {:?}", data_root);
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let data_root = std::env::var("MNIST_DIR")
+        .map(Into::into)
+        .unwrap_or_else(|_| std::path::PathBuf::from("data/mnist"));
     mnist::ensure_downloaded(&data_root)?;
 
     let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+    let model = MnistMLP::init(&store, 128)?;
+    store.seal();
 
-    let model = MnistMLP::new(&backend, 128)?;
+    let mut opt = Sgd::<B, D>::new(SgdCfg {
+        lr: 0.1,
+        momentum: 0.9,
+        weight_decay: 1e-4,
+    })?;
+    opt.set_group(1, SgdGroupCfg { lr_mult: 1.0, weight_decay: Some(0.0) })?;
+    let params = store.trainable();
 
-    println!("\n=== Custom MLP Model ===");
-    run_experiment(
-        &ExperimentConfig {
-            seed: 42,
-            batch_size: 128,
-            epochs: 2,
-            shuffle_buffer: 10_000,
-        },
-        &data_root,
-        &backend,
-        model,
-    )?;
+    let seed = 42u64;
+    let batch_size = 128;
+    let epochs = 1;
+
+    for epoch in 0..epochs {
+        let rng = rand::SeedableRng::seed_from_u64(seed + epoch as u64);
+        let loader = train_loader(&data_root, backend.clone(), batch_size, rng)?;
+
+        for (step, batch_res) in loader.iter().enumerate() {
+            let batch = batch_res?;
+            store.zero_grad();
+
+            let logits = model.forward(batch.images, true)?;
+            let loss = cross_entropy_from_logits_sparse(
+                &logits,
+                &batch.labels,
+                NUM_CLASSES,
+                Reduction::Mean,
+            )?;
+
+            store.backward(&loss)?;
+            opt.step(&params)?;
+
+            if (step + 1) % 50 == 0 || step == 0 {
+                let loss_val = loss.item()?;
+                let logits_detached = logits.clone().with_requires_grad(false);
+                let acc = accuracy_top1(&logits_detached, &batch.labels)?;
+                println!(
+                    "epoch {:>2} step {:>4} loss {:>8.4} acc {:>5.1}%",
+                    epoch + 1,
+                    step + 1,
+                    loss_val,
+                    acc * 100.0
+                );
+            }
+        }
+    }
+
+    evaluate(&model, &data_root, backend, batch_size)?;
+    Ok(())
+}
+
+fn evaluate(
+    model: &MnistMLP,
+    data_root: &Path,
+    backend: Arc<B>,
+    batch_size: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Evaluation on Test Set ===");
+    let _guard = no_grad();
+
+    let loader = test_loader(data_root, backend, batch_size)?;
+
+    let mut total_loss = 0.0f64;
+    let mut total_correct = 0usize;
+    let mut total_samples = 0usize;
+
+    for batch_res in loader.iter() {
+        let batch = batch_res?;
+        let n = batch.labels.numel();
+
+        let logits = model.forward(batch.images, false)?;
+        let loss = cross_entropy_from_logits_sparse(
+            &logits,
+            &batch.labels,
+            NUM_CLASSES,
+            Reduction::Mean,
+        )?;
+
+        let loss_val: f64 = loss.item()?.into();
+        total_loss += loss_val * n as f64;
+
+        let preds = logits.argmax(Some(&[-1]), false)?;
+        let correct = preds
+            .to_vec()?
+            .iter()
+            .zip(batch.labels.to_vec()?.iter())
+            .filter(|(p, t)| p == t)
+            .count();
+        total_correct += correct;
+        total_samples += n;
+    }
+
+    let test_loss = total_loss / total_samples as f64;
+    let test_acc = total_correct as f64 / total_samples as f64;
+    println!("Test Loss: {:.4}  Test Acc: {:.2}%", test_loss, test_acc * 100.0);
 
     Ok(())
 }

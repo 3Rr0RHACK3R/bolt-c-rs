@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use bolt_core::Tensor;
 use bolt_cpu::CpuBackend;
+use bolt_tensor::Tensor;
 
 #[test]
 fn display_formats_1d_int_tensor() {
