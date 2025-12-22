@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use bolt_core::BaseBackend;
@@ -23,7 +23,7 @@ where
 {
     pub(crate) key: String,
     pub(crate) kind: Kind,
-    pub(crate) group: u32,
+    pub(crate) group: AtomicU32,
     pub(crate) shape: Vec<usize>,
     pub(crate) requires_grad: AtomicBool,
     pub(crate) tensor: Mutex<Tensor<B, D>>,
@@ -52,7 +52,11 @@ where
     }
 
     pub fn group(&self) -> u32 {
-        self.0.group
+        self.0.group.load(Ordering::Relaxed)
+    }
+
+    pub fn set_group(&self, group: u32) {
+        self.0.group.store(group, Ordering::Relaxed);
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -235,6 +239,27 @@ where
             .collect()
     }
 
+    pub fn trainable_by_group(&self, group_id: u32) -> Vec<Param<B, D>> {
+        let map = self.inner.params.read().unwrap();
+        map.values()
+            .filter(|e| e.group.load(Ordering::Relaxed) == group_id)
+            .cloned()
+            .map(Param)
+            .collect()
+    }
+
+    pub fn group_params_by_name<F>(&self, predicate: F, group_id: u32)
+    where
+        F: Fn(&str) -> bool,
+    {
+        let map = self.inner.params.read().unwrap();
+        for entry in map.values() {
+            if predicate(&entry.key) {
+                entry.group.store(group_id, Ordering::Relaxed);
+            }
+        }
+    }
+
     pub fn zero_grad(&self) {
         for p in self.trainable() {
             p.zero_grad();
@@ -287,7 +312,7 @@ where
         let entry = Arc::new(Entry {
             key: key.clone(),
             kind,
-            group: self.group,
+            group: AtomicU32::new(self.group),
             shape: shape.to_vec(),
             requires_grad: AtomicBool::new(requires_grad),
             tensor: Mutex::new(tensor),

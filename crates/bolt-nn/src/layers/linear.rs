@@ -36,10 +36,8 @@ where
             },
         )?;
 
-        // TODO: Let's not push bias to a param group implicitly
-        // Param grouping should be an explicit action, controlled by users
         let bias = if bias {
-            Some(store.group(1).param("bias", &[out_features], Init::Zeros)?)
+            Some(store.param("bias", &[out_features], Init::Zeros)?)
         } else {
             None
         };

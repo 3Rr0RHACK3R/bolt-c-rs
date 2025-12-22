@@ -111,6 +111,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 1337);
     let model = MnistMLP::init(&store, 128)?;
+    
+    store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
 
     let mut opt = Sgd::<B, D>::new(SgdCfg {
