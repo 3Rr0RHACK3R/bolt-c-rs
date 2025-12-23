@@ -92,3 +92,21 @@ fn relu_grad_is_zero_for_negative() -> Result<()> {
     assert_vec_approx_eq(&gx, &[0.0, 1.0], 1e-6);
     Ok(())
 }
+
+#[test]
+fn sigmoid_grad() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+
+    let x = Tensor::<CpuBackend, f32>::from_slice(&backend, &[0.0_f32, 1.0], &[2])?.requires_grad();
+    let y = x.sigmoid()?;
+    let loss = y.sum(None, false)?;
+
+    let grads = loss.backward()?;
+    let gx = grads.wrt(&x).unwrap().to_vec()?;
+
+    let sig0 = 1.0 / (1.0 + (-0.0f32).exp());
+    let sig1 = 1.0 / (1.0 + (-1.0f32).exp());
+    let expected = vec![sig0 * (1.0 - sig0), sig1 * (1.0 - sig1)];
+    assert_vec_approx_eq(&gx, &expected, 1e-5);
+    Ok(())
+}

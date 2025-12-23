@@ -5,7 +5,7 @@ use bolt_core::{
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp, CopyOp,
         CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp,
-        ProdOp, RandomOp, ReluOp, ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp,
+        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp,
         TransposeOp, UnsqueezeOp,
     },
     dtype::{Float, NativeType},
@@ -748,6 +748,42 @@ where
         Ok(out)
     }
 
+    pub fn sigmoid(&self) -> Result<Self>
+    where
+        B: CopyOp<D> + SigmoidOp<D> + 'static,
+        D: Float + std::ops::Mul<Output = D> + std::ops::Sub<Output = D> + 'static,
+    {
+        let parts = self.backend.sigmoid(&self.layout, &self.storage)?;
+        let mut out = Self::from_parts(self.backend.clone(), parts.storage, parts.layout);
+        self.record_sigmoid(&mut out)?;
+        Ok(out)
+    }
+
+    pub fn softmax(&self, dim: Option<isize>) -> Result<Self>
+    where
+        B: CopyOp<D>
+            + ExpOp<D>
+            + LogOp<D>
+            + MaxOp<D>
+            + SubOp<D>
+            + SumOp<D>
+            + BroadcastToOp<D>
+            + ReshapeOp<D>
+            + NegOp<D>
+            + 'static,
+        D: Float + PartialOrd + PartialEq + 'static,
+    {
+        let dim = dim.unwrap_or(-1);
+        let axes = &[dim];
+        let max = self.max(Some(axes), true)?;
+        let max_broadcast = max.broadcast_to(self.shape())?;
+        let shifted = self.sub(&max_broadcast)?;
+        let logsumexp = shifted.exp()?.sum(Some(axes), true)?.log()?;
+        let logsumexp_broadcast = logsumexp.broadcast_to(shifted.shape())?;
+        let log_softmax = shifted.sub(&logsumexp_broadcast)?;
+        log_softmax.exp()
+    }
+
     // TODO: Why the need for std ops trait bound here?
     pub fn div(&self, other: &Self) -> Result<Self>
     where
@@ -1338,6 +1374,16 @@ where
     {
         let op = Box::new(autograd::ReluBackward::new());
         self.record_unary_node(out, op, vec![self.clone()]);
+        Ok(())
+    }
+
+    fn record_sigmoid(&self, out: &mut Self) -> Result<()>
+    where
+        B: CopyOp<D> + 'static,
+        D: Float + std::ops::Mul<Output = D> + std::ops::Sub<Output = D> + 'static,
+    {
+        let op = Box::new(autograd::SigmoidBackward::new());
+        self.record_unary_node(out, op, vec![out.clone()]);
         Ok(())
     }
 

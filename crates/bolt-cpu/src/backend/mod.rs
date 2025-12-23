@@ -12,7 +12,7 @@ use bolt_core::{
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, CopyOp, CosOp, DivOp,
         ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
-        ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
+        ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     device::{BackendDevice, DeviceKind},
     dtype::{CastFrom, NativeType},
@@ -31,7 +31,7 @@ use memory_pool::MemoryPool;
 use ops::{
     AbsKernel, AddKernel, ArgmaxKernel, ArgminKernel, CopyKernel, CosKernel, CpuScalar, DivKernel,
     ExpKernel, LogKernel, MatmulKernel, MaxKernel, MeanKernel, MinKernel, MulKernel, NegKernel,
-    PowKernel, ProdKernel, ReluKernel, SinKernel, SqrtKernel, SubKernel, SumKernel, TanhKernel,
+    PowKernel, ProdKernel, ReluKernel, SigmoidKernel, SinKernel, SqrtKernel, SubKernel, SumKernel, TanhKernel,
 };
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
@@ -421,6 +421,19 @@ where
         storage: &Self::Storage<D>,
     ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as ReluKernel>::relu_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
+    }
+}
+
+impl<D> SigmoidOp<D> for CpuBackend
+where
+    D: CpuScalar + SigmoidKernel,
+{
+    fn sigmoid(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as SigmoidKernel>::sigmoid_kernel(TensorView::new(storage, layout), &self.allocator::<D>())
     }
 }
 

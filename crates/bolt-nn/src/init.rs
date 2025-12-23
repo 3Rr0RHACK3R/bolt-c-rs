@@ -11,6 +11,7 @@ pub enum Init<D: Float> {
     Uniform { low: D, high: D },
     Normal { mean: D, std: D },
     KaimingUniform { a: D },
+    KaimingNormal { a: D },
     XavierUniform,
     XavierNormal,
 }
@@ -59,6 +60,20 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
             let bound = (3.0f64).sqrt() * std;
             for x in &mut out {
                 *x = D::from_f64(uniform_f64(rng, -bound, bound));
+            }
+        }
+        Init::KaimingNormal { a } => {
+            if shape.len() < 2 {
+                return Err(Error::State(
+                    "kaiming_normal expects at least 2D weight".into(),
+                ));
+            }
+            let fan_in = shape[1] as f64;
+            let a = a.to_f64();
+            let gain = (2.0 / (1.0 + a * a)).sqrt();
+            let std = gain / fan_in.sqrt();
+            for x in &mut out {
+                *x = D::from_f64(normal_f64(rng, 0.0, std));
             }
         }
         Init::XavierUniform => {

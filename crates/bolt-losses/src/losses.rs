@@ -32,6 +32,22 @@ where
     apply_reduction(squared, reduction)
 }
 
+pub fn mae<B, D>(
+    pred: &Tensor<B, D>,
+    target: &Tensor<B, D>,
+    reduction: Reduction,
+) -> Result<Tensor<B, D>>
+where
+    B: Backend + CopyOp<D> + SubOp<D> + AbsOp<D> + SumOp<D> + MeanOp<D> + ReshapeOp<D> + NegOp<D>,
+    D: Float + PartialEq + PartialOrd,
+{
+    ensure_same_shape(pred, target)?;
+
+    let diff = pred.sub(target)?;
+    let abs_diff = diff.abs()?;
+    apply_reduction(abs_diff, reduction)
+}
+
 pub fn cross_entropy_from_logits<B, D>(
     logits: &Tensor<B, D>,
     target: &Tensor<B, D>,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_losses::{
     Reduction, accuracy_top1, binary_cross_entropy, binary_cross_entropy_with_logits,
-    cross_entropy, cross_entropy_from_logits, mse,
+    cross_entropy, cross_entropy_from_logits, mae, mse,
 };
 use bolt_tensor::Tensor;
 
@@ -26,6 +26,28 @@ fn mse_reductions() {
     assert_eq!(sum, 2.0);
 
     let mean = mse(&pred, &target, Reduction::Mean)
+        .unwrap()
+        .item()
+        .unwrap();
+    assert!((mean - 2.0 / 3.0).abs() < 1e-6);
+}
+
+#[test]
+fn mae_reductions() {
+    let backend = Arc::new(CpuBackend::new());
+    let pred = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0], &[3]).unwrap();
+    let target = Tensor::<B, D>::from_slice(&backend, &[1.0, 1.0, 2.0], &[3]).unwrap();
+
+    let none = mae(&pred, &target, Reduction::None)
+        .unwrap()
+        .to_vec()
+        .unwrap();
+    assert_eq!(none, vec![0.0, 1.0, 1.0]);
+
+    let sum = mae(&pred, &target, Reduction::Sum).unwrap().item().unwrap();
+    assert_eq!(sum, 2.0);
+
+    let mean = mae(&pred, &target, Reduction::Mean)
         .unwrap()
         .item()
         .unwrap();

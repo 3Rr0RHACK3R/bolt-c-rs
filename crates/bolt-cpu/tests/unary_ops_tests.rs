@@ -178,6 +178,32 @@ fn relu_i32() -> Result<()> {
 }
 
 #[test]
+fn sigmoid_f32() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[0.0, 1.0, -1.0], &[3])?;
+
+    let result = tensor.sigmoid()?.to_vec()?;
+    let expected = vec![0.5, 1.0 / (1.0 + (-1.0f32).exp()), 1.0 / (1.0 + 1.0f32.exp())];
+    for (r, e) in result.iter().zip(expected.iter()) {
+        assert!((r - e).abs() < 1e-5);
+    }
+    Ok(())
+}
+
+#[test]
+fn sigmoid_f64() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+    let tensor = Tensor::<CpuBackend, f64>::from_slice(&backend, &[0.0, 2.0], &[2])?;
+
+    let result = tensor.sigmoid()?.to_vec()?;
+    let expected = vec![0.5, 1.0 / (1.0 + (-2.0f64).exp())];
+    for (r, e) in result.iter().zip(expected.iter()) {
+        assert!((r - e).abs() < 1e-10);
+    }
+    Ok(())
+}
+
+#[test]
 fn unary_ops_on_non_contiguous() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let base =

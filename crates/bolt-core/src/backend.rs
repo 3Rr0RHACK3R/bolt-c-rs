@@ -181,6 +181,14 @@ pub trait ReluOp<D: NativeType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
+pub trait SigmoidOp<D: Float>: Backend {
+    fn sigmoid(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}
+
 pub trait DivOp<D: NativeType>: Backend {
     fn div(
         &self,
