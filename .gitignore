@@ -3,6 +3,7 @@ target/
 .codex/
 .gemini/
 .serena/
+.cursor/
 devlog/
 bun.lock
 node_modules/
