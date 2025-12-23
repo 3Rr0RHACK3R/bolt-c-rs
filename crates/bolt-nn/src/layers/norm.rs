@@ -1,6 +1,6 @@
 use bolt_core::backend::{
-    AddOp, BroadcastToOp, CopyOp, DivOp, FillOp, MeanOp, MulOp, NegOp, ReshapeOp, SqueezeOp,
-    SqrtOp, SubOp, SumOp, UnsqueezeOp,
+    AddOp, BroadcastToOp, CopyOp, DivOp, FillOp, MeanOp, MulOp, NegOp, ReshapeOp, SqrtOp,
+    SqueezeOp, SubOp, SumOp, UnsqueezeOp,
 };
 use bolt_core::{BaseBackend, Float};
 use bolt_tensor::{Tensor, no_grad};
@@ -60,6 +60,13 @@ where
         if let Some(ref axes) = config.axes {
             if axes.is_empty() {
                 return Err(Error::Shape("Norm: axes must not be empty".into()));
+            }
+            if axes.len() != config.normalized_shape.len() {
+                return Err(Error::Shape(format!(
+                    "Norm: axes length ({}) must match normalized_shape length ({})",
+                    axes.len(),
+                    config.normalized_shape.len()
+                )));
             }
         }
 
@@ -166,7 +173,9 @@ where
         let (mean, var) = if ctx.is_train() || !self.track_running_stats() {
             let mean = x.mean(Some(reduce_axes_slice), true)?;
             let centered = x.sub(&mean)?;
-            let var = centered.mul(&centered)?.mean(Some(reduce_axes_slice), true)?;
+            let var = centered
+                .mul(&centered)?
+                .mean(Some(reduce_axes_slice), true)?;
 
             if ctx.is_train() {
                 if let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var) {
@@ -250,10 +259,9 @@ where
     D: Float + 'static,
 {
     fn forward(&self, x: Tensor<B, D>, ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
-        let axes = self
-            .axes
-            .as_ref()
-            .ok_or_else(|| Error::State("Norm: axes must be set when using Module::forward".into()))?;
+        let axes = self.axes.as_ref().ok_or_else(|| {
+            Error::State("Norm: axes must be set when using Module::forward".into())
+        })?;
         self.forward(x, ctx, axes, axes)
     }
 }
