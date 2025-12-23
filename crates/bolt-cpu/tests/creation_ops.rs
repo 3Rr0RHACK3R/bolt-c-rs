@@ -236,3 +236,70 @@ fn normal_no_seed_yields_different_vectors() {
 
     assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
+
+#[test]
+fn bernoulli_mask_deterministic_with_same_seed() {
+    let backend = Arc::new(B::new());
+    let t1 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(42)).unwrap();
+    let t2 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(42)).unwrap();
+
+    assert_eq!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
+}
+
+#[test]
+fn bernoulli_mask_different_seeds_produce_different_results() {
+    let backend = Arc::new(B::new());
+    let t1 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(42)).unwrap();
+    let t2 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(43)).unwrap();
+
+    assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
+}
+
+#[test]
+fn bernoulli_mask_values_are_binary() {
+    let backend = Arc::new(B::new());
+    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[1000], 0.5, Some(42)).unwrap();
+    let data = tensor.to_vec().unwrap();
+
+    for v in data {
+        assert!(v == 0.0 || v == 1.0, "bernoulli_mask should only produce 0.0 or 1.0, got {v}");
+    }
+}
+
+#[test]
+fn bernoulli_mask_statistical_properties() {
+    let backend = Arc::new(B::new());
+    let p_keep = 0.7;
+    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[10000], p_keep, Some(123)).unwrap();
+    let data = tensor.to_vec().unwrap();
+
+    let ones_count = data.iter().filter(|&&v| v == 1.0).count();
+    let actual_proportion = ones_count as f32 / data.len() as f32;
+
+    assert!(
+        (actual_proportion - p_keep).abs() < 0.05,
+        "Expected proportion ~{p_keep}, got {actual_proportion}"
+    );
+}
+
+#[test]
+fn bernoulli_mask_edge_cases() {
+    let backend = Arc::new(B::new());
+    
+    let zeros = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.0, Some(42)).unwrap();
+    assert_eq!(zeros.to_vec().unwrap(), vec![0.0; 100]);
+
+    let ones = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 1.0, Some(42)).unwrap();
+    assert_eq!(ones.to_vec().unwrap(), vec![1.0; 100]);
+}
+
+#[test]
+fn bernoulli_mask_rejects_invalid_p_keep() {
+    let backend = Arc::new(B::new());
+    
+    let result_negative = Tensor::<B, D>::bernoulli_mask(&backend, &[10], -0.1, Some(42));
+    assert!(matches!(result_negative, Err(Error::OpError { .. })));
+
+    let result_too_large = Tensor::<B, D>::bernoulli_mask(&backend, &[10], 1.1, Some(42));
+    assert!(matches!(result_too_large, Err(Error::OpError { .. })));
+}

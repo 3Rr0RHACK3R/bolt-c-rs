@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use bolt_core::BaseBackend;
 use bolt_core::Float;
 use bolt_core::backend::{AddOp, FillOp};
+use bolt_rng::RngStream;
 use bolt_tensor::Tensor;
 
 use crate::init;
@@ -153,7 +154,7 @@ where
     params: RwLock<BTreeMap<String, Arc<Entry<B, D>>>>,
     buffers: RwLock<BTreeMap<String, Arc<Entry<B, D>>>>,
     sealed: AtomicBool,
-    rng: Mutex<init::Rng>,
+    rng: Mutex<RngStream>,
 }
 
 #[derive(Clone)]
@@ -179,7 +180,7 @@ where
                 params: RwLock::new(BTreeMap::new()),
                 buffers: RwLock::new(BTreeMap::new()),
                 sealed: AtomicBool::new(false),
-                rng: Mutex::new(init::Rng::new(seed)),
+                rng: Mutex::new(RngStream::from_seed(seed)),
             }),
             prefix: String::new(),
             group: 0,
