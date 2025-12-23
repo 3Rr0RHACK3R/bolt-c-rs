@@ -2,7 +2,7 @@ use bolt_core::backend::ReshapeOp;
 use bolt_core::{BaseBackend, Float};
 use bolt_tensor::Tensor;
 
-use crate::{Module, Result};
+use crate::{ForwardCtx, Module, Result};
 
 pub struct Flatten;
 
@@ -17,7 +17,7 @@ where
     B: BaseBackend + ReshapeOp<D> + 'static,
     D: Float + 'static,
 {
-    fn forward(&self, x: Tensor<B, D>, _train: bool) -> Result<Tensor<B, D>> {
+    fn forward(&self, x: Tensor<B, D>, _ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
         let shape = x.shape();
         if shape.is_empty() {
             return Ok(x);

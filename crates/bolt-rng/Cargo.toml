@@ -1,0 +1,8 @@
+[package]
+name = "bolt-rng"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{Flatten, Linear, Relu};
-use bolt_nn::{Module, Store};
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -15,7 +15,8 @@ fn linear_forward_produces_expected_shape() {
     let layer = Linear::init(&store.sub("linear"), 4, 2, true).unwrap();
 
     let input = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 4]).unwrap();
-    let output = layer.forward(input, false).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
     assert_eq!(output.shape(), &[1, 2]);
 }
 
@@ -25,7 +26,8 @@ fn relu_forward_clamps_negative_values() {
     let input = Tensor::<B, D>::from_slice(&backend, &[-1.0, 0.0, 1.0, 2.0], &[4]).unwrap();
 
     let layer = Relu::new();
-    let output = layer.forward(input, false).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
     let data = output.to_vec().unwrap();
     assert_eq!(data, vec![0.0, 0.0, 1.0, 2.0]);
 }
@@ -59,7 +61,8 @@ fn flatten_forward_reshapes_4d_to_2d() {
     let input = Tensor::<B, D>::from_slice(&backend, &data, &[2, 3, 4, 5]).unwrap();
 
     let layer = Flatten::new();
-    let output = layer.forward(input, false).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
     assert_eq!(output.shape(), &[2, 60]);
 }
 
@@ -70,7 +73,8 @@ fn flatten_forward_preserves_2d_tensor() {
     let input = Tensor::<B, D>::from_slice(&backend, &data, &[4, 8]).unwrap();
 
     let layer = Flatten::new();
-    let output = layer.forward(input, false).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
     assert_eq!(output.shape(), &[4, 8]);
 }
 
@@ -81,6 +85,7 @@ fn flatten_forward_handles_single_sample() {
     let input = Tensor::<B, D>::from_slice(&backend, &data, &[1, 16]).unwrap();
 
     let layer = Flatten::new();
-    let output = layer.forward(input, false).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
     assert_eq!(output.shape(), &[1, 16]);
 }

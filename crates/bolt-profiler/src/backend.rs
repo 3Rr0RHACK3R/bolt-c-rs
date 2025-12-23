@@ -1,5 +1,6 @@
 use bolt_core::backend::{
-    AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, NegOp, SubOp, TensorParts, TransposeOp,
+    AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, NegOp, ReshapeOp, SubOp, SumOp, TensorParts,
+    TransposeOp,
 };
 use bolt_core::dtype::{Float, NativeType};
 use bolt_core::error::Result;
@@ -272,6 +273,26 @@ impl<D: NativeType, B: TransposeOp<D> + Backend> TransposeOp<D> for ProfiledBack
             OpCategory::Memory,
             vec![shapes_from_layout(layout)],
             |inner| inner.transpose(storage, layout, axis_a, axis_b),
+        )
+    }
+}
+
+impl<D: NativeType, B: Backend> ReshapeOp<D> for ProfiledBackend<B> {}
+
+impl<D: NativeType, B: SumOp<D> + Backend> SumOp<D> for ProfiledBackend<B> {
+    fn sum(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+        axes: Option<&[isize]>,
+        keepdims: bool,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        profile_op(
+            self,
+            "sum",
+            OpCategory::Compute,
+            vec![shapes_from_layout(layout)],
+            |inner| inner.sum(layout, storage, axes, keepdims),
         )
     }
 }

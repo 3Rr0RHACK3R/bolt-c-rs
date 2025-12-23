@@ -2,7 +2,7 @@ use bolt_core::backend::{CopyOp, ReluOp};
 use bolt_core::{BaseBackend, Float};
 use bolt_tensor::Tensor;
 
-use crate::{Module, Result};
+use crate::{ForwardCtx, Module, Result};
 
 pub struct Relu;
 
@@ -17,7 +17,7 @@ where
     B: BaseBackend + CopyOp<D> + ReluOp<D> + 'static,
     D: Float + PartialOrd + 'static,
 {
-    fn forward(&self, x: Tensor<B, D>, _train: bool) -> Result<Tensor<B, D>> {
+    fn forward(&self, x: Tensor<B, D>, _ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
         Ok(x.relu()?)
     }
 }

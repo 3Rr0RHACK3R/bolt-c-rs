@@ -4,7 +4,7 @@ use bolt_core::backend::CopyOp;
 use bolt_core::backend::{AddOp, BroadcastToOp, MatmulOp, ReshapeOp, SumOp, TransposeOp};
 use bolt_tensor::Tensor;
 
-use crate::{Error, Init, Module, Param, Result, Store};
+use crate::{Error, ForwardCtx, Init, Module, Param, Result, Store};
 
 pub struct Linear<B, D>
 where
@@ -64,7 +64,7 @@ where
         + 'static,
     D: Float + 'static,
 {
-    fn forward(&self, x: Tensor<B, D>, _train: bool) -> Result<Tensor<B, D>> {
+    fn forward(&self, x: Tensor<B, D>, _ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
         let shape = x.shape();
         if shape.len() != 2 || shape[1] != self.in_features {
             return Err(Error::Shape(format!(

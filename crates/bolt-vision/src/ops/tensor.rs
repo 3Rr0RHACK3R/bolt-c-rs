@@ -1,5 +1,5 @@
 use bolt_core::backend::{
-    BroadcastToOp, CopyOp, DivOp, FillOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
+    BroadcastToOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
 };
 use bolt_core::{Backend, NativeType};
 use bolt_tensor::Tensor;
@@ -16,10 +16,14 @@ where
 
 pub fn scale<B>(v: f32, img: Tensor<B, f32>) -> bolt_core::Result<Tensor<B, f32>>
 where
-    B: Backend + CopyOp<f32> + FillOp<f32> + bolt_core::backend::MulOp<f32>,
+    B: Backend + CopyOp<f32>,
 {
-    let c = Tensor::full_like(&img, v)?;
-    img.mul(&c)
+    let shape = img.shape().to_vec();
+    let mut data = img.to_vec()?;
+    for x in &mut data {
+        *x *= v;
+    }
+    Tensor::from_vec(&img.backend(), data, &shape)
 }
 
 pub fn normalize<B>(

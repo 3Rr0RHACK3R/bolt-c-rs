@@ -1,7 +1,7 @@
 use bolt_core::{BaseBackend, Float};
 use bolt_tensor::Tensor;
 
-use crate::{Module, Result};
+use crate::{ForwardCtx, Module, Result};
 
 pub struct Seq<B, D>
 where
@@ -34,9 +34,9 @@ where
     B: BaseBackend,
     D: Float,
 {
-    fn forward(&self, mut x: Tensor<B, D>, train: bool) -> Result<Tensor<B, D>> {
+    fn forward(&self, mut x: Tensor<B, D>, ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
         for layer in &self.layers {
-            x = layer.forward(x, train)?;
+            x = layer.forward(x, ctx)?;
         }
         Ok(x)
     }

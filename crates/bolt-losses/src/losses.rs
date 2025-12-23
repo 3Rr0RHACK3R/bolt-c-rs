@@ -22,7 +22,7 @@ pub fn mse<B, D>(
     reduction: Reduction,
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend + CopyOp<D> + SubOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D>,
+    B: Backend + CopyOp<D> + SubOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D> + ReshapeOp<D>,
     D: Float + PartialEq + PartialOrd,
 {
     ensure_same_shape(pred, target)?;
@@ -73,7 +73,14 @@ pub fn cross_entropy<B, D>(
     reduction: Reduction,
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend + CopyOp<D> + LogOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D>,
+    B: Backend
+        + CopyOp<D>
+        + LogOp<D>
+        + MulOp<D>
+        + SumOp<D>
+        + MeanOp<D>
+        + NegOp<D>
+        + ReshapeOp<D>,
     D: Float,
 {
     ensure_same_shape(probs, target)?;
@@ -153,7 +160,8 @@ where
         + SumOp<D>
         + MeanOp<D>
         + NegOp<D>
-        + FillOp<D>,
+        + FillOp<D>
+        + ReshapeOp<D>,
     D: Float + PartialEq + PartialOrd,
 {
     ensure_same_shape(pred, target)?;
@@ -190,7 +198,8 @@ where
         + SumOp<D>
         + MeanOp<D>
         + NegOp<D>
-        + FillOp<D>,
+        + FillOp<D>
+        + ReshapeOp<D>,
     D: Float + PartialEq + PartialOrd,
 {
     ensure_same_shape(logits, target)?;

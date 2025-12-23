@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::Linear;
-use bolt_nn::{Module, Store};
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg};
 use bolt_tensor::Tensor;
 
@@ -29,7 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for step in 0..200 {
         store.zero_grad();
 
-        let output = layer.forward(x_data.clone(), true)?;
+        let mut ctx = ForwardCtx::train();
+        let output = layer.forward(x_data.clone(), &mut ctx)?;
         let diff = output.sub(&y_data)?;
         let loss = diff.mul(&diff)?.mean(None, false)?;
 
@@ -44,7 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let test_x = Tensor::<B, D>::from_slice(&backend, &[5.0], &[1, 1])?;
-    let pred = layer.forward(test_x, false)?;
+    let mut ctx = ForwardCtx::eval();
+    let pred = layer.forward(test_x, &mut ctx)?;
     println!("pred(x=5)={:.4}", pred.to_vec()?[0]);
 
     Ok(())

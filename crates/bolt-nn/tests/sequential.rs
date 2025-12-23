@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{Linear, Seq};
-use bolt_nn::{Module, Store};
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -44,7 +44,8 @@ fn seq_gradients_flow_through_multiple_layers() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let y = model.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = model.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
     store.backward(&loss).unwrap();
 
@@ -89,7 +90,8 @@ fn seq_freeze_unfreeze_and_zero_grad() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[3.0], &[1, 1]).unwrap();
-    let y = model.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = model.forward(x, &mut ctx).unwrap();
     let dummy = Tensor::<B, D>::from_slice(&backend, &[0.0], &[1, 1])
         .unwrap()
         .requires_grad();
@@ -107,7 +109,8 @@ fn seq_freeze_unfreeze_and_zero_grad() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[3.0], &[1, 1]).unwrap();
-    let y = model.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = model.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
     store.backward(&loss).unwrap();
 

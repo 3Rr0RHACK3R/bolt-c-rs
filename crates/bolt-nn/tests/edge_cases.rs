@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::Linear;
-use bolt_nn::{Module, Store};
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_tensor::{Tensor, no_grad};
 
 type B = CpuBackend;
@@ -42,7 +42,8 @@ fn frozen_param_receives_no_gradient() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let y = layer.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = layer.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
 
     store.backward(&loss).unwrap();
@@ -67,7 +68,8 @@ fn unfreeze_restores_gradient_tracking() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let y = layer.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = layer.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
     store.backward(&loss).unwrap();
 
@@ -118,7 +120,8 @@ fn inference_after_training_uses_updated_weights() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let y = layer.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = layer.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
     store.backward(&loss).unwrap();
 
@@ -141,7 +144,8 @@ fn inference_after_training_uses_updated_weights() {
     assert_close(updated[1], 1.8, 1e-5, "updated w[1]");
 
     let x = Tensor::<B, D>::from_slice(&backend, &[3.0, 4.0], &[1, 2]).unwrap();
-    let pred = layer.forward(x, false).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let pred = layer.forward(x, &mut ctx).unwrap();
     let pred_val = tensor_to_vec(&pred)[0];
     assert_close(pred_val, 10.4, 1e-5, "inference output");
 }
@@ -189,7 +193,8 @@ fn manual_gradient_accumulation_across_batches_matches_expected_sum() {
     for x in inputs {
         store.zero_grad();
         let x = Tensor::<B, D>::from_slice(&backend, &x, &[1, 2]).unwrap();
-        let y = layer.forward(x, true).unwrap();
+        let mut ctx = ForwardCtx::eval();
+        let y = layer.forward(x, &mut ctx).unwrap();
         let loss = y.sum(None, false).unwrap();
         store.backward(&loss).unwrap();
 
@@ -215,8 +220,9 @@ fn multi_layer_gradient_flow_matches_expected_values() {
 
     store.zero_grad();
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let h = layer1.forward(x, true).unwrap();
-    let y = layer2.forward(h, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let h = layer1.forward(x, &mut ctx).unwrap();
+    let y = layer2.forward(h, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
 
     store.backward(&loss).unwrap();
@@ -248,8 +254,9 @@ fn alternating_optimization_with_freeze_unfreeze_isolated_grads_per_phase() {
 
         store.zero_grad();
         let noise = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-        let fake = model_g.forward(noise, true).unwrap();
-        let d_out = model_d.forward(fake, true).unwrap();
+        let mut ctx = ForwardCtx::eval();
+        let fake = model_g.forward(noise, &mut ctx).unwrap();
+        let d_out = model_d.forward(fake, &mut ctx).unwrap();
         let d_loss = d_out.sum(None, false).unwrap();
 
         store.backward(&d_loss).unwrap();
@@ -268,8 +275,9 @@ fn alternating_optimization_with_freeze_unfreeze_isolated_grads_per_phase() {
 
         store.zero_grad();
         let noise = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-        let fake = model_g.forward(noise, true).unwrap();
-        let d_out = model_d.forward(fake, true).unwrap();
+        let mut ctx = ForwardCtx::eval();
+        let fake = model_g.forward(noise, &mut ctx).unwrap();
+        let d_out = model_d.forward(fake, &mut ctx).unwrap();
         let g_loss = d_out.sum(None, false).unwrap();
 
         store.backward(&g_loss).unwrap();

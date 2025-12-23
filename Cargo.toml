@@ -9,6 +9,7 @@ members = [
     "crates/bolt-profiler",
     "crates/bolt-optim",
     "crates/bolt-losses",
+    "crates/bolt-rng",
     "crates/bolt-tensor",
     "crates/bolt-vision",
 ]

@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::Module;
-use bolt_nn::Store;
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_nn::layers::Linear;
 use bolt_tensor::Tensor;
 
@@ -18,7 +17,8 @@ fn backward_populates_parameter_gradients() {
     store.zero_grad();
 
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let y = layer.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = layer.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
 
     store.backward(&loss).unwrap();
@@ -50,7 +50,8 @@ fn zero_grad_clears_cached_gradients() {
     let layer = Linear::init(&store.sub("linear"), 2, 1, true).unwrap();
 
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[1, 2]).unwrap();
-    let y = layer.forward(x, true).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let y = layer.forward(x, &mut ctx).unwrap();
     let loss = y.sum(None, false).unwrap();
     store.backward(&loss).unwrap();
 

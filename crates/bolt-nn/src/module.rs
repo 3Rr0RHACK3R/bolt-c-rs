@@ -2,12 +2,12 @@ use bolt_core::BaseBackend;
 use bolt_core::Float;
 use bolt_tensor::Tensor;
 
-use crate::Result;
+use crate::{ForwardCtx, Result};
 
 pub trait Module<B, D>: Send + Sync
 where
     B: BaseBackend,
     D: Float,
 {
-    fn forward(&self, x: Tensor<B, D>, train: bool) -> Result<Tensor<B, D>>;
+    fn forward(&self, x: Tensor<B, D>, ctx: &mut ForwardCtx) -> Result<Tensor<B, D>>;
 }

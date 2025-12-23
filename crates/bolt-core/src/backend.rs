@@ -368,3 +368,12 @@ pub trait RandomOp<D: NativeType>: Backend {
         seed: Option<u64>,
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
+
+pub trait BernoulliMaskOp<D: Float>: Backend {
+    fn bernoulli_mask(
+        &self,
+        shape: &[usize],
+        p_keep: D,
+        seed: Option<u64>,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}

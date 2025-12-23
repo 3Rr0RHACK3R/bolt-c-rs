@@ -3,10 +3,10 @@ use std::{marker::PhantomData, sync::Arc};
 use bolt_core::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, CopyOp, CosOp, DivOp,
-        ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp,
-        RandomOp, ReluOp, ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
-        UnsqueezeOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp, CopyOp,
+        CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp,
+        ProdOp, RandomOp, ReluOp, ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp,
+        TransposeOp, UnsqueezeOp,
     },
     dtype::{Float, NativeType},
     error::{Error, Result},
@@ -238,6 +238,22 @@ where
         B: RandomOp<D>,
     {
         let parts = backend.uniform(shape, low, high, seed)?;
+        let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
+    pub fn bernoulli_mask(
+        backend: &Arc<B>,
+        shape: &[usize],
+        p_keep: D,
+        seed: Option<u64>,
+    ) -> Result<Self>
+    where
+        B: BernoulliMaskOp<D>,
+        D: Float,
+    {
+        let parts = backend.bernoulli_mask(shape, p_keep, seed)?;
         let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)

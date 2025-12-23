@@ -6,7 +6,7 @@ use bolt_data::Stream;
 use bolt_datasets::mnist::{self, INPUT_DIM, MnistBatch, NUM_CLASSES};
 use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
 use bolt_nn::layers::Linear;
-use bolt_nn::{Module, Store};
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
 use bolt_tensor::{Tensor, no_grad};
 use bolt_vision::{ops::tensor, types::ImageLayout};
@@ -34,7 +34,7 @@ impl MnistMLP {
 }
 
 impl Module<B, D> for MnistMLP {
-    fn forward(&self, x: Tensor<B, D>, train: bool) -> bolt_nn::Result<Tensor<B, D>> {
+    fn forward(&self, x: Tensor<B, D>, ctx: &mut ForwardCtx) -> bolt_nn::Result<Tensor<B, D>> {
         let shape = x.shape();
         if shape.len() != 4 {
             return Err(bolt_nn::Error::Shape(format!(
@@ -44,9 +44,9 @@ impl Module<B, D> for MnistMLP {
         }
         let batch = shape[0];
         let x = x.reshape(&[batch, INPUT_DIM])?;
-        let x = self.fc1.forward(x, train)?;
+        let x = self.fc1.forward(x, ctx)?;
         let x = x.relu()?;
-        self.fc2.forward(x, train)
+        self.fc2.forward(x, ctx)
     }
 }
 
@@ -137,7 +137,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let batch = batch_res?;
             store.zero_grad();
 
-            let logits = model.forward(batch.images, true)?;
+            let mut ctx = ForwardCtx::train();
+            let logits = model.forward(batch.images, &mut ctx)?;
             let loss = cross_entropy_from_logits_sparse(
                 &logits,
                 &batch.labels,
@@ -186,7 +187,8 @@ fn evaluate(
         let batch = batch_res?;
         let n = batch.labels.numel();
 
-        let logits = model.forward(batch.images, false)?;
+        let mut ctx = ForwardCtx::eval();
+        let logits = model.forward(batch.images, &mut ctx)?;
         let loss =
             cross_entropy_from_logits_sparse(&logits, &batch.labels, NUM_CLASSES, Reduction::Mean)?;
 
