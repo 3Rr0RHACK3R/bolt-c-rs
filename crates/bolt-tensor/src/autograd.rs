@@ -329,7 +329,14 @@ where
             map.insert(key, grad);
         }
         Some(existing) => {
-            let acc = existing.add(&grad)?;
+            let backend = existing.backend();
+            let parts = backend.add(
+                existing.storage(),
+                grad.storage(),
+                existing.layout(),
+                grad.layout(),
+            )?;
+            let acc = Tensor::from_parts(backend, parts.storage, parts.layout);
             map.insert(key, acc);
         }
     }

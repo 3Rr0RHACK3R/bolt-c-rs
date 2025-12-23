@@ -1,10 +1,11 @@
 use bolt_core::Backend;
-use bolt_core::backend::SumOp;
+use bolt_core::backend::{ReshapeOp, SumOp};
 use bolt_core::dtype::NativeType;
 use bolt_core::error::{Error, Result};
 
 use crate::Tensor;
 use crate::autograd::{BackwardContext, BackwardOp};
+use crate::autograd::utils;
 
 pub(crate) struct BroadcastToBackward {
     input_shape: Vec<usize>,
@@ -22,7 +23,7 @@ impl BroadcastToBackward {
 
 impl<B, D> BackwardOp<B, D> for BroadcastToBackward
 where
-    B: Backend + SumOp<D> + 'static,
+    B: Backend + ReshapeOp<D> + SumOp<D> + 'static,
     D: NativeType + 'static,
 {
     fn backward(
@@ -37,31 +38,7 @@ where
             });
         }
 
-        let mut axes = Vec::new();
-        for (i, (&in_dim, &out_dim)) in self
-            .input_shape
-            .iter()
-            .zip(self.output_shape.iter())
-            .enumerate()
-        {
-            if in_dim == 1 && out_dim != 1 {
-                axes.push(i as isize);
-            }
-        }
-
-        let g = if axes.is_empty() {
-            grad_output.clone()
-        } else {
-            let backend = grad_output.backend();
-            let parts = backend.sum(
-                grad_output.layout(),
-                grad_output.storage(),
-                Some(&axes),
-                true,
-            )?;
-            Tensor::from_parts(backend.clone(), parts.storage, parts.layout)
-        };
-
+        let g = utils::reduce_grad_to_shape(grad_output, &self.input_shape)?;
         Ok(vec![Some(g)])
     }
 

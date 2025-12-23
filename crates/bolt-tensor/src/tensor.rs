@@ -568,7 +568,7 @@ where
 
     pub fn add(&self, other: &Self) -> Result<Self>
     where
-        B: AddOp<D> + 'static,
+        B: AddOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
     {
         self.ensure_same_backend(other)?;
         let parts = self
@@ -581,7 +581,7 @@ where
 
     pub fn sub(&self, other: &Self) -> Result<Self>
     where
-        B: CopyOp<D> + NegOp<D> + SubOp<D> + 'static,
+        B: CopyOp<D> + NegOp<D> + ReshapeOp<D> + SubOp<D> + SumOp<D> + 'static,
         D: std::ops::Neg<Output = D> + std::ops::Sub<Output = D> + 'static,
     {
         self.ensure_same_backend(other)?;
@@ -595,7 +595,7 @@ where
 
     pub fn mul(&self, other: &Self) -> Result<Self>
     where
-        B: CopyOp<D> + MulOp<D> + 'static,
+        B: CopyOp<D> + MulOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
         D: std::ops::Mul<Output = D> + 'static,
     {
         self.ensure_same_backend(other)?;
@@ -735,21 +735,13 @@ where
     // TODO: Why the need for std ops trait bound here?
     pub fn div(&self, other: &Self) -> Result<Self>
     where
-        B: CopyOp<D> + DivOp<D> + MulOp<D> + NegOp<D> + 'static,
+        B: CopyOp<D> + DivOp<D> + MulOp<D> + NegOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
         D: std::ops::Div<Output = D>
             + std::ops::Mul<Output = D>
             + std::ops::Neg<Output = D>
             + 'static,
     {
         self.ensure_same_backend(other)?;
-        if autograd::grad_enabled()
-            && (self.autograd.requires_grad || other.autograd.requires_grad)
-            && self.shape() != other.shape()
-        {
-            return Err(Error::OpError(
-                "autograd div does not support broadcasting yet".into(),
-            ));
-        }
         let parts = self
             .backend
             .div(&self.storage, &other.storage, &self.layout, &other.layout)?;
@@ -1081,7 +1073,7 @@ where
 
     fn record_broadcast_to(&self, output_shape: &[usize], out: &mut Self) -> Result<()>
     where
-        B: SumOp<D> + 'static,
+        B: ReshapeOp<D> + SumOp<D> + 'static,
     {
         let input_shape = self.shape().to_vec();
         let op = Box::new(autograd::BroadcastToBackward::new(
@@ -1094,57 +1086,39 @@ where
 
     fn record_add(&self, other: &Self, out: &mut Self) -> Result<()>
     where
-        B: 'static,
+        B: ReshapeOp<D> + SumOp<D> + 'static,
         D: NativeType + 'static,
     {
-        if autograd::grad_enabled()
-            && (self.autograd.requires_grad || other.autograd.requires_grad)
-            && self.shape() != other.shape()
-        {
-            return Err(Error::OpError(
-                "autograd add does not support broadcasting yet".into(),
-            ));
-        }
-
-        let op = Box::new(autograd::AddBackward::new());
+        let op = Box::new(autograd::AddBackward::new(
+            self.shape().to_vec(),
+            other.shape().to_vec(),
+        ));
         self.record_binary_node(other, out, op, vec![]);
         Ok(())
     }
 
     fn record_sub(&self, other: &Self, out: &mut Self) -> Result<()>
     where
-        B: CopyOp<D> + NegOp<D> + 'static,
+        B: CopyOp<D> + NegOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
         D: NativeType + std::ops::Neg<Output = D> + 'static,
     {
-        if autograd::grad_enabled()
-            && (self.autograd.requires_grad || other.autograd.requires_grad)
-            && self.shape() != other.shape()
-        {
-            return Err(Error::OpError(
-                "autograd sub does not support broadcasting yet".into(),
-            ));
-        }
-
-        let op = Box::new(autograd::SubBackward::new());
+        let op = Box::new(autograd::SubBackward::new(
+            self.shape().to_vec(),
+            other.shape().to_vec(),
+        ));
         self.record_binary_node(other, out, op, vec![]);
         Ok(())
     }
 
     fn record_mul(&self, other: &Self, out: &mut Self) -> Result<()>
     where
-        B: CopyOp<D> + MulOp<D> + 'static,
+        B: CopyOp<D> + MulOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
         D: NativeType + std::ops::Mul<Output = D> + 'static,
     {
-        if autograd::grad_enabled()
-            && (self.autograd.requires_grad || other.autograd.requires_grad)
-            && self.shape() != other.shape()
-        {
-            return Err(Error::OpError(
-                "autograd mul does not support broadcasting yet".into(),
-            ));
-        }
-
-        let op = Box::new(autograd::MulBackward::new());
+        let op = Box::new(autograd::MulBackward::new(
+            self.shape().to_vec(),
+            other.shape().to_vec(),
+        ));
         self.record_binary_node(other, out, op, vec![self.clone(), other.clone()]);
         Ok(())
     }
@@ -1353,14 +1327,17 @@ where
 
     fn record_div(&self, other: &Self, out: &mut Self) -> Result<()>
     where
-        B: CopyOp<D> + DivOp<D> + MulOp<D> + NegOp<D> + 'static,
+        B: CopyOp<D> + DivOp<D> + MulOp<D> + NegOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
         D: NativeType
             + std::ops::Div<Output = D>
             + std::ops::Mul<Output = D>
             + std::ops::Neg<Output = D>
             + 'static,
     {
-        let op = Box::new(autograd::DivBackward::new());
+        let op = Box::new(autograd::DivBackward::new(
+            self.shape().to_vec(),
+            other.shape().to_vec(),
+        ));
         self.record_binary_node(other, out, op, vec![self.clone(), other.clone()]);
         Ok(())
     }

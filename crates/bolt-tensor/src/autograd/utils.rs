@@ -1,4 +1,5 @@
 use bolt_core::Backend;
+use bolt_core::backend::{ReshapeOp, SumOp};
 use bolt_core::dtype::NativeType;
 use bolt_core::error::{Error, Result};
 use bolt_core::shape;
@@ -174,4 +175,73 @@ where
 
 pub fn canonical_axes(axes: Option<&[isize]>, rank: usize) -> Result<Option<Vec<usize>>> {
     axes.map(|a| shape::canonical_axes(a, rank)).transpose()
+}
+
+pub(crate) fn reduce_grad_to_shape<B, D>(
+    grad_output: &Tensor<B, D>,
+    input_shape: &[usize],
+) -> Result<Tensor<B, D>>
+where
+    B: Backend + ReshapeOp<D> + SumOp<D> + 'static,
+    D: NativeType + 'static,
+{
+    if grad_output.shape() == input_shape {
+        return Ok(grad_output.clone());
+    }
+
+    let out_shape = grad_output.shape();
+    if input_shape.len() > out_shape.len() {
+        return Err(Error::ShapeMismatch {
+            lhs: input_shape.to_vec(),
+            rhs: out_shape.to_vec(),
+        });
+    }
+
+    let out_rank = out_shape.len();
+    let in_rank = input_shape.len();
+    let rank_delta = out_rank - in_rank;
+
+    let mut axes: Vec<isize> = Vec::new();
+    for out_axis in 0..out_rank {
+        let out_dim = out_shape[out_axis];
+
+        let in_dim = if out_axis < rank_delta {
+            1
+        } else {
+            input_shape[out_axis - rank_delta]
+        };
+
+        if in_dim == out_dim {
+            continue;
+        }
+
+        if in_dim == 1 {
+            axes.push(out_axis as isize);
+            continue;
+        }
+
+        return Err(Error::ShapeMismatch {
+            lhs: input_shape.to_vec(),
+            rhs: out_shape.to_vec(),
+        });
+    }
+
+    let reduced = if axes.is_empty() {
+        grad_output.clone()
+    } else {
+        let backend = grad_output.backend();
+        let parts = backend.sum(
+            grad_output.layout(),
+            grad_output.storage(),
+            Some(&axes),
+            true,
+        )?;
+        Tensor::from_parts(backend, parts.storage, parts.layout)
+    };
+
+    if reduced.shape() == input_shape {
+        Ok(reduced)
+    } else {
+        reduced.reshape(input_shape)
+    }
 }

@@ -38,12 +38,50 @@ where
         let backend = grad_output.backend();
 
         let one = Tensor::ones(&backend, base.shape())?;
-        let exp_minus_one = exp.sub(&one)?;
+        let exp_minus_one = {
+            let parts = backend.sub(
+                exp.storage(),
+                one.storage(),
+                exp.layout(),
+                one.layout(),
+            )?;
+            Tensor::from_parts(backend.clone(), parts.storage, parts.layout)
+        };
         let base_pow_exp_minus_one = base.pow(&exp_minus_one)?;
-        let grad_base = grad_output.mul(&exp)?.mul(&base_pow_exp_minus_one)?;
+        let grad_base = {
+            let parts = backend.mul(
+                grad_output.storage(),
+                exp.storage(),
+                grad_output.layout(),
+                exp.layout(),
+            )?;
+            let tmp = Tensor::from_parts(backend.clone(), parts.storage, parts.layout);
+            let parts = backend.mul(
+                tmp.storage(),
+                base_pow_exp_minus_one.storage(),
+                tmp.layout(),
+                base_pow_exp_minus_one.layout(),
+            )?;
+            Tensor::from_parts(backend.clone(), parts.storage, parts.layout)
+        };
 
         let base_log = base.log()?;
-        let grad_exp = grad_output.mul(out)?.mul(&base_log)?;
+        let grad_exp = {
+            let parts = backend.mul(
+                grad_output.storage(),
+                out.storage(),
+                grad_output.layout(),
+                out.layout(),
+            )?;
+            let tmp = Tensor::from_parts(backend.clone(), parts.storage, parts.layout);
+            let parts = backend.mul(
+                tmp.storage(),
+                base_log.storage(),
+                tmp.layout(),
+                base_log.layout(),
+            )?;
+            Tensor::from_parts(backend.clone(), parts.storage, parts.layout)
+        };
 
         Ok(vec![Some(grad_base), Some(grad_exp)])
     }
