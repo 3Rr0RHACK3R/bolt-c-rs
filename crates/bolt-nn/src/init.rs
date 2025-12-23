@@ -8,6 +8,7 @@ use crate::{Error, Result};
 #[derive(Clone, Copy, Debug)]
 pub enum Init<D: Float> {
     Zeros,
+    Ones,
     Uniform { low: D, high: D },
     Normal { mean: D, std: D },
     KaimingUniform { a: D },
@@ -33,6 +34,11 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
 
     match init {
         Init::Zeros => {}
+        Init::Ones => {
+            for x in &mut out {
+                *x = D::one();
+            }
+        }
         Init::Uniform { low, high } => {
             let low = low.to_f64();
             let high = high.to_f64();
