@@ -8,9 +8,9 @@ use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
 use bolt_nn::layers::Linear;
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
+use bolt_rng::RngStream;
 use bolt_tensor::{Tensor, no_grad};
 use bolt_vision::{ops::tensor, types::ImageLayout};
-use rand::rngs::StdRng;
 
 type B = CpuBackend;
 type D = f32;
@@ -54,7 +54,7 @@ fn train_loader(
     root: &Path,
     backend: Arc<B>,
     batch_size: usize,
-    rng: StdRng,
+    rng: RngStream,
 ) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::train(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
@@ -130,7 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let epochs = 1;
 
     for epoch in 0..epochs {
-        let rng = rand::SeedableRng::seed_from_u64(seed + epoch as u64);
+        let rng = RngStream::from_seed(seed + epoch as u64);
         let loader = train_loader(&data_root, backend.clone(), batch_size, rng)?;
 
         for (step, batch_res) in loader.iter().enumerate() {

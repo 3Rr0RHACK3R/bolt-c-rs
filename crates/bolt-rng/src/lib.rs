@@ -62,6 +62,28 @@ impl RngStream {
         let u = self.next_u64() >> 40;
         (u as f32) / ((1u32 << 24) as f32)
     }
+
+    pub fn gen_range(&mut self, range: std::ops::Range<usize>) -> usize {
+        let start = range.start;
+        let end = range.end;
+        if start >= end {
+            return start;
+        }
+        let len = end - start;
+        if len == 1 {
+            return start;
+        }
+
+        let len_u64 = len as u64;
+        let threshold = u64::MAX - (u64::MAX % len_u64);
+        
+        loop {
+            let value = self.next_u64();
+            if value < threshold {
+                return start + ((value % len_u64) as usize);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

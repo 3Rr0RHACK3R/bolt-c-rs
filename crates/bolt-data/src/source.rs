@@ -1,3 +1,4 @@
+use bolt_rng::RngStream;
 use crate::{DataError, Result};
 
 pub trait Source<E>: Send {
@@ -110,22 +111,16 @@ where
     }
 }
 
-pub struct ShuffleSource<E, R>
-where
-    R: rand::Rng + Clone + Send + 'static,
-{
+pub struct ShuffleSource<E> {
     inner: Box<dyn Source<E>>,
     buffer: Vec<E>,
     buffer_size: usize,
-    rng: R,
+    rng: RngStream,
     upstream_finished: bool,
 }
 
-impl<E, R> ShuffleSource<E, R>
-where
-    R: rand::Rng + Clone + Send + 'static,
-{
-    pub fn new(inner: Box<dyn Source<E>>, buffer_size: usize, rng: R) -> Self {
+impl<E> ShuffleSource<E> {
+    pub fn new(inner: Box<dyn Source<E>>, buffer_size: usize, rng: RngStream) -> Self {
         Self {
             inner,
             buffer: Vec::with_capacity(buffer_size),
@@ -149,9 +144,8 @@ where
     }
 }
 
-impl<E, R> Source<E> for ShuffleSource<E, R>
+impl<E> Source<E> for ShuffleSource<E>
 where
-    R: rand::Rng + Clone + Send + 'static,
     E: Send,
 {
     fn next(&mut self) -> Result<Option<E>> {

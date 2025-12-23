@@ -8,7 +8,7 @@ description = "Stream-based IDX data loading for bolt (v2 prototype)"
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
+bolt-rng = { path = "../bolt-rng" }
 thiserror.workspace = true
-rand = "0.8"
 
 [dev-dependencies]

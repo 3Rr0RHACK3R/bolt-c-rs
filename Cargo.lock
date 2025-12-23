@@ -52,7 +52,7 @@ name = "bolt-data"
 version = "0.1.0"
 dependencies = [
  "bolt-core",
- "rand",
+ "bolt-rng",
  "thiserror",
 ]
 
@@ -81,9 +81,9 @@ dependencies = [
  "bolt-nn",
  "bolt-optim",
  "bolt-profiler",
+ "bolt-rng",
  "bolt-tensor",
  "bolt-vision",
- "rand",
 ]
 
 [[package]]

@@ -1,3 +1,4 @@
+use bolt_rng::RngStream;
 use crate::{BatchSource, EnumerateSource, MapSource, Result, ShuffleSource, Source, TakeSource};
 
 pub struct Stream<E> {
@@ -26,9 +27,8 @@ impl<E> Stream<E> {
         })
     }
 
-    pub fn shuffle<R>(self, buffer_size: usize, rng: R) -> Stream<E>
+    pub fn shuffle(self, buffer_size: usize, rng: RngStream) -> Stream<E>
     where
-        R: rand::Rng + Clone + Send + 'static,
         E: Send + 'static,
     {
         Stream::new(ShuffleSource::new(self.inner, buffer_size, rng))
