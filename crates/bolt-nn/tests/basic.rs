@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{Linear, Relu};
+use bolt_nn::layers::{Flatten, Linear, Relu};
 use bolt_nn::{Module, Store};
 use bolt_tensor::Tensor;
 
@@ -50,4 +50,37 @@ fn store_registers_linear_params_with_expected_keys() {
     assert_eq!(params.len(), 2);
     assert_eq!(params[0].shape(), &[3]);
     assert_eq!(params[1].shape(), &[3, 2]);
+}
+
+#[test]
+fn flatten_forward_reshapes_4d_to_2d() {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (0..120).map(|i| i as f32).collect();
+    let input = Tensor::<B, D>::from_slice(&backend, &data, &[2, 3, 4, 5]).unwrap();
+
+    let layer = Flatten::new();
+    let output = layer.forward(input, false).unwrap();
+    assert_eq!(output.shape(), &[2, 60]);
+}
+
+#[test]
+fn flatten_forward_preserves_2d_tensor() {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (0..32).map(|i| i as f32).collect();
+    let input = Tensor::<B, D>::from_slice(&backend, &data, &[4, 8]).unwrap();
+
+    let layer = Flatten::new();
+    let output = layer.forward(input, false).unwrap();
+    assert_eq!(output.shape(), &[4, 8]);
+}
+
+#[test]
+fn flatten_forward_handles_single_sample() {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (0..16).map(|i| i as f32).collect();
+    let input = Tensor::<B, D>::from_slice(&backend, &data, &[1, 16]).unwrap();
+
+    let layer = Flatten::new();
+    let output = layer.forward(input, false).unwrap();
+    assert_eq!(output.shape(), &[1, 16]);
 }
