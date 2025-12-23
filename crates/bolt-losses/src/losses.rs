@@ -1,7 +1,7 @@
 use bolt_core::{
     backend::{
-        Backend, BroadcastToOp, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp,
-        ReshapeOp, SubOp, SumOp,
+        AbsOp, AddOp, Backend, BroadcastToOp, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp,
+        NegOp, ReluOp, ReshapeOp, SubOp, SumOp,
     },
     dtype::Float,
 };
@@ -136,6 +136,75 @@ where
         Reduction::Mean => Ok(tensor.mean(None, false)?),
         Reduction::Sum => Ok(tensor.sum(None, false)?),
     }
+}
+
+pub fn binary_cross_entropy<B, D>(
+    pred: &Tensor<B, D>,
+    target: &Tensor<B, D>,
+    reduction: Reduction,
+) -> Result<Tensor<B, D>>
+where
+    B: Backend
+        + CopyOp<D>
+        + AddOp<D>
+        + SubOp<D>
+        + MulOp<D>
+        + LogOp<D>
+        + SumOp<D>
+        + MeanOp<D>
+        + NegOp<D>
+        + FillOp<D>,
+    D: Float + PartialEq + PartialOrd,
+{
+    ensure_same_shape(pred, target)?;
+
+    let eps = D::from_f64(1e-8);
+    let ones = Tensor::ones_like(pred)?;
+    let eps_tensor = Tensor::full_like(pred, eps)?;
+    let pred_clamped = pred.add(&eps_tensor)?;
+    let one_minus_pred = ones.sub(pred)?;
+    let one_minus_pred_clamped = one_minus_pred.add(&eps_tensor)?;
+
+    let term1 = target.mul(&pred_clamped.log()?)?;
+    let term2 = ones.sub(target)?.mul(&one_minus_pred_clamped.log()?)?;
+    let loss = term1.add(&term2)?.neg()?;
+
+    apply_reduction(loss, reduction)
+}
+
+pub fn binary_cross_entropy_with_logits<B, D>(
+    logits: &Tensor<B, D>,
+    target: &Tensor<B, D>,
+    reduction: Reduction,
+) -> Result<Tensor<B, D>>
+where
+    B: Backend
+        + CopyOp<D>
+        + AddOp<D>
+        + SubOp<D>
+        + MulOp<D>
+        + ExpOp<D>
+        + LogOp<D>
+        + AbsOp<D>
+        + ReluOp<D>
+        + SumOp<D>
+        + MeanOp<D>
+        + NegOp<D>
+        + FillOp<D>,
+    D: Float + PartialEq + PartialOrd,
+{
+    ensure_same_shape(logits, target)?;
+
+    let max_logits = logits.relu()?;
+    let abs_logits = logits.abs()?;
+    let neg_abs_logits = abs_logits.neg()?;
+    let exp_term = neg_abs_logits.exp()?;
+    let ones = Tensor::ones_like(logits)?;
+    let log_term = ones.add(&exp_term)?.log()?;
+
+    let loss = max_logits.sub(&logits.mul(target)?)?.add(&log_term)?;
+
+    apply_reduction(loss, reduction)
 }
 
 fn ensure_same_shape<B, D>(lhs: &Tensor<B, D>, rhs: &Tensor<B, D>) -> Result<()>

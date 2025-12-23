@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_losses::{Reduction, accuracy_top1, cross_entropy, cross_entropy_from_logits, mse};
+use bolt_losses::{
+    Reduction, accuracy_top1, binary_cross_entropy, binary_cross_entropy_with_logits,
+    cross_entropy, cross_entropy_from_logits, mse,
+};
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -76,6 +79,101 @@ fn accuracy_top1_basic() {
     assert!((acc - 1.0).abs() < 1e-6);
 }
 
-// Note: Empty batch (shape [0, num_classes]) is not currently supported by tensor creation,
-// but the accuracy_top1 function includes a guard to prevent division by zero if empty batches
-// are ever supported in the future.
+#[test]
+fn binary_cross_entropy_basic() {
+    let backend = Arc::new(CpuBackend::new());
+    let pred = Tensor::<B, D>::from_slice(&backend, &[0.7, 0.3, 0.9], &[3]).unwrap();
+    let target = Tensor::<B, D>::from_slice(&backend, &[1.0, 0.0, 1.0], &[3]).unwrap();
+
+    let loss = binary_cross_entropy(&pred, &target, Reduction::Mean)
+        .unwrap()
+        .item()
+        .unwrap();
+
+    let expected = -((0.7f32.ln() + (1.0 - 0.3f32).ln() + 0.9f32.ln()) / 3.0);
+    assert!((loss - expected).abs() < 1e-4);
+}
+
+#[test]
+fn binary_cross_entropy_reductions() {
+    let backend = Arc::new(CpuBackend::new());
+    let pred = Tensor::<B, D>::from_slice(&backend, &[0.8, 0.2], &[2]).unwrap();
+    let target = Tensor::<B, D>::from_slice(&backend, &[1.0, 0.0], &[2]).unwrap();
+
+    let none = binary_cross_entropy(&pred, &target, Reduction::None)
+        .unwrap()
+        .to_vec()
+        .unwrap();
+    assert_eq!(none.len(), 2);
+
+    let sum = binary_cross_entropy(&pred, &target, Reduction::Sum)
+        .unwrap()
+        .item()
+        .unwrap();
+    assert!(sum > 0.0);
+
+    let mean = binary_cross_entropy(&pred, &target, Reduction::Mean)
+        .unwrap()
+        .item()
+        .unwrap();
+    assert!((mean - sum / 2.0).abs() < 1e-5);
+}
+
+#[test]
+fn binary_cross_entropy_with_logits_basic() {
+    let backend = Arc::new(CpuBackend::new());
+    let logits = Tensor::<B, D>::from_slice(&backend, &[2.0, -1.0, 1.5], &[3]).unwrap();
+    let target = Tensor::<B, D>::from_slice(&backend, &[1.0, 0.0, 1.0], &[3]).unwrap();
+
+    let loss = binary_cross_entropy_with_logits(&logits, &target, Reduction::Mean)
+        .unwrap()
+        .item()
+        .unwrap();
+
+    assert!(loss > 0.0);
+    assert!(loss.is_finite());
+}
+
+#[test]
+fn binary_cross_entropy_with_logits_reductions() {
+    let backend = Arc::new(CpuBackend::new());
+    let logits = Tensor::<B, D>::from_slice(&backend, &[1.0, -1.0], &[2]).unwrap();
+    let target = Tensor::<B, D>::from_slice(&backend, &[1.0, 0.0], &[2]).unwrap();
+
+    let none = binary_cross_entropy_with_logits(&logits, &target, Reduction::None)
+        .unwrap()
+        .to_vec()
+        .unwrap();
+    assert_eq!(none.len(), 2);
+    assert!(none.iter().all(|&x| x.is_finite() && x >= 0.0));
+
+    let sum = binary_cross_entropy_with_logits(&logits, &target, Reduction::Sum)
+        .unwrap()
+        .item()
+        .unwrap();
+    assert!(sum > 0.0);
+    assert!(sum.is_finite());
+
+    let mean = binary_cross_entropy_with_logits(&logits, &target, Reduction::Mean)
+        .unwrap()
+        .item()
+        .unwrap();
+    assert!((mean - sum / 2.0).abs() < 1e-5);
+}
+
+#[test]
+fn binary_cross_entropy_with_logits_numerical_stability() {
+    let backend = Arc::new(CpuBackend::new());
+    let large_logits = Tensor::<B, D>::from_slice(&backend, &[100.0, -100.0], &[2]).unwrap();
+    let target = Tensor::<B, D>::from_slice(&backend, &[1.0, 0.0], &[2]).unwrap();
+
+    let loss = binary_cross_entropy_with_logits(&large_logits, &target, Reduction::Mean)
+        .unwrap()
+        .item()
+        .unwrap();
+
+    assert!(loss.is_finite());
+    assert!(loss >= 0.0);
+}
+
+
