@@ -31,9 +31,9 @@ where
         momentum: f64,
     ) -> Result<Self> {
         // BatchNorm uses Norm for param/buffer storage only; axes are computed
-        // dynamically in forward() based on input rank, so this value is unused.
+        // dynamically in forward() based on input rank, so axes is None.
         let config = NormConfig {
-            axes: vec![0],
+            axes: None,
             normalized_shape: vec![num_features],
             affine,
             track_running_stats: true,

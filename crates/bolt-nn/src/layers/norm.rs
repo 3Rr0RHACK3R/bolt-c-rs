@@ -18,14 +18,14 @@ where
     beta: Option<Param<B, D>>,
     running_mean: Option<Buffer<B, D>>,
     running_var: Option<Buffer<B, D>>,
-    axes: Vec<isize>,
+    axes: Option<Vec<isize>>,
     normalized_shape: Vec<usize>,
     eps: f64,
     momentum: f64,
 }
 
 pub struct NormConfig {
-    pub axes: Vec<isize>,
+    pub axes: Option<Vec<isize>>,
     pub normalized_shape: Vec<usize>,
     pub affine: bool,
     pub track_running_stats: bool,
@@ -36,7 +36,7 @@ pub struct NormConfig {
 impl NormConfig {
     pub fn new(axes: Vec<isize>, normalized_shape: Vec<usize>) -> Self {
         Self {
-            axes,
+            axes: Some(axes),
             normalized_shape,
             affine: true,
             track_running_stats: false,
@@ -57,8 +57,10 @@ where
                 "Norm: normalized_shape must not be empty".into(),
             ));
         }
-        if config.axes.is_empty() {
-            return Err(Error::Shape("Norm: axes must not be empty".into()));
+        if let Some(ref axes) = config.axes {
+            if axes.is_empty() {
+                return Err(Error::Shape("Norm: axes must not be empty".into()));
+            }
         }
 
         let gamma = if config.affine {
@@ -97,8 +99,8 @@ where
         })
     }
 
-    pub fn axes(&self) -> &[isize] {
-        &self.axes
+    pub fn axes(&self) -> Option<&[isize]> {
+        self.axes.as_deref()
     }
 
     pub fn normalized_shape(&self) -> &[usize] {
@@ -170,8 +172,8 @@ where
                 if let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var) {
                     let _guard = no_grad();
 
-                    let batch_mean = mean.detach().squeeze()?;
-                    let batch_var = var.detach().squeeze()?;
+                    let batch_mean = mean.detach().reshape(&self.normalized_shape)?;
+                    let batch_var = var.detach().reshape(&self.normalized_shape)?;
 
                     let old_mean = rm.tensor();
                     let old_var = rv.tensor();
@@ -248,6 +250,10 @@ where
     D: Float + 'static,
 {
     fn forward(&self, x: Tensor<B, D>, ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
-        self.forward(x, ctx, &self.axes, &self.axes)
+        let axes = self
+            .axes
+            .as_ref()
+            .ok_or_else(|| Error::State("Norm: axes must be set when using Module::forward".into()))?;
+        self.forward(x, ctx, axes, axes)
     }
 }
