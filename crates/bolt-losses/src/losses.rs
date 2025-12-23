@@ -119,28 +119,12 @@ where
         + LogOp<D>
         + MaxOp<D>
         + NegOp<D>
-        + FillOp<D>
         + CopyOp<i32>
-        + ReshapeOp<D>
-        + SumOp<D>,
+        + ReshapeOp<D>,
     D: Float + PartialEq + PartialOrd,
 {
-    let mut target_one_hot = vec![0.0f32; targets.numel() * num_classes];
-    let targets_vec = targets.to_vec().map_err(|e| Error::Core(e))?;
-    for (i, &t) in targets_vec.iter().enumerate() {
-        target_one_hot[i * num_classes + t as usize] = 1.0;
-    }
-
-    let target_data: Vec<D> = target_one_hot
-        .into_iter()
-        .map(|v| D::from_f64(v as f64))
-        .collect();
-    let target_tensor = Tensor::from_vec(
-        &logits.backend(),
-        target_data,
-        &[targets.numel(), num_classes],
-    )
-    .map_err(|e| Error::Core(e))?;
+    let target_tensor: Tensor<B, D> =
+        Tensor::<B, D>::one_hot(targets, num_classes).map_err(|e| Error::Core(e))?;
 
     cross_entropy_from_logits(logits, &target_tensor, reduction)
 }

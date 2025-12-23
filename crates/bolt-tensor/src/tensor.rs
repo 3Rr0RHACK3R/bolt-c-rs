@@ -305,6 +305,27 @@ where
         Self::eye(backend, size, size)
     }
 
+    pub fn one_hot(indices: &Tensor<B, i32>, num_classes: usize) -> Result<Self>
+    where
+        B: CopyOp<i32>,
+    {
+        let indices_vec = indices.to_vec()?;
+        let n = indices_vec.len();
+        let numel = n * num_classes;
+        let mut values = vec![D::default(); numel];
+
+        for (i, &idx) in indices_vec.iter().enumerate() {
+            if idx < 0 || (idx as usize) >= num_classes {
+                return Err(Error::invalid_shape(
+                    "one_hot index out of bounds for num_classes",
+                ));
+            }
+            values[i * num_classes + idx as usize] = D::one();
+        }
+
+        Tensor::<B, D>::from_vec(&indices.backend(), values, &[n, num_classes])
+    }
+
     pub fn linspace(backend: &Arc<B>, start: D, end: D, steps: usize) -> Result<Self> {
         let values = tensor_creation::build_linspace_values(start, end, steps)?;
         let shape = ConcreteShape::from_slice(&[values.len()])?;
