@@ -168,14 +168,12 @@ where
             + 'static,
         D: Float + 'static,
     {
-        let reduce_axes_slice = reduce_axes;
-
         let (mean, var) = if ctx.is_train() || !self.track_running_stats() {
-            let mean = x.mean(Some(reduce_axes_slice), true)?;
+            let mean = x.mean(Some(reduce_axes), true)?;
             let centered = x.sub(&mean)?;
             let var = centered
                 .mul(&centered)?
-                .mean(Some(reduce_axes_slice), true)?;
+                .mean(Some(reduce_axes), true)?;
 
             if ctx.is_train() {
                 if let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var) {
