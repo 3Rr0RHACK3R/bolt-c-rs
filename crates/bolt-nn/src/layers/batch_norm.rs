@@ -3,7 +3,7 @@ use bolt_core::backend::{
     SqrtOp, SubOp, SumOp, UnsqueezeOp,
 };
 use bolt_core::{BaseBackend, Float};
-use bolt_tensor::{Tensor, no_grad};
+use bolt_tensor::Tensor;
 
 use crate::{Error, ForwardCtx, Module, Result, Store};
 
@@ -30,6 +30,8 @@ where
         eps: f64,
         momentum: f64,
     ) -> Result<Self> {
+        // BatchNorm uses Norm for param/buffer storage only; axes are computed
+        // dynamically in forward() based on input rank, so this value is unused.
         let config = NormConfig {
             axes: vec![0],
             normalized_shape: vec![num_features],
@@ -115,141 +117,9 @@ where
             )));
         }
 
-        let axes = self.reduction_axes(rank)?;
-        let axes_slice = axes.as_slice();
+        let reduce_axes = self.reduction_axes(rank)?;
+        let param_axes = vec![1isize];
 
-        let (mean, var) = if ctx.is_train() {
-            let mean = x.mean(Some(axes_slice), true)?;
-            let centered = x.sub(&mean)?;
-            let var = centered.mul(&centered)?.mean(Some(axes_slice), true)?;
-
-            self.update_running_stats(&mean, &var)?;
-
-            (mean, var)
-        } else {
-            self.get_running_stats_expanded(shape)?
-        };
-
-        let eps_tensor = Tensor::<B, D>::full_like(&var, D::from_f64(self.inner.eps()))?;
-        let std = var.add(&eps_tensor)?.sqrt()?;
-        let x_hat = x.sub(&mean)?.div(&std)?;
-
-        self.apply_affine(x_hat)
+        self.inner.forward(x, ctx, &reduce_axes, &param_axes)
     }
-}
-
-impl<B, D> BatchNorm<B, D>
-where
-    B: BaseBackend
-        + AddOp<D>
-        + BroadcastToOp<D>
-        + CopyOp<D>
-        + DivOp<D>
-        + FillOp<D>
-        + MeanOp<D>
-        + MulOp<D>
-        + NegOp<D>
-        + ReshapeOp<D>
-        + SqueezeOp<D>
-        + SqrtOp<D>
-        + SubOp<D>
-        + SumOp<D>
-        + UnsqueezeOp<D>
-        + 'static,
-    D: Float + 'static,
-{
-    fn update_running_stats(
-        &self,
-        batch_mean: &Tensor<B, D>,
-        batch_var: &Tensor<B, D>,
-    ) -> Result<()> {
-        let _guard = no_grad();
-
-        let batch_mean_sq = batch_mean.detach().squeeze()?;
-        let batch_var_sq = batch_var.detach().squeeze()?;
-
-        if let Some(rm) = self.inner.running_mean() {
-            let old_mean = rm.tensor();
-            let m = D::from_f64(self.inner.momentum());
-            let one_minus_m = D::from_f64(1.0 - self.inner.momentum());
-
-            let m_tensor = Tensor::<B, D>::full_like(&batch_mean_sq, m)?;
-            let one_minus_m_tensor = Tensor::<B, D>::full_like(&batch_mean_sq, one_minus_m)?;
-
-            let new_mean = old_mean
-                .mul(&one_minus_m_tensor)?
-                .add(&batch_mean_sq.mul(&m_tensor)?)?;
-
-            rm.set(new_mean)?;
-        }
-
-        if let Some(rv) = self.inner.running_var() {
-            let old_var = rv.tensor();
-            let m = D::from_f64(self.inner.momentum());
-            let one_minus_m = D::from_f64(1.0 - self.inner.momentum());
-
-            let m_tensor = Tensor::<B, D>::full_like(&batch_var_sq, m)?;
-            let one_minus_m_tensor = Tensor::<B, D>::full_like(&batch_var_sq, one_minus_m)?;
-
-            let new_var = old_var
-                .mul(&one_minus_m_tensor)?
-                .add(&batch_var_sq.mul(&m_tensor)?)?;
-
-            rv.set(new_var)?;
-        }
-
-        Ok(())
-    }
-
-    fn get_running_stats_expanded(
-        &self,
-        input_shape: &[usize],
-    ) -> Result<(Tensor<B, D>, Tensor<B, D>)> {
-        let rm = self
-            .inner
-            .running_mean()
-            .ok_or_else(|| Error::State("BatchNorm: missing running_mean".into()))?;
-        let rv = self
-            .inner
-            .running_var()
-            .ok_or_else(|| Error::State("BatchNorm: missing running_var".into()))?;
-
-        let mean = expand_to_input_shape(&rm.tensor(), input_shape)?;
-        let var = expand_to_input_shape(&rv.tensor(), input_shape)?;
-
-        Ok((mean, var))
-    }
-
-    fn apply_affine(&self, x_hat: Tensor<B, D>) -> Result<Tensor<B, D>> {
-        match (self.inner.gamma(), self.inner.beta()) {
-            (Some(gamma), Some(beta)) => {
-                let gamma_exp = expand_to_input_shape(&gamma.tensor(), x_hat.shape())?;
-                let beta_exp = expand_to_input_shape(&beta.tensor(), x_hat.shape())?;
-                Ok(x_hat.mul(&gamma_exp)?.add(&beta_exp)?)
-            }
-            _ => Ok(x_hat),
-        }
-    }
-}
-
-fn expand_to_input_shape<B, D>(param: &Tensor<B, D>, input_shape: &[usize]) -> Result<Tensor<B, D>>
-where
-    B: BaseBackend + BroadcastToOp<D> + CopyOp<D> + ReshapeOp<D> + SqueezeOp<D> + UnsqueezeOp<D> + 'static,
-    D: Float + 'static,
-{
-    let input_rank = input_shape.len();
-    let param_rank = param.shape().len();
-
-    if param_rank == input_rank {
-        return Ok(param.clone());
-    }
-
-    let mut expanded = param.unsqueeze(0)?;
-
-    while expanded.shape().len() < input_rank {
-        let current_rank = expanded.shape().len() as isize;
-        expanded = expanded.unsqueeze(current_rank)?;
-    }
-
-    Ok(expanded)
 }

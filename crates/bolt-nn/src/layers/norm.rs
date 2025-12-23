@@ -7,6 +7,8 @@ use bolt_tensor::{Tensor, no_grad};
 
 use crate::{Buffer, Error, ForwardCtx, Init, Module, Param, Result, Store};
 
+use super::utils::expand_to_input_shape;
+
 pub struct Norm<B, D>
 where
     B: BaseBackend,
@@ -31,11 +33,11 @@ pub struct NormConfig {
     pub momentum: f64,
 }
 
-impl Default for NormConfig {
-    fn default() -> Self {
+impl NormConfig {
+    pub fn new(axes: Vec<isize>, normalized_shape: Vec<usize>) -> Self {
         Self {
-            axes: vec![],
-            normalized_shape: vec![],
+            axes,
+            normalized_shape,
             affine: true,
             track_running_stats: false,
             eps: 1e-5,
@@ -130,36 +132,39 @@ where
     pub fn running_var(&self) -> Option<&Buffer<B, D>> {
         self.running_var.as_ref()
     }
-}
 
-impl<B, D> Module<B, D> for Norm<B, D>
-where
-    B: BaseBackend
-        + AddOp<D>
-        + BroadcastToOp<D>
-        + CopyOp<D>
-        + DivOp<D>
-        + FillOp<D>
-        + MeanOp<D>
-        + MulOp<D>
-        + NegOp<D>
-        + ReshapeOp<D>
-        + SqueezeOp<D>
-        + SqrtOp<D>
-        + SubOp<D>
-        + SumOp<D>
-        + UnsqueezeOp<D>
-        + 'static,
-    D: Float + 'static,
-{
-    fn forward(&self, x: Tensor<B, D>, ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
-        let axes: Vec<isize> = self.axes.clone();
-        let axes_slice = axes.as_slice();
+    pub fn forward(
+        &self,
+        x: Tensor<B, D>,
+        ctx: &mut ForwardCtx,
+        reduce_axes: &[isize],
+        param_axes: &[isize],
+    ) -> Result<Tensor<B, D>>
+    where
+        B: BaseBackend
+            + AddOp<D>
+            + BroadcastToOp<D>
+            + CopyOp<D>
+            + DivOp<D>
+            + FillOp<D>
+            + MeanOp<D>
+            + MulOp<D>
+            + NegOp<D>
+            + ReshapeOp<D>
+            + SqueezeOp<D>
+            + SqrtOp<D>
+            + SubOp<D>
+            + SumOp<D>
+            + UnsqueezeOp<D>
+            + 'static,
+        D: Float + 'static,
+    {
+        let reduce_axes_slice = reduce_axes;
 
         let (mean, var) = if ctx.is_train() || !self.track_running_stats() {
-            let mean = x.mean(Some(axes_slice), true)?;
+            let mean = x.mean(Some(reduce_axes_slice), true)?;
             let centered = x.sub(&mean)?;
-            let var = centered.mul(&centered)?.mean(Some(axes_slice), true)?;
+            let var = centered.mul(&centered)?.mean(Some(reduce_axes_slice), true)?;
 
             if ctx.is_train() {
                 if let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var) {
@@ -200,8 +205,8 @@ where
                 .as_ref()
                 .ok_or_else(|| Error::State("Norm: missing running_var in eval mode".into()))?;
 
-            let mean = expand_to_input_shape(&rm.tensor(), x.shape())?;
-            let var = expand_to_input_shape(&rv.tensor(), x.shape())?;
+            let mean = expand_to_input_shape(&rm.tensor(), x.shape(), param_axes)?;
+            let var = expand_to_input_shape(&rv.tensor(), x.shape(), param_axes)?;
 
             (mean, var)
         };
@@ -211,8 +216,8 @@ where
         let x_hat = x.sub(&mean)?.div(&std)?;
 
         let y = if let (Some(gamma), Some(beta)) = (&self.gamma, &self.beta) {
-            let gamma_expanded = expand_to_input_shape(&gamma.tensor(), x_hat.shape())?;
-            let beta_expanded = expand_to_input_shape(&beta.tensor(), x_hat.shape())?;
+            let gamma_expanded = expand_to_input_shape(&gamma.tensor(), x_hat.shape(), param_axes)?;
+            let beta_expanded = expand_to_input_shape(&beta.tensor(), x_hat.shape(), param_axes)?;
             x_hat.mul(&gamma_expanded)?.add(&beta_expanded)?
         } else {
             x_hat
@@ -222,26 +227,27 @@ where
     }
 }
 
-fn expand_to_input_shape<B, D>(param: &Tensor<B, D>, input_shape: &[usize]) -> Result<Tensor<B, D>>
+impl<B, D> Module<B, D> for Norm<B, D>
 where
-    B: BaseBackend + BroadcastToOp<D> + CopyOp<D> + ReshapeOp<D> + SqueezeOp<D> + UnsqueezeOp<D> + 'static,
+    B: BaseBackend
+        + AddOp<D>
+        + BroadcastToOp<D>
+        + CopyOp<D>
+        + DivOp<D>
+        + FillOp<D>
+        + MeanOp<D>
+        + MulOp<D>
+        + NegOp<D>
+        + ReshapeOp<D>
+        + SqueezeOp<D>
+        + SqrtOp<D>
+        + SubOp<D>
+        + SumOp<D>
+        + UnsqueezeOp<D>
+        + 'static,
     D: Float + 'static,
 {
-    let param_shape = param.shape();
-    let input_rank = input_shape.len();
-    let param_rank = param_shape.len();
-
-    if param_rank == input_rank {
-        return Ok(param.clone());
+    fn forward(&self, x: Tensor<B, D>, ctx: &mut ForwardCtx) -> Result<Tensor<B, D>> {
+        self.forward(x, ctx, &self.axes, &self.axes)
     }
-
-    let mut expanded = param.clone();
-    expanded = expanded.unsqueeze(0)?;
-
-    while expanded.shape().len() < input_rank {
-        let current_rank = expanded.shape().len() as isize;
-        expanded = expanded.unsqueeze(current_rank)?;
-    }
-
-    Ok(expanded)
 }

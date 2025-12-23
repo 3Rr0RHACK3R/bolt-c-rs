@@ -7,6 +7,7 @@ mod norm;
 mod relu;
 mod sigmoid;
 mod sequential;
+mod utils;
 
 pub use batch_norm::BatchNorm;
 pub use dropout::Dropout;
