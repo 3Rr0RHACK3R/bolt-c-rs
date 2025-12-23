@@ -52,10 +52,33 @@ impl fmt::Display for DType {
 
 pub trait NativeType: Copy + Pod + Send + Sync + 'static + fmt::Debug + Default {
     const DTYPE: DType;
+    const SUPPORTS_GRAD: bool = false;
 
     fn one() -> Self;
     fn from_usize(n: usize) -> Self;
 }
+
+pub trait CastFrom<Src: NativeType>: NativeType {
+    fn cast_from(src: Src) -> Self;
+}
+
+macro_rules! impl_cast_from {
+    ($dst:ty; $($src:ty),* $(,)?) => {
+        $(
+            impl CastFrom<$src> for $dst {
+                fn cast_from(src: $src) -> Self {
+                    src as $dst
+                }
+            }
+        )*
+    };
+}
+
+impl_cast_from!(u8; u8, i32, i64, f32, f64);
+impl_cast_from!(i32; u8, i32, i64, f32, f64);
+impl_cast_from!(i64; u8, i32, i64, f32, f64);
+impl_cast_from!(f32; u8, i32, i64, f32, f64);
+impl_cast_from!(f64; u8, i32, i64, f32, f64);
 
 pub trait Float:
     NativeType
@@ -81,6 +104,7 @@ pub trait Float:
 
 impl NativeType for f32 {
     const DTYPE: DType = DType::F32;
+    const SUPPORTS_GRAD: bool = true;
 
     fn one() -> Self {
         1.0
@@ -139,6 +163,7 @@ impl Float for f32 {
 
 impl NativeType for f64 {
     const DTYPE: DType = DType::F64;
+    const SUPPORTS_GRAD: bool = true;
 
     fn one() -> Self {
         1.0

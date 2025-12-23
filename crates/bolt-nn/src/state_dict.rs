@@ -122,7 +122,7 @@ where
     let t = e.tensor.lock().unwrap();
     Ok(TensorBlob {
         kind: e.kind,
-        group: e.group,
+        group: e.group.load(std::sync::atomic::Ordering::Relaxed),
         shape: e.shape.clone(),
         data: t.to_vec()?,
     })

@@ -10,14 +10,15 @@ use bolt_core::{
     BaseBackend, TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
-        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, CopyOp, CosOp, DivOp,
+        ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
         ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     device::{BackendDevice, DeviceKind},
-    dtype::NativeType,
+    dtype::{CastFrom, NativeType},
     error::{Error, Result},
     layout::Layout,
+    shape::ConcreteShape,
 };
 
 pub use storage::{CpuStorage, CpuTensorView};
@@ -144,6 +145,50 @@ where
         layout: &Layout,
     ) -> Result<TensorParts<Self::Storage<D>>> {
         <D as CopyKernel>::copy_kernel(storage, layout, &self.allocator::<D>())
+    }
+}
+
+impl<Src, Dst> CastOp<Src, Dst> for CpuBackend
+where
+    Src: CpuScalar,
+    Dst: CpuScalar + CastFrom<Src>,
+{
+    fn cast(
+        &self,
+        storage: &Self::Storage<Src>,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage<Dst>>> {
+        let shape = ConcreteShape::from_slice(layout.shape())?;
+        let numel = shape.num_elements();
+
+        let mut out = self.allocator::<Dst>().allocate(numel)?;
+        let dst_slice = out.try_as_uninit_slice_mut()?;
+
+        if layout.is_contiguous() && layout.offset_bytes() == 0 {
+            let src_init = unsafe { storage.as_slice() };
+            for (slot, value) in dst_slice
+                .iter_mut()
+                .take(numel)
+                .zip(src_init.iter().take(numel).copied())
+            {
+                slot.write(Dst::cast_from(value));
+            }
+        } else {
+            let src_uninit = storage.as_uninit_slice();
+            let elem_size = Src::DTYPE.size_in_bytes();
+            for (logical_idx, byte_offset) in layout.iter_offsets(Src::DTYPE)?.enumerate() {
+                debug_assert_eq!(byte_offset % elem_size, 0);
+                let src_idx = byte_offset / elem_size;
+                let value = unsafe { src_uninit[src_idx].assume_init() };
+                dst_slice[logical_idx].write(Dst::cast_from(value));
+            }
+        }
+
+        let layout = Layout::contiguous(shape);
+        Ok(TensorParts {
+            storage: out,
+            layout,
+        })
     }
 }
 

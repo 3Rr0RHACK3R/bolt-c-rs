@@ -47,6 +47,14 @@ pub trait CopyOp<D: NativeType>: Backend {
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
+pub trait CastOp<Src: NativeType, Dst: NativeType>: Backend {
+    fn cast(
+        &self,
+        storage: &Self::Storage<Src>,
+        layout: &Layout,
+    ) -> Result<TensorParts<Self::Storage<Dst>>>;
+}
+
 pub trait FillOp<D: NativeType>: Backend {
     fn fill(&self, layout: &Layout, value: D) -> Result<Self::Storage<D>>;
 }

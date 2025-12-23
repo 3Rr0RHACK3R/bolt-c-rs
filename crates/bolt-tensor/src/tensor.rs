@@ -3,9 +3,9 @@ use std::{marker::PhantomData, sync::Arc};
 use bolt_core::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CopyOp, CosOp, DivOp, ExpOp,
-        FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, RandomOp,
-        ReluOp, ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, CopyOp, CosOp, DivOp,
+        ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp,
+        RandomOp, ReluOp, ReshapeOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
         UnsqueezeOp,
     },
     dtype::{Float, NativeType},
@@ -71,6 +71,28 @@ where
     B: Backend,
     D: NativeType,
 {
+    pub fn detach(&self) -> Self {
+        self.view_from_parts(self.storage.clone(), self.layout.clone())
+    }
+
+    pub fn cast<Dst>(&self) -> Result<Tensor<B, Dst>>
+    where
+        B: CastOp<D, Dst> + 'static,
+        Dst: NativeType,
+    {
+        if autograd::grad_enabled() && self.requires_grad_enabled() {
+            return Err(Error::OpError(
+                "cast is not differentiable yet; call detach() or use autograd::no_grad()".into(),
+            ));
+        }
+
+        let parts = self.backend.cast(&self.storage, &self.layout)?;
+        let tensor =
+            Tensor::<B, Dst>::from_parts(self.backend.clone(), parts.storage, parts.layout);
+        tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
+        Ok(tensor)
+    }
+
     pub fn with_requires_grad(mut self, requires_grad: bool) -> Self
     where
         D: Float,
@@ -813,9 +835,7 @@ where
     where
         B: ArgminOp<D>,
     {
-        if self.requires_grad_enabled() && autograd::grad_enabled() {
-            return Err(Error::OpError("argmin is not differentiable".into()));
-        }
+        self.ensure_nondifferentiable_op("argmin")?;
         let parts = self
             .backend
             .argmin(&self.layout, &self.storage, axes, keepdims)?;
@@ -830,9 +850,7 @@ where
     where
         B: ArgmaxOp<D>,
     {
-        if self.requires_grad_enabled() && autograd::grad_enabled() {
-            return Err(Error::OpError("argmax is not differentiable".into()));
-        }
+        self.ensure_nondifferentiable_op("argmax")?;
         let parts = self
             .backend
             .argmax(&self.layout, &self.storage, axes, keepdims)?;
@@ -965,7 +983,8 @@ where
         B: 'static,
         D: NativeType + 'static,
     {
-        let requires_grad = autograd::grad_enabled()
+        let requires_grad = D::SUPPORTS_GRAD
+            && autograd::grad_enabled()
             && (self.autograd.requires_grad || other.autograd.requires_grad);
         out.autograd.requires_grad = requires_grad;
 
@@ -993,7 +1012,8 @@ where
         B: 'static,
         D: NativeType + 'static,
     {
-        let requires_grad = autograd::grad_enabled() && self.autograd.requires_grad;
+        let requires_grad =
+            D::SUPPORTS_GRAD && autograd::grad_enabled() && self.autograd.requires_grad;
         out.autograd.requires_grad = requires_grad;
 
         if !requires_grad {
@@ -1143,7 +1163,8 @@ where
     where
         B: CopyOp<D> + 'static,
     {
-        let requires_grad = autograd::grad_enabled() && self.autograd.requires_grad;
+        let requires_grad =
+            D::SUPPORTS_GRAD && autograd::grad_enabled() && self.autograd.requires_grad;
         out.autograd.requires_grad = requires_grad;
 
         if !requires_grad {
@@ -1163,6 +1184,16 @@ where
             vec![],
         );
 
+        Ok(())
+    }
+
+    fn ensure_nondifferentiable_op(&self, name: &str) -> Result<()> {
+        if autograd::grad_enabled() && self.requires_grad_enabled() {
+            return Err(Error::OpError(
+                format!("{name} is not differentiable; call detach() or use autograd::no_grad()")
+                    .into(),
+            ));
+        }
         Ok(())
     }
 

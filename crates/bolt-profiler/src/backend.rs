@@ -1,5 +1,5 @@
 use bolt_core::backend::{
-    AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, SubOp, TensorParts, TransposeOp,
+    AddOp, Backend, CopyOp, FillOp, MatmulOp, MeanOp, NegOp, SubOp, TensorParts, TransposeOp,
 };
 use bolt_core::dtype::{Float, NativeType};
 use bolt_core::error::Result;
@@ -199,6 +199,22 @@ impl<D: NativeType, B: SubOp<D> + Backend> SubOp<D> for ProfiledBackend<B> {
                 shapes_from_layout(rhs_layout),
             ],
             |inner| inner.sub(lhs, rhs, lhs_layout, rhs_layout),
+        )
+    }
+}
+
+impl<D: NativeType, B: NegOp<D> + Backend> NegOp<D> for ProfiledBackend<B> {
+    fn neg(
+        &self,
+        layout: &Layout,
+        storage: &Self::Storage<D>,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        profile_op(
+            self,
+            "neg",
+            OpCategory::Compute,
+            vec![shapes_from_layout(layout)],
+            |inner| inner.neg(layout, storage),
         )
     }
 }

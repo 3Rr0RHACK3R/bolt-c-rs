@@ -1,5 +1,8 @@
 use bolt_core::{
-    backend::{Backend, BroadcastToOp, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp},
+    backend::{
+        Backend, BroadcastToOp, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp,
+        ReshapeOp, SubOp, SumOp,
+    },
     dtype::Float,
 };
 use bolt_tensor::Tensor;

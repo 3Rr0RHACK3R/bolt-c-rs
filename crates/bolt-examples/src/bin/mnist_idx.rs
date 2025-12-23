@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_data::Stream;
-use bolt_datasets::mnist::{self, MnistBatch, INPUT_DIM, NUM_CLASSES};
+use bolt_datasets::mnist::{self, INPUT_DIM, MnistBatch, NUM_CLASSES};
 use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
 use bolt_nn::layers::Linear;
 use bolt_nn::{Module, Store};
@@ -77,11 +77,7 @@ fn train_loader(
     Ok(stream)
 }
 
-fn test_loader(
-    root: &Path,
-    backend: Arc<B>,
-    batch_size: usize,
-) -> Result<Stream<Batch>, BoxErr> {
+fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::test(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
         .try_map(|mut s| {
@@ -111,7 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 1337);
     let model = MnistMLP::init(&store, 128)?;
-    
+
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
 
@@ -120,7 +116,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         momentum: 0.9,
         weight_decay: 1e-4,
     })?;
-    opt.set_group(1, SgdGroupCfg { lr_mult: 1.0, weight_decay: Some(0.0) })?;
+    opt.set_group(
+        1,
+        SgdGroupCfg {
+            lr_mult: 1.0,
+            weight_decay: Some(0.0),
+        },
+    )?;
     let params = store.trainable();
 
     let seed = 42u64;
@@ -185,12 +187,8 @@ fn evaluate(
         let n = batch.labels.numel();
 
         let logits = model.forward(batch.images, false)?;
-        let loss = cross_entropy_from_logits_sparse(
-            &logits,
-            &batch.labels,
-            NUM_CLASSES,
-            Reduction::Mean,
-        )?;
+        let loss =
+            cross_entropy_from_logits_sparse(&logits, &batch.labels, NUM_CLASSES, Reduction::Mean)?;
 
         let loss_val: f64 = loss.item()?.into();
         total_loss += loss_val * n as f64;
@@ -208,7 +206,11 @@ fn evaluate(
 
     let test_loss = total_loss / total_samples as f64;
     let test_acc = total_correct as f64 / total_samples as f64;
-    println!("Test Loss: {:.4}  Test Acc: {:.2}%", test_loss, test_acc * 100.0);
+    println!(
+        "Test Loss: {:.4}  Test Acc: {:.2}%",
+        test_loss,
+        test_acc * 100.0
+    );
 
     Ok(())
 }
