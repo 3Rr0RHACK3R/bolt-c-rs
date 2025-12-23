@@ -1,7 +1,7 @@
 use bolt_core::BaseBackend;
 use bolt_core::Float;
 use bolt_core::backend::CopyOp;
-use bolt_core::backend::{AddOp, BroadcastToOp, MatmulOp, ReshapeOp, SumOp, TransposeOp};
+use bolt_core::backend::{AddOp, MatmulOp, ReshapeOp, SumOp, TransposeOp};
 use bolt_tensor::Tensor;
 
 use crate::{Error, ForwardCtx, Init, Module, Param, Result, Store};
@@ -55,7 +55,6 @@ impl<B, D> Module<B, D> for Linear<B, D>
 where
     B: BaseBackend
         + AddOp<D>
-        + BroadcastToOp<D>
         + CopyOp<D>
         + MatmulOp<D>
         + ReshapeOp<D>
@@ -79,7 +78,6 @@ where
 
         if let Some(b) = &self.bias {
             let b = b.tensor();
-            let b = b.broadcast_to(y.shape())?;
             y = y.add(&b)?;
         }
 

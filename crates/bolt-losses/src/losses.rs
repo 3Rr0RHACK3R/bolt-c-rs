@@ -1,6 +1,6 @@
 use bolt_core::{
     backend::{
-        AbsOp, AddOp, Backend, BroadcastToOp, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp,
+        AbsOp, AddOp, Backend, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp,
         NegOp, ReluOp, ReshapeOp, SubOp, SumOp,
     },
     dtype::Float,
@@ -64,7 +64,6 @@ where
         + LogOp<D>
         + MaxOp<D>
         + NegOp<D>
-        + BroadcastToOp<D>
         + ReshapeOp<D>
         + SumOp<D>,
     D: Float + PartialEq + PartialOrd,
@@ -73,11 +72,9 @@ where
 
     // log_softmax for numerical stability: logits - logsumexp(logits)
     let max = logits.max(Some(&[-1]), true)?;
-    let max_broadcast = max.broadcast_to(logits.shape())?;
-    let shifted = logits.sub(&max_broadcast)?;
+    let shifted = logits.sub(&max)?;
     let logsumexp = shifted.exp()?.sum(Some(&[-1]), true)?.log()?;
-    let logsumexp_broadcast = logsumexp.broadcast_to(shifted.shape())?;
-    let log_probs = shifted.sub(&logsumexp_broadcast)?;
+    let log_probs = shifted.sub(&logsumexp)?;
 
     let per_sample = target.mul(&log_probs)?.sum(Some(&[-1]), false)?.neg()?;
     apply_reduction(per_sample, reduction)
@@ -124,7 +121,6 @@ where
         + NegOp<D>
         + FillOp<D>
         + CopyOp<i32>
-        + BroadcastToOp<D>
         + ReshapeOp<D>
         + SumOp<D>,
     D: Float + PartialEq + PartialOrd,

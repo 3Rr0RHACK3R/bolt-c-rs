@@ -767,7 +767,6 @@ where
             + MaxOp<D>
             + SubOp<D>
             + SumOp<D>
-            + BroadcastToOp<D>
             + ReshapeOp<D>
             + NegOp<D>
             + 'static,
@@ -776,11 +775,9 @@ where
         let dim = dim.unwrap_or(-1);
         let axes = &[dim];
         let max = self.max(Some(axes), true)?;
-        let max_broadcast = max.broadcast_to(self.shape())?;
-        let shifted = self.sub(&max_broadcast)?;
+        let shifted = self.sub(&max)?;
         let logsumexp = shifted.exp()?.sum(Some(axes), true)?.log()?;
-        let logsumexp_broadcast = logsumexp.broadcast_to(shifted.shape())?;
-        let log_softmax = shifted.sub(&logsumexp_broadcast)?;
+        let log_softmax = shifted.sub(&logsumexp)?;
         log_softmax.exp()
     }
 

@@ -1,5 +1,5 @@
 use bolt_core::backend::{
-    BroadcastToOp, CastOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
+    CastOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
 };
 use bolt_core::{Backend, NativeType};
 use bolt_tensor::Tensor;
@@ -31,13 +31,12 @@ where
         + SubOp<f32>
         + DivOp<f32>
         + ReshapeOp<f32>
-        + BroadcastToOp<f32>
         + SumOp<f32>
         + NegOp<f32>
         + MulOp<f32>,
 {
     let shape = img.shape();
-    let (h, w, c, nhwc) = match shape.len() {
+    let (_h, _w, c, nhwc) = match shape.len() {
         3 => match layout {
             crate::types::ImageLayout::NHWC => (shape[0], shape[1], shape[2], true),
             crate::types::ImageLayout::NCHW => (shape[1], shape[2], shape[0], false),
@@ -67,12 +66,8 @@ where
         std_t.reshape(&[c, 1, 1])?
     };
 
-    let target = if nhwc { &[h, w, c][..] } else { &[c, h, w][..] };
-    let mean_b = mean_shaped.broadcast_to(target)?;
-    let std_b = std_shaped.broadcast_to(target)?;
-
-    let centered = img.sub(&mean_b)?;
-    centered.div(&std_b)
+    let centered = img.sub(&mean_shaped)?;
+    centered.div(&std_shaped)
 }
 
 pub fn hwc_to_chw<B, D>(img: Tensor<B, D>) -> bolt_core::Result<Tensor<B, D>>
