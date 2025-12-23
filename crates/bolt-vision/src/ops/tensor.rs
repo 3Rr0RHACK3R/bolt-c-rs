@@ -1,29 +1,22 @@
 use bolt_core::backend::{
-    BroadcastToOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
+    BroadcastToOp, CastOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
 };
 use bolt_core::{Backend, NativeType};
 use bolt_tensor::Tensor;
 
 pub fn to_f32<B>(img: Tensor<B, u8>) -> bolt_core::Result<Tensor<B, f32>>
 where
-    B: Backend + CopyOp<u8>,
+    B: Backend + CopyOp<u8> + CastOp<u8, f32>,
 {
-    let shape = img.shape().to_vec();
-    let data = img.to_vec()?;
-    let casted: Vec<f32> = data.into_iter().map(|v| v as f32).collect();
-    Tensor::from_vec(&img.backend(), casted, &shape)
+    img.cast()
 }
 
 pub fn scale<B>(v: f32, img: Tensor<B, f32>) -> bolt_core::Result<Tensor<B, f32>>
 where
-    B: Backend + CopyOp<f32>,
+    B: Backend + CopyOp<f32> + MulOp<f32> + ReshapeOp<f32> + SumOp<f32>,
 {
-    let shape = img.shape().to_vec();
-    let mut data = img.to_vec()?;
-    for x in &mut data {
-        *x *= v;
-    }
-    Tensor::from_vec(&img.backend(), data, &shape)
+    let scalar = Tensor::from_slice(&img.backend(), &[v], &[])?;
+    img.mul(&scalar)
 }
 
 pub fn normalize<B>(
