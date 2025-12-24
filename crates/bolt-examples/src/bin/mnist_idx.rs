@@ -5,7 +5,7 @@ use bolt_cpu::CpuBackend;
 use bolt_data::Stream;
 use bolt_datasets::mnist::{self, INPUT_DIM, MnistBatch, NUM_CLASSES};
 use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
-use bolt_nn::layers::Linear;
+use bolt_nn::layers::{BatchNorm, Linear};
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
 use bolt_rng::RngStream;
@@ -22,14 +22,20 @@ const STD: [f32; 1] = [0.3081];
 
 struct MnistMLP {
     fc1: Linear<B, D>,
+    bn1: BatchNorm<B, D>,
     fc2: Linear<B, D>,
+    bn2: BatchNorm<B, D>,
+    fc3: Linear<B, D>,
 }
 
 impl MnistMLP {
-    fn init(store: &Store<B, D>, hidden: usize) -> bolt_nn::Result<Self> {
-        let fc1 = Linear::init(&store.sub("fc1"), INPUT_DIM, hidden, true)?;
-        let fc2 = Linear::init(&store.sub("fc2"), hidden, NUM_CLASSES, true)?;
-        Ok(Self { fc1, fc2 })
+    fn init(store: &Store<B, D>, hidden1: usize, hidden2: usize) -> bolt_nn::Result<Self> {
+        let fc1 = Linear::init(&store.sub("fc1"), INPUT_DIM, hidden1, true)?;
+        let bn1 = BatchNorm::init_default(&store.sub("bn1"), hidden1)?;
+        let fc2 = Linear::init(&store.sub("fc2"), hidden1, hidden2, true)?;
+        let bn2 = BatchNorm::init_default(&store.sub("bn2"), hidden2)?;
+        let fc3 = Linear::init(&store.sub("fc3"), hidden2, NUM_CLASSES, true)?;
+        Ok(Self { fc1, bn1, fc2, bn2, fc3 })
     }
 }
 
@@ -45,8 +51,12 @@ impl Module<B, D> for MnistMLP {
         let batch = shape[0];
         let x = x.reshape(&[batch, INPUT_DIM])?;
         let x = self.fc1.forward(x, ctx)?;
+        let x = self.bn1.forward(x, ctx)?;
         let x = x.relu()?;
-        self.fc2.forward(x, ctx)
+        let x = self.fc2.forward(x, ctx)?;
+        let x = self.bn2.forward(x, ctx)?;
+        let x = x.relu()?;
+        self.fc3.forward(x, ctx)
     }
 }
 
@@ -93,8 +103,7 @@ fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream
             let images = Tensor::stack(b, xs.iter().map(|s| &s.image))?;
             let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
             Ok::<_, bolt_data::DataError>(MnistBatch { images, labels })
-        })
-        .take(10);
+        });
     Ok(stream)
 }
 
@@ -106,13 +115,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 1337);
-    let model = MnistMLP::init(&store, 128)?;
+    let model = MnistMLP::init(&store, 512, 256)?;
 
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
 
     let mut opt = Sgd::<B, D>::new(SgdCfg {
-        lr: 0.1,
+        lr: 0.01,
         momentum: 0.9,
         weight_decay: 1e-4,
     })?;
@@ -127,7 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let seed = 42u64;
     let batch_size = 128;
-    let epochs = 1;
+    let epochs = 15;
 
     for epoch in 0..epochs {
         let rng = RngStream::from_seed(seed + epoch as u64);
@@ -162,8 +171,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
+
+        if (epoch + 1) % 2 == 0 {
+            println!("\n--- Epoch {} Test Evaluation ---", epoch + 1);
+            evaluate(&model, &data_root, backend.clone(), batch_size)?;
+            println!();
+        }
     }
 
+    println!("\n=== Final Evaluation on Test Set ===");
     evaluate(&model, &data_root, backend, batch_size)?;
     Ok(())
 }
