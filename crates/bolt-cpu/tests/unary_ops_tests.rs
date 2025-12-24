@@ -183,7 +183,11 @@ fn sigmoid_f32() -> Result<()> {
     let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[0.0, 1.0, -1.0], &[3])?;
 
     let result = tensor.sigmoid()?.to_vec()?;
-    let expected = vec![0.5, 1.0 / (1.0 + (-1.0f32).exp()), 1.0 / (1.0 + 1.0f32.exp())];
+    let expected = vec![
+        0.5,
+        1.0 / (1.0 + (-1.0f32).exp()),
+        1.0 / (1.0 + 1.0f32.exp()),
+    ];
     for (r, e) in result.iter().zip(expected.iter()) {
         assert!((r - e).abs() < 1e-5);
     }

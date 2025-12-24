@@ -56,13 +56,13 @@ fn non_contiguous_view_ops() -> Result<()> {
 fn softmax_last_dim() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let logits = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0], &[3])?;
-    
+
     let result = logits.softmax(None)?;
     let result_vec = result.to_vec()?;
-    
+
     let sum: f32 = result_vec.iter().sum();
     assert!((sum - 1.0).abs() < 1e-5);
-    
+
     assert!(result_vec[2] > result_vec[1]);
     assert!(result_vec[1] > result_vec[0]);
     Ok(())
@@ -72,10 +72,10 @@ fn softmax_last_dim() -> Result<()> {
 fn softmax_specific_dim() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let logits = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])?;
-    
+
     let result = logits.softmax(Some(1))?;
     let result_vec = result.to_vec()?;
-    
+
     let row1_sum = result_vec[0] + result_vec[1];
     let row2_sum = result_vec[2] + result_vec[3];
     assert!((row1_sum - 1.0).abs() < 1e-5);

@@ -262,7 +262,10 @@ fn bernoulli_mask_values_are_binary() {
     let data = tensor.to_vec().unwrap();
 
     for v in data {
-        assert!(v == 0.0 || v == 1.0, "bernoulli_mask should only produce 0.0 or 1.0, got {v}");
+        assert!(
+            v == 0.0 || v == 1.0,
+            "bernoulli_mask should only produce 0.0 or 1.0, got {v}"
+        );
     }
 }
 
@@ -285,7 +288,7 @@ fn bernoulli_mask_statistical_properties() {
 #[test]
 fn bernoulli_mask_edge_cases() {
     let backend = Arc::new(B::new());
-    
+
     let zeros = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.0, Some(42)).unwrap();
     assert_eq!(zeros.to_vec().unwrap(), vec![0.0; 100]);
 
@@ -296,7 +299,7 @@ fn bernoulli_mask_edge_cases() {
 #[test]
 fn bernoulli_mask_rejects_invalid_p_keep() {
     let backend = Arc::new(B::new());
-    
+
     let result_negative = Tensor::<B, D>::bernoulli_mask(&backend, &[10], -0.1, Some(42));
     assert!(matches!(result_negative, Err(Error::OpError { .. })));
 

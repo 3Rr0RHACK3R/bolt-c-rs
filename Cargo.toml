@@ -12,6 +12,7 @@ members = [
     "crates/bolt-rng",
     "crates/bolt-tensor",
     "crates/bolt-vision",
+    "crates/bolt-benchmark",
 ]
 resolver = "2"
 

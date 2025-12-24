@@ -2,14 +2,81 @@ use std::ops::{Add, Mul};
 
 use bolt_core::{
     StorageAllocator, TensorParts,
-    dtype::NativeType,
+    dtype::{Float, NativeType},
     error::{Error, Result},
     layout::Layout,
     shape::ConcreteShape,
 };
 
+use matrixmultiply::{dgemm, sgemm};
+
 use super::super::allocator::CpuAllocator;
 use super::super::storage::{CpuStorage, CpuTensorView};
+
+trait BlasGemm: NativeType {
+    unsafe fn gemm(
+        m: usize,
+        k: usize,
+        n: usize,
+        alpha: Self,
+        a: *const Self,
+        rsa: isize,
+        csa: isize,
+        b: *const Self,
+        rsb: isize,
+        csb: isize,
+        beta: Self,
+        c: *mut Self,
+        rsc: isize,
+        csc: isize,
+    );
+}
+
+impl BlasGemm for f32 {
+    unsafe fn gemm(
+        m: usize,
+        k: usize,
+        n: usize,
+        alpha: f32,
+        a: *const f32,
+        rsa: isize,
+        csa: isize,
+        b: *const f32,
+        rsb: isize,
+        csb: isize,
+        beta: f32,
+        c: *mut f32,
+        rsc: isize,
+        csc: isize,
+    ) {
+        unsafe {
+            sgemm(m, k, n, alpha, a, rsa, csa, b, rsb, csb, beta, c, rsc, csc);
+        }
+    }
+}
+
+impl BlasGemm for f64 {
+    unsafe fn gemm(
+        m: usize,
+        k: usize,
+        n: usize,
+        alpha: f64,
+        a: *const f64,
+        rsa: isize,
+        csa: isize,
+        b: *const f64,
+        rsb: isize,
+        csb: isize,
+        beta: f64,
+        c: *mut f64,
+        rsc: isize,
+        csc: isize,
+    ) {
+        unsafe {
+            dgemm(m, k, n, alpha, a, rsa, csa, b, rsb, csb, beta, c, rsc, csc);
+        }
+    }
+}
 
 pub trait MatmulKernel: NativeType {
     fn matmul_kernel(
@@ -22,6 +89,100 @@ pub trait MatmulKernel: NativeType {
             Self::DTYPE
         )))
     }
+}
+
+fn matmul_blas<D>(
+    lhs: CpuTensorView<'_, D>,
+    rhs: CpuTensorView<'_, D>,
+    allocator: &CpuAllocator<D>,
+) -> Result<TensorParts<CpuStorage<D>>>
+where
+    D: BlasGemm + Float,
+{
+    let lhs_shape = lhs.layout.shape();
+    let rhs_shape = rhs.layout.shape();
+    if lhs_shape.len() != 2 || rhs_shape.len() != 2 {
+        return Err(Error::invalid_shape("matmul requires rank-2 inputs"));
+    }
+
+    let m = lhs_shape[0];
+    let k = lhs_shape[1];
+    if rhs_shape[0] != k {
+        return Err(Error::ShapeMismatch {
+            lhs: lhs_shape.to_vec(),
+            rhs: rhs_shape.to_vec(),
+        });
+    }
+    let n = rhs_shape[1];
+
+    let lhs_strides = lhs.layout.strides();
+    let rhs_strides = rhs.layout.strides();
+    debug_assert_eq!(lhs_strides.len(), 2);
+    debug_assert_eq!(rhs_strides.len(), 2);
+
+    let elem_size = std::mem::size_of::<D>();
+    if lhs_strides[0] < 0
+        || lhs_strides[1] < 0
+        || rhs_strides[0] < 0
+        || rhs_strides[1] < 0
+        || !lhs.layout.offset_bytes().is_multiple_of(elem_size)
+        || !rhs.layout.offset_bytes().is_multiple_of(elem_size)
+    {
+        return matmul(lhs, rhs, allocator);
+    }
+
+    let mut out_storage: CpuStorage<D> = allocator.allocate_zeroed(m * n)?;
+    if m == 0 || n == 0 || k == 0 {
+        let layout = Layout::contiguous(ConcreteShape::from_slice(&[m, n])?);
+        return Ok(TensorParts {
+            storage: out_storage,
+            layout,
+        });
+    }
+
+    let lhs_data = lhs.storage.as_uninit_slice();
+    let rhs_data = rhs.storage.as_uninit_slice();
+    let out_slice = out_storage.try_as_uninit_slice_mut()?;
+
+    let lhs_base = lhs.layout.offset_bytes() / elem_size;
+    let rhs_base = rhs.layout.offset_bytes() / elem_size;
+    if lhs_base >= lhs_data.len() || rhs_base >= rhs_data.len() {
+        return matmul(lhs, rhs, allocator);
+    }
+
+    let rsa = lhs_strides[0];
+    let csa = lhs_strides[1];
+    let rsb = rhs_strides[0];
+    let csb = rhs_strides[1];
+    let rsc = isize::try_from(n).map_err(|_| Error::TensorTooLarge {
+        limit: isize::MAX as usize,
+        requested: n,
+    })?;
+
+    unsafe {
+        D::gemm(
+            m,
+            k,
+            n,
+            D::from_f64(1.0),
+            lhs_data.as_ptr().add(lhs_base) as *const D,
+            rsa,
+            csa,
+            rhs_data.as_ptr().add(rhs_base) as *const D,
+            rsb,
+            csb,
+            D::from_f64(0.0),
+            out_slice.as_mut_ptr() as *mut D,
+            rsc,
+            1,
+        );
+    }
+
+    let layout = Layout::contiguous(ConcreteShape::from_slice(&[m, n])?);
+    Ok(TensorParts {
+        storage: out_storage,
+        layout,
+    })
 }
 
 pub fn matmul<D>(
@@ -124,7 +285,7 @@ impl MatmulKernel for f32 {
         rhs: CpuTensorView<'_, Self>,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        matmul(lhs, rhs, allocator)
+        matmul_blas(lhs, rhs, allocator)
     }
 }
 
@@ -134,7 +295,7 @@ impl MatmulKernel for f64 {
         rhs: CpuTensorView<'_, Self>,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        matmul(lhs, rhs, allocator)
+        matmul_blas(lhs, rhs, allocator)
     }
 }
 

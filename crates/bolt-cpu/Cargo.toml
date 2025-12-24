@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 bolt-core = { path = "../bolt-core" }
 bolt-rng = { path = "../bolt-rng" }
+matrixmultiply = "0.3.10"
 rand = "0.8"
 
 [dev-dependencies]

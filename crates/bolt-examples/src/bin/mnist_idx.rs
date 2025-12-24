@@ -72,8 +72,8 @@ fn train_loader(
             let images = Tensor::stack(b, xs.iter().map(|s| &s.image))?;
             let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
             Ok::<_, bolt_data::DataError>(MnistBatch { images, labels })
-        })
-        .take(10);
+        });
+        // .take(10);
     Ok(stream)
 }
 

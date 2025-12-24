@@ -80,4 +80,3 @@ impl SigmoidKernel for f64 {
         sigmoid(view, allocator)
     }
 }
-
