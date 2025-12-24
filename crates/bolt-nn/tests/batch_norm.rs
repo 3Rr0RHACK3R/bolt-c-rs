@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::BatchNorm;
+use bolt_nn::layers::{BatchNorm, Linear, Seq};
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_tensor::Tensor;
 
@@ -225,4 +225,70 @@ fn batch_norm_train_then_eval_deterministic() {
         y2.to_vec().unwrap(),
         "eval should be deterministic"
     );
+}
+
+#[test]
+fn batch_norm_normalized_before_linear() {
+    let backend = backend();
+    let store = store(&backend);
+    
+    let num_features = 3;
+    let batch_size = 4;
+    
+    let bn = BatchNorm::<B, D>::init_default(&store.sub("bn"), num_features).unwrap();
+    
+    let x = Tensor::<B, D>::from_slice(
+        &backend,
+        &[
+            10.0, 20.0, 30.0,
+            15.0, 25.0, 35.0,
+            20.0, 30.0, 40.0,
+            25.0, 35.0, 45.0,
+        ],
+        &[batch_size, num_features],
+    )
+    .unwrap();
+    
+    let mut ctx = ForwardCtx::train();
+    let y_normalized = bn.forward(x.clone(), &mut ctx).unwrap();
+    
+    let y_vals = y_normalized.to_vec().unwrap();
+    
+    for ch in 0..num_features {
+        let mut sum = 0.0;
+        let mut sum_sq = 0.0;
+        
+        for b in 0..batch_size {
+            let idx = b * num_features + ch;
+            let val = y_vals[idx];
+            sum += val;
+            sum_sq += val * val;
+        }
+        
+        let mean = sum / batch_size as f32;
+        let variance = (sum_sq / batch_size as f32) - (mean * mean);
+        
+        assert!(
+            mean.abs() < 1e-4,
+            "channel {} mean should be ~0, got {}",
+            ch,
+            mean
+        );
+        assert!(
+            (variance - 1.0).abs() < 0.15,
+            "channel {} variance should be ~1, got {}",
+            ch,
+            variance
+        );
+    }
+    
+    let bn_for_seq = BatchNorm::<B, D>::init_default(&store.sub("bn_seq"), num_features).unwrap();
+    let linear = Linear::init(&store.sub("linear"), num_features, 2, true).unwrap();
+    
+    let model: Seq<B, D> = Seq::new().push(bn_for_seq).push(linear);
+    
+    let mut ctx2 = ForwardCtx::train();
+    let y_final = model.forward(x, &mut ctx2).unwrap();
+    
+    assert_eq!(y_final.shape(), &[batch_size, 2]);
 }
