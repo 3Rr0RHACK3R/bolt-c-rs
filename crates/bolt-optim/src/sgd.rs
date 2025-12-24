@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use bolt_core::backend::CopyOp;
+use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp};
 use bolt_core::{BaseBackend, Error, Float, Result};
 use bolt_nn::Param;
 use bolt_tensor::{Tensor, no_grad};
@@ -34,7 +34,7 @@ where
 {
     base: SgdCfg,
     group: BTreeMap<u32, SgdGroupCfg>,
-    vel: BTreeMap<String, Vec<D>>,
+    vel: BTreeMap<String, Tensor<B, D>>,
     _marker: std::marker::PhantomData<B>,
 }
 
@@ -61,7 +61,8 @@ where
 
     pub fn step(&mut self, params: &[Param<B, D>]) -> Result<()>
     where
-        B: CopyOp<D>,
+        B: CopyOp<D> + AddOp<D> + SubOp<D> + MulOp<D> + FillOp<D> + ReshapeOp<D> + SumOp<D> + NegOp<D> + 'static,
+        D: std::ops::Neg<Output = D> + std::ops::Sub<Output = D> + std::ops::Mul<Output = D> + 'static,
     {
         let _ng = no_grad();
         let mut seen = HashSet::new();
@@ -86,35 +87,29 @@ where
                 });
             }
 
-            let (lr, wd) = self.cfg_for(p.group());
+            let (lr_val, wd_val) = self.cfg_for(p.group());
 
             let w = p.tensor();
             let backend = w.backend();
-            let shape = w.shape().to_vec();
 
-            let mut wv = w.to_vec()?;
-            let gv = g.to_vec()?;
-
-            let vbuf = self
+            let v = self
                 .vel
-                .entry(key)
-                .or_insert_with(|| vec![D::zero(); wv.len()]);
-            if vbuf.len() != wv.len() {
-                *vbuf = vec![D::zero(); wv.len()];
+                .entry(key.clone())
+                .or_insert_with(|| Tensor::zeros_like(&w).unwrap());
+            if v.shape() != w.shape() {
+                *v = Tensor::zeros_like(&w)?;
             }
 
-            let lr = D::from_f64(lr);
-            let mom = D::from_f64(self.base.momentum);
-            let wd = D::from_f64(wd);
+            let lr_scalar = Tensor::from_slice(&backend, &[D::from_f64(lr_val)], &[])?;
+            let mom_scalar = Tensor::from_slice(&backend, &[D::from_f64(self.base.momentum)], &[])?;
+            let wd_scalar = Tensor::from_slice(&backend, &[D::from_f64(wd_val)], &[])?;
 
-            for i in 0..wv.len() {
-                let grad = gv[i] + wd * wv[i];
-                vbuf[i] = mom * vbuf[i] + grad;
-                wv[i] = wv[i] - lr * vbuf[i];
-            }
+            let grad = g.add(&w.mul(&wd_scalar)?)?;
+            let v_new = v.mul(&mom_scalar)?.add(&grad)?;
+            let w_new = w.sub(&v_new.mul(&lr_scalar)?)?;
 
-            let updated = Tensor::from_vec(&backend, wv, &shape)?;
-            p.set_tensor(updated)
+            *v = v_new;
+            p.set_tensor(w_new)
                 .map_err(|e| Error::OpError(format!("{e:?}")))?;
         }
 
