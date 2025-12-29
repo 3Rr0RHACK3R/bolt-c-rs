@@ -1,18 +1,16 @@
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
-use crate::manifest::{
-    dtype_to_name, ShardInfo, TensorEntry, TensorLocation, TensorSetManifest, SHARDS_DIR,
-    TENSOR_SET_MANIFEST_NAME, TENSOR_SET_SCHEMA_VERSION,
+use crate::io::{
+    build_tensor_index, build_tensor_entries, ensure_directory_structure,
+    load_shards_with_verification, read_and_parse_manifest, validate_load_directory,
+    validate_schema_version, write_manifest, write_shards_with_checksums,
 };
-use crate::shard::{
-    compute_bytes_checksum, compute_file_checksum, dtype_from_safe, plan_shards, verify_checksum,
-    write_shard, LoadedShard,
-};
+use crate::manifest::{ShardInfo, TensorSetManifest, TENSOR_SET_MANIFEST_NAME, TENSOR_SET_SCHEMA_VERSION};
+use crate::shard::{dtype_from_safe, LoadedShard};
 use crate::validation::{
-    validate_no_duplicates, validate_shard_path, validate_tensor_bytes, validate_tensor_name,
+    validate_no_duplicates, validate_tensor_bytes, validate_tensor_name,
 };
 use crate::utils::create_temp_dir;
 use crate::{Error, ErrorMode, Result, TensorMeta, TensorToSave, TensorView};
@@ -181,66 +179,32 @@ fn write_tensor_set_to_dir<'a>(
     dir: &Path,
     opts: &TensorSetSaveOptions,
 ) -> Result<()> {
-    fs::create_dir_all(dir).map_err(|e| Error::io(dir, e))?;
-    let shards_dir = dir.join(SHARDS_DIR);
-    fs::create_dir_all(&shards_dir).map_err(|e| Error::io(&shards_dir, e))?;
+    // Step 1: Ensure directory structure exists
+    // Note: this is idempotent and creates `dir` if it doesn't exist.
+    ensure_directory_structure(dir)?;
 
-    let plan = plan_shards(tensors, opts.shard_max_bytes)?;
+    // Step 2: Plan and write shards with checksums
+    let (plan, shard_checksums) = write_shards_with_checksums(
+        tensors,
+        dir,
+        opts.shard_max_bytes,
+        opts.alignment_bytes,
+        opts.checksum,
+    )?;
 
-    let mut shard_checksums = Vec::new();
-    for shard in &plan.shards {
-        let shard_path = dir.join(shard.relative_path());
-        write_shard(shard, tensors, &shard_path, opts.alignment_bytes)?;
-
-        if opts.checksum {
-            let checksum = compute_file_checksum(&shard_path)?;
-            shard_checksums.push(checksum);
-        }
-    }
-
+    // Step 3: Build manifest with tensor entries
     let mut manifest = TensorSetManifest::new();
     manifest.shards = ShardInfo {
         files: plan.shards.iter().map(|s| s.relative_path()).collect(),
         checksums: shard_checksums,
     };
+    build_tensor_entries(&mut manifest.tensors, tensors, &plan, opts.checksum)?;
 
-    let tensor_map: HashMap<&str, &TensorToSave<'a>> =
-        tensors.iter().map(|t| (t.meta.name.as_str(), t)).collect();
-
-    for (shard_idx, shard) in plan.shards.iter().enumerate() {
-        for name in &shard.tensor_names {
-            let tensor = tensor_map[name.as_str()];
-            let tensor_checksum = if opts.checksum {
-                Some(compute_bytes_checksum(&tensor.data))
-            } else {
-                None
-            };
-
-            manifest.tensors.insert(
-                name.clone(),
-                TensorEntry {
-                    role: tensor.meta.role.clone(),
-                    group: tensor.meta.group,
-                    dtype: dtype_to_name(tensor.meta.dtype).to_string(),
-                    shape: tensor.meta.shape.clone(),
-                    location: TensorLocation {
-                        shard: plan.shards[shard_idx].relative_path(),
-                        key: name.clone(),
-                    },
-                    checksum: tensor_checksum,
-                },
-            );
-        }
-    }
-
+    // Step 4: Write manifest
     let manifest_path = dir.join(TENSOR_SET_MANIFEST_NAME);
-    let file = File::create(&manifest_path).map_err(|e| Error::io(&manifest_path, e))?;
-    let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &manifest).map_err(|e| Error::ManifestParse {
-        path: manifest_path.clone(),
-        reason: e.to_string(),
-    })?;
+    write_manifest(&manifest, &manifest_path)?;
 
+    // Step 5: Sync manifest to disk (best effort)
     if let Ok(file) = File::open(&manifest_path) {
         let _ = file.sync_all();
     }
@@ -249,141 +213,45 @@ fn write_tensor_set_to_dir<'a>(
 }
 
 pub fn load_tensor_set(dir: &Path, opts: &TensorSetLoadOptions) -> Result<TensorSet> {
-    if !dir.exists() {
-        return Err(Error::DirectoryNotFound {
-            dir: dir.to_path_buf(),
-        });
-    }
+    // Step 1: Validate directory and get manifest path
+    let manifest_path = validate_load_directory(dir, TENSOR_SET_MANIFEST_NAME)?;
 
-    let manifest_path = dir.join(TENSOR_SET_MANIFEST_NAME);
-    if !manifest_path.exists() {
-        return Err(Error::ManifestNotFound {
-            path: manifest_path,
-        });
-    }
+    // Step 2: Read and parse manifest
+    let manifest = read_and_parse_manifest::<TensorSetManifest>(&manifest_path)?;
 
-    let manifest_content =
-        fs::read_to_string(&manifest_path).map_err(|e| Error::io(&manifest_path, e))?;
-    let manifest: TensorSetManifest =
-        serde_json::from_str(&manifest_content).map_err(|e| Error::ManifestParse {
-            path: manifest_path.clone(),
-            reason: e.to_string(),
-        })?;
+    // Step 3: Validate schema version
+    validate_schema_version(
+        &manifest.schema_version,
+        TENSOR_SET_SCHEMA_VERSION,
+        manifest_path,
+    )?;
 
-    if manifest.schema_version != TENSOR_SET_SCHEMA_VERSION {
-        return Err(Error::SchemaVersionMismatch {
-            file: manifest_path,
-            expected: TENSOR_SET_SCHEMA_VERSION.to_string(),
-            found: manifest.schema_version.clone(),
-        });
-    }
+    // Step 4: Load shards with checksum verification
+    let (shards, corrupted_shards) = load_shards_with_verification(
+        &manifest.shards.files,
+        &manifest.shards.checksums,
+        dir,
+        opts.lazy,
+        opts.error_mode.clone(),
+    )?;
 
-    let mut shards = Vec::new();
-    let mut corrupted_shards = Vec::new();
-
-    for (i, shard_path_str) in manifest.shards.files.iter().enumerate() {
-        validate_shard_path(shard_path_str, dir)?;
-        let shard_path = dir.join(shard_path_str);
-
-        if !shard_path.exists() {
-            return Err(Error::ShardNotFound { path: shard_path });
-        }
-
-        let checksum_ok = if i < manifest.shards.checksums.len() {
-            let expected = &manifest.shards.checksums[i];
-            match verify_checksum(&shard_path, expected) {
-                Ok(()) => true,
-                Err(e) => {
-                    if matches!(opts.error_mode, ErrorMode::Strict) {
-                        return Err(e);
-                    }
-                    corrupted_shards.push(i);
-                    false
-                }
-            }
-        } else {
-            true
-        };
-
-        let shard = if opts.lazy {
-            LoadedShard::load_mmap(&shard_path)?
-        } else {
-            LoadedShard::load_eager(&shard_path)?
-        };
-
-        shards.push(shard);
-        let _ = checksum_ok;
-    }
-
-    let shard_path_to_idx: HashMap<&str, usize> = manifest
-        .shards
-        .files
-        .iter()
-        .enumerate()
-        .map(|(i, p)| (p.as_str(), i))
-        .collect();
-
-    let mut index = HashMap::new();
-    let mut shapes = HashMap::new();
-
-    for (name, entry) in &manifest.tensors {
-        let shard_idx =
-            *shard_path_to_idx
-                .get(entry.location.shard.as_str())
-                .ok_or_else(|| Error::Safetensors {
-                    shard: dir.join(&entry.location.shard),
-                    reason: format!("shard '{}' not found in manifest", entry.location.shard),
-                })?;
-
-        let dtype = entry.parse_dtype().ok_or_else(|| Error::Safetensors {
-            shard: dir.join(&entry.location.shard),
-            reason: format!("unknown dtype '{}'", entry.dtype),
-        })?;
-
-        let corrupted = corrupted_shards.contains(&shard_idx);
-
-        index.insert(
-            name.clone(),
-            TensorIndex {
-                meta: TensorMeta {
-                    name: name.clone(),
-                    dtype,
-                    shape: entry.shape.clone(),
-                    role: entry.role.clone(),
-                    group: entry.group,
-                },
-                shard_idx,
-                key: entry.location.key.clone(),
-                checksum: entry.checksum.clone(),
-                corrupted,
-            },
-        );
-        shapes.insert(name.clone(), entry.shape.clone());
-    }
+    // Step 5: Build tensor index
+    let (index, shapes) = build_tensor_index(
+        &manifest.tensors,
+        &manifest.shards.files,
+        dir,
+        &corrupted_shards,
+    )?;
 
     Ok(TensorSet::new(dir.to_path_buf(), shards, index, shapes))
 }
 
 pub fn inspect_tensor_set(dir: &Path) -> Result<Vec<TensorMeta>> {
-    if !dir.exists() {
-        return Err(Error::DirectoryNotFound {
-            dir: dir.to_path_buf(),
-        });
-    }
+    // Step 1: Validate directory and get manifest path
+    let manifest_path = validate_load_directory(dir, TENSOR_SET_MANIFEST_NAME)?;
 
-    let manifest_path = dir.join(TENSOR_SET_MANIFEST_NAME);
-    if !manifest_path.exists() {
-        return Err(Error::ManifestNotFound {
-            path: manifest_path,
-        });
-    }
-
-    let content = fs::read_to_string(&manifest_path).map_err(|e| Error::io(&manifest_path, e))?;
-    let manifest: TensorSetManifest =
-        serde_json::from_str(&content).map_err(|e| Error::ManifestParse {
-            path: manifest_path.clone(),
-            reason: e.to_string(),
-        })?;
+    // Step 2: Read and parse manifest
+    let manifest = read_and_parse_manifest::<TensorSetManifest>(&manifest_path)?;
 
     let mut metas = Vec::new();
     for (name, entry) in &manifest.tensors {

@@ -1,5 +1,6 @@
 mod checkpoint;
 mod error;
+mod io;
 mod manifest;
 mod serde_shape;
 mod shard;

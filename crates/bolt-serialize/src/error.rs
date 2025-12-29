@@ -97,6 +97,9 @@ pub enum Error {
 
     #[error("tensor '{name}' is unavailable due to shard corruption. Try loading with ErrorMode::Permissive to inspect remaining tensors.")]
     TensorUnavailable { name: String },
+
+    #[error("internal inconsistency: shape data missing for tensor '{name}' in artifact at {dir:?}. This indicates a bug or data corruption.")]
+    ShapeMissing { name: String, dir: PathBuf },
 }
 
 impl Error {
