@@ -185,7 +185,7 @@ where
     B: Backend + ReshapeOp<D> + SumOp<D> + 'static,
     D: NativeType + 'static,
 {
-    if grad_output.shape() == input_shape {
+    if grad_output.shape().as_slice() == input_shape {
         return Ok(grad_output.clone());
     }
 
@@ -239,7 +239,7 @@ where
         Tensor::from_parts(backend, parts.storage, parts.layout)
     };
 
-    if reduced.shape() == input_shape {
+    if reduced.shape().as_slice() == input_shape {
         Ok(reduced)
     } else {
         reduced.reshape(input_shape)

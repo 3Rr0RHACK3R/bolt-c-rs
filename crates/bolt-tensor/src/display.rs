@@ -8,7 +8,7 @@ use bolt_core::{
     dtype::{DType, NativeType},
     error::Result,
     layout::Layout,
-    shape::ConcreteShape,
+    shape::Shape,
 };
 
 use crate::tensor::Tensor;
@@ -28,7 +28,7 @@ where
     D: NativeType,
 {
     tensor: &'a Tensor<B, D>,
-    scalar_shape: ConcreteShape,
+    scalar_shape: Shape,
 }
 
 impl<'a, B, D> TensorFormatter<'a, B, D>
@@ -38,7 +38,7 @@ where
 {
     fn new(tensor: &'a Tensor<B, D>) -> Self {
         let scalar_shape =
-            ConcreteShape::from_slice(&[1]).expect("scalar shape construction must succeed");
+            Shape::from_slice(&[1]).expect("scalar shape construction must succeed");
         Self {
             tensor,
             scalar_shape,
@@ -205,14 +205,14 @@ where
                 f,
                 "tensor({}, shape={}, dtype={}, device={})",
                 rendered,
-                format_shape(self.shape()),
+                format_shape(self.shape().as_slice()),
                 D::DTYPE,
                 format_device(self.backend().device_kind())
             ),
             Err(_) => write!(
                 f,
                 "tensor(<unavailable: device read failed>, shape={}, dtype={}, device={})",
-                format_shape(self.shape()),
+                format_shape(self.shape().as_slice()),
                 D::DTYPE,
                 format_device(self.backend().device_kind())
             ),

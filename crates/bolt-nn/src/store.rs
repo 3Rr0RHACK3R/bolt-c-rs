@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use bolt_core::BaseBackend;
 use bolt_core::Float;
 use bolt_core::backend::{AddOp, FillOp};
+use bolt_core::shape::Shape;
 use bolt_rng::RngStream;
 use bolt_tensor::Tensor;
 
@@ -25,7 +26,7 @@ where
     pub(crate) key: String,
     pub(crate) kind: Kind,
     pub(crate) group: AtomicU32,
-    pub(crate) shape: Vec<usize>,
+    pub(crate) shape: Shape,
     pub(crate) requires_grad: AtomicBool,
     pub(crate) tensor: Mutex<Tensor<B, D>>,
     pub(crate) grad: Mutex<Option<Tensor<B, D>>>,
@@ -60,7 +61,7 @@ where
         self.0.group.store(group, Ordering::Relaxed);
     }
 
-    pub fn shape(&self) -> &[usize] {
+    pub fn shape(&self) -> &Shape {
         &self.0.shape
     }
 
@@ -88,7 +89,7 @@ where
     }
 
     pub fn set_tensor(&self, tensor: Tensor<B, D>) -> Result<()> {
-        if tensor.shape() != self.0.shape.as_slice() {
+        if tensor.shape() != &self.0.shape {
             return Err(Error::Shape(format!(
                 "param {}: expected shape {:?}, got {:?}",
                 self.key(),
@@ -123,7 +124,7 @@ where
         &self.0.key
     }
 
-    pub fn shape(&self) -> &[usize] {
+    pub fn shape(&self) -> &Shape {
         &self.0.shape
     }
 
@@ -132,7 +133,7 @@ where
     }
 
     pub fn set(&self, tensor: Tensor<B, D>) -> Result<()> {
-        if tensor.shape() != self.0.shape.as_slice() {
+        if tensor.shape() != &self.0.shape {
             return Err(Error::Shape(format!(
                 "buffer {}: expected shape {:?}, got {:?}",
                 self.key(),
@@ -314,7 +315,7 @@ where
             key: key.clone(),
             kind,
             group: AtomicU32::new(self.group),
-            shape: shape.to_vec(),
+            shape: Shape::from_slice(shape)?,
             requires_grad: AtomicBool::new(requires_grad),
             tensor: Mutex::new(tensor),
             grad: Mutex::new(None),

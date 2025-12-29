@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bolt_core::shape::ConcreteShape;
+use bolt_core::shape::Shape;
 use bolt_core::{Backend, Error, Layout};
 use bolt_cpu::CpuBackend;
 use bolt_tensor::Tensor;
@@ -11,7 +11,7 @@ fn read_rejects_out_of_bounds_layout() {
     let tensor = Tensor::<CpuBackend, f32>::zeros(&backend, &[2, 2]).unwrap();
 
     let bad_layout =
-        Layout::with_strides(ConcreteShape::from_slice(&[2, 2]).unwrap(), &[4, 1], 0).unwrap();
+        Layout::with_strides(Shape::from_slice(&[2, 2]).unwrap(), &[4, 1], 0).unwrap();
     let mut dst = vec![0f32; 4];
     let err = backend
         .read(tensor.storage(), &bad_layout, &mut dst)

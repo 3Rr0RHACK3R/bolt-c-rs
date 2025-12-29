@@ -37,7 +37,7 @@ where
         let out = ctx.saved(2);
         let backend = grad_output.backend();
 
-        let one = Tensor::ones(&backend, base.shape())?;
+        let one = Tensor::ones(&backend, base.shape().as_slice())?;
         let exp_minus_one = {
             let parts = backend.sub(
                 exp.storage(),

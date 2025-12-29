@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use bolt_core::BaseBackend;
 use bolt_core::Float;
+use bolt_core::shape::Shape;
 use bolt_core::backend::CopyOp;
 
 use crate::store::{Entry, Kind, Store};
@@ -12,7 +13,7 @@ use crate::{Error, Result};
 pub struct TensorBlob<D: Float> {
     pub kind: Kind,
     pub group: u32,
-    pub shape: Vec<usize>,
+    pub shape: Shape,
     pub data: Vec<D>,
 }
 
@@ -33,7 +34,7 @@ pub struct LoadOptions {
 pub struct LoadReport {
     pub missing: Vec<String>,
     pub unexpected: Vec<String>,
-    pub mismatched: Vec<(String, Vec<usize>, Vec<usize>)>,
+    pub mismatched: Vec<(String, Shape, Shape)>,
 }
 
 impl<D: Float> StateDict<D> {
@@ -88,7 +89,7 @@ where
                     let mut t = e.tensor.lock().unwrap();
                     let backend = t.backend();
                     let new_t =
-                        bolt_tensor::Tensor::from_vec(&backend, blob.data.clone(), &blob.shape)?;
+                        bolt_tensor::Tensor::from_vec(&backend, blob.data.clone(), blob.shape.as_slice())?;
 
                     let requires_grad = e.requires_grad.load(std::sync::atomic::Ordering::Relaxed);
                     *t = new_t.with_requires_grad(requires_grad);

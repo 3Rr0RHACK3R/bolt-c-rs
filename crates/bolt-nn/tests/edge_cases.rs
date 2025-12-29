@@ -163,7 +163,7 @@ fn low_level_tensor_backward_returns_expected_grads() {
         .requires_grad();
 
     let y = x.matmul(&w.transpose(-1, -2).unwrap()).unwrap();
-    let b2 = b.broadcast_to(y.shape()).unwrap();
+    let b2 = b.broadcast_to(y.shape().as_slice()).unwrap();
     let y = y.add(&b2).unwrap();
     let loss = y.sum(None, false).unwrap();
     let grads = loss.backward().unwrap();

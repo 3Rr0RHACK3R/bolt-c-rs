@@ -259,6 +259,6 @@ fn unary_ops_preserve_shape() -> Result<()> {
         Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])?;
 
     let result = tensor.neg()?;
-    assert_eq!(result.shape(), &[2, 3]);
+    assert_eq!(result.shape().as_slice(), &[2, 3]);
     Ok(())
 }

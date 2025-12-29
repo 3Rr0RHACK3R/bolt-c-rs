@@ -196,8 +196,8 @@ fn batch_norm_multiple_train_passes() {
     let mut ctx2 = ForwardCtx::train();
     let y2 = bn.forward(x2, &mut ctx2).unwrap();
 
-    assert_eq!(y1.shape(), &[2, 2]);
-    assert_eq!(y2.shape(), &[2, 2]);
+    assert_eq!(y1.shape().as_slice(), &[2, 2]);
+    assert_eq!(y2.shape().as_slice(), &[2, 2]);
 }
 
 #[test]
@@ -290,5 +290,5 @@ fn batch_norm_normalized_before_linear() {
     let mut ctx2 = ForwardCtx::train();
     let y_final = model.forward(x, &mut ctx2).unwrap();
     
-    assert_eq!(y_final.shape(), &[batch_size, 2]);
+    assert_eq!(y_final.shape().as_slice(), &[batch_size, 2]);
 }

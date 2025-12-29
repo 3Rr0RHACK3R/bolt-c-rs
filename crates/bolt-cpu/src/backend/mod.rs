@@ -19,7 +19,6 @@ use bolt_core::{
     dtype::{CastFrom, NativeType},
     error::{Error, Result},
     layout::Layout,
-    shape::ConcreteShape,
 };
 
 pub use storage::{CpuStorage, CpuTensorView};
@@ -160,7 +159,7 @@ where
         storage: &Self::Storage<Src>,
         layout: &Layout,
     ) -> Result<TensorParts<Self::Storage<Dst>>> {
-        let shape = ConcreteShape::from_slice(layout.shape())?;
+        let shape = layout.shape().clone();
         let numel = shape.num_elements();
 
         let mut out = self.allocator::<Dst>().allocate(numel)?;

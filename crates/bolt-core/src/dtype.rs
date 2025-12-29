@@ -42,6 +42,17 @@ impl DType {
     pub fn is_float(self) -> bool {
         matches!(self, DType::F32 | DType::F64)
     }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "u8" => Some(DType::U8),
+            "i32" => Some(DType::I32),
+            "i64" => Some(DType::I64),
+            "f32" => Some(DType::F32),
+            "f64" => Some(DType::F64),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for DType {

@@ -5,7 +5,7 @@ use bolt_core::{
     dtype::{Float, NativeType},
     error::{Error, Result},
     layout::Layout,
-    shape::ConcreteShape,
+    shape::Shape,
 };
 
 use matrixmultiply::{dgemm, sgemm};
@@ -133,7 +133,7 @@ where
 
     let mut out_storage: CpuStorage<D> = allocator.allocate_zeroed(m * n)?;
     if m == 0 || n == 0 || k == 0 {
-        let layout = Layout::contiguous(ConcreteShape::from_slice(&[m, n])?);
+        let layout = Layout::contiguous(Shape::from_slice(&[m, n])?);
         return Ok(TensorParts {
             storage: out_storage,
             layout,
@@ -178,7 +178,7 @@ where
         );
     }
 
-    let layout = Layout::contiguous(ConcreteShape::from_slice(&[m, n])?);
+    let layout = Layout::contiguous(Shape::from_slice(&[m, n])?);
     Ok(TensorParts {
         storage: out_storage,
         layout,
@@ -272,7 +272,7 @@ where
         }
     }
 
-    let layout = Layout::contiguous(ConcreteShape::from_slice(&[m, n])?);
+    let layout = Layout::contiguous(Shape::from_slice(&[m, n])?);
     Ok(TensorParts {
         storage: out_storage,
         layout,

@@ -3,7 +3,6 @@ use bolt_core::{
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
-    shape::ConcreteShape,
 };
 
 use super::super::allocator::CpuAllocator;
@@ -50,7 +49,7 @@ where
         }
     }
 
-    let layout = Layout::contiguous(ConcreteShape::from_slice(shape)?);
+    let layout = Layout::contiguous(shape.clone());
     Ok(TensorParts {
         storage: out_storage,
         layout,

@@ -31,7 +31,7 @@ where
         grad_output: &Tensor<B, D>,
         _ctx: &BackwardContext<'_, B, D>,
     ) -> Result<Vec<Option<Tensor<B, D>>>> {
-        if grad_output.shape() != self.output_shape.as_slice() {
+        if grad_output.shape().as_slice() != self.output_shape.as_slice() {
             return Err(Error::ShapeMismatch {
                 lhs: grad_output.shape().to_vec(),
                 rhs: self.output_shape.clone(),

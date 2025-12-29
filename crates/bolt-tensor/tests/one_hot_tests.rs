@@ -13,7 +13,7 @@ fn one_hot_basic() -> Result<()> {
     let indices = Tensor::<B, i32>::from_slice(&backend, &[0, 2, 1], &[3])?;
     let one_hot = Tensor::<B, D>::one_hot(&indices, 3)?;
 
-    assert_eq!(one_hot.shape(), &[3, 3]);
+    assert_eq!(one_hot.shape().as_slice(), &[3, 3]);
     let values = one_hot.to_vec()?;
     #[rustfmt::skip]
     let expected: Vec<D> = vec![
@@ -31,7 +31,7 @@ fn one_hot_single_element() -> Result<()> {
     let indices = Tensor::<B, i32>::from_slice(&backend, &[2], &[1])?;
     let one_hot = Tensor::<B, D>::one_hot(&indices, 5)?;
 
-    assert_eq!(one_hot.shape(), &[1, 5]);
+    assert_eq!(one_hot.shape().as_slice(), &[1, 5]);
     let values = one_hot.to_vec()?;
     let expected: Vec<D> = vec![0.0, 0.0, 1.0, 0.0, 0.0];
     assert_eq!(values, expected);
@@ -44,7 +44,7 @@ fn one_hot_f64_output() -> Result<()> {
     let indices = Tensor::<B, i32>::from_slice(&backend, &[1, 0], &[2])?;
     let one_hot = Tensor::<B, f64>::one_hot(&indices, 3)?;
 
-    assert_eq!(one_hot.shape(), &[2, 3]);
+    assert_eq!(one_hot.shape().as_slice(), &[2, 3]);
     let values = one_hot.to_vec()?;
     let expected: Vec<f64> = vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.0];
     assert_eq!(values, expected);
@@ -77,7 +77,7 @@ fn one_hot_all_zeros() -> Result<()> {
     let indices = Tensor::<B, i32>::from_slice(&backend, &[0, 0, 0], &[3])?;
     let one_hot = Tensor::<B, D>::one_hot(&indices, 4)?;
 
-    assert_eq!(one_hot.shape(), &[3, 4]);
+    assert_eq!(one_hot.shape().as_slice(), &[3, 4]);
     let values = one_hot.to_vec()?;
     #[rustfmt::skip]
     let expected: Vec<D> = vec![
@@ -95,7 +95,7 @@ fn one_hot_last_class() -> Result<()> {
     let indices = Tensor::<B, i32>::from_slice(&backend, &[4, 4], &[2])?;
     let one_hot = Tensor::<B, D>::one_hot(&indices, 5)?;
 
-    assert_eq!(one_hot.shape(), &[2, 5]);
+    assert_eq!(one_hot.shape().as_slice(), &[2, 5]);
     let values = one_hot.to_vec()?;
     let expected: Vec<D> = vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
     assert_eq!(values, expected);

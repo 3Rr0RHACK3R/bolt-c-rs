@@ -17,7 +17,7 @@ fn linear_forward_produces_expected_shape() {
     let input = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 4]).unwrap();
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    assert_eq!(output.shape(), &[1, 2]);
+    assert_eq!(output.shape().as_slice(), &[1, 2]);
 }
 
 #[test]
@@ -50,8 +50,8 @@ fn store_registers_linear_params_with_expected_keys() {
 
     let params = store.trainable();
     assert_eq!(params.len(), 2);
-    assert_eq!(params[0].shape(), &[3]);
-    assert_eq!(params[1].shape(), &[3, 2]);
+    assert_eq!(params[0].shape().as_slice(), &[3]);
+    assert_eq!(params[1].shape().as_slice(), &[3, 2]);
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn flatten_forward_reshapes_4d_to_2d() {
     let layer = Flatten::new();
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    assert_eq!(output.shape(), &[2, 60]);
+    assert_eq!(output.shape().as_slice(), &[2, 60]);
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn flatten_forward_preserves_2d_tensor() {
     let layer = Flatten::new();
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    assert_eq!(output.shape(), &[4, 8]);
+    assert_eq!(output.shape().as_slice(), &[4, 8]);
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn flatten_forward_handles_single_sample() {
     let layer = Flatten::new();
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    assert_eq!(output.shape(), &[1, 16]);
+    assert_eq!(output.shape().as_slice(), &[1, 16]);
 }
 
 #[test]

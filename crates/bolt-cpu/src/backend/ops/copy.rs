@@ -1,5 +1,5 @@
 use bolt_core::{
-    Layout, NativeType, StorageAllocator, TensorParts, error::Result, shape::ConcreteShape,
+    Layout, NativeType, StorageAllocator, TensorParts, error::Result,
 };
 
 use crate::backend::{CpuStorage, allocator::CpuAllocator, storage::read_into_uninit_slice};
@@ -10,7 +10,7 @@ pub trait CopyKernel: NativeType {
         layout: &Layout,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        let shape = ConcreteShape::from_slice(layout.shape())?;
+        let shape = layout.shape().clone();
         let numel = shape.num_elements();
         let mut dst: CpuStorage<Self> = allocator.allocate(numel)?;
         {

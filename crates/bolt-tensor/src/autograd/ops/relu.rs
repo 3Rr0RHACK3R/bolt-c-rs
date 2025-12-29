@@ -33,7 +33,7 @@ where
             let m = if v > zero { D::one() } else { zero };
             grad.push(g * m);
         }
-        let grad_input = Tensor::from_vec(&backend, grad, ctx.saved(0).shape())?;
+        let grad_input = Tensor::from_vec(&backend, grad, ctx.saved(0).shape().as_slice())?;
         Ok(vec![Some(grad_input)])
     }
 
