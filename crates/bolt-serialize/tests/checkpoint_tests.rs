@@ -37,6 +37,7 @@ fn checkpoint_filters_by_role() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors.clone(),
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             include_optimizer: false,
             include_rng: true,
@@ -73,6 +74,7 @@ fn checkpoint_exclude_rng() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             include_optimizer: true,
             include_rng: false,
@@ -103,6 +105,7 @@ fn checkpoint_exclude_buffers() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             include_optimizer: true,
             include_rng: true,
@@ -134,6 +137,7 @@ fn checkpoint_exclude_by_pattern() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             exclude: vec!["decoder.*".to_string()],
             ..Default::default()
@@ -165,6 +169,7 @@ fn checkpoint_exclude_glob_wildcard() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             exclude: vec!["decoder.*".to_string()],
             ..Default::default()
@@ -199,6 +204,7 @@ fn checkpoint_exclude_no_substring_matching() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             exclude: vec!["layer".to_string()],
             ..Default::default()
@@ -232,6 +238,7 @@ fn checkpoint_exclude_optimizer_pattern() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             exclude: vec!["opt.*".to_string()],
             ..Default::default()
@@ -264,6 +271,7 @@ fn checkpoint_exclude_multiple_patterns() -> bolt_serialize::Result<()> {
     save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             exclude: vec!["decoder.*".to_string(), "*.tmp*".to_string()],
             ..Default::default()
@@ -291,6 +299,7 @@ fn checkpoint_exclude_invalid_pattern() -> bolt_serialize::Result<()> {
     let result = save_checkpoint(
         tensors,
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions {
             exclude: vec!["[invalid".to_string()], // Invalid glob pattern (unclosed bracket)
             ..Default::default()
@@ -319,28 +328,29 @@ fn checkpoint_metadata_roundtrip() -> bolt_serialize::Result<()> {
         "custom_field": [1, 2, 3]
     });
 
+    let metadata = CheckpointMetadata {
+        epoch: Some(42),
+        global_step: Some(123456),
+        model_name: Some("MyTestModel".to_string()),
+        user: user_data.clone(),
+    };
+
     save_checkpoint(
         [make_tensor("test", TensorRole::ModelParam, 100)],
         &out_dir,
-        &CheckpointSaveOptions {
-            metadata: CheckpointMetadata {
-                epoch: Some(42),
-                global_step: Some(123456),
-                model_name: Some("MyTestModel".to_string()),
-                created_at_rfc3339: "2025-12-26T12:34:56Z".to_string(),
-                user: user_data.clone(),
-            },
-            ..Default::default()
-        },
+        &metadata,
+        &CheckpointSaveOptions::default(),
     )?;
 
     let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
 
-    assert_eq!(ckpt.metadata.epoch, Some(42));
-    assert_eq!(ckpt.metadata.global_step, Some(123456));
-    assert_eq!(ckpt.metadata.model_name, Some("MyTestModel".to_string()));
-    assert_eq!(ckpt.metadata.user["git_commit"], "abc123");
-    assert_eq!(ckpt.metadata.user["learning_rate"], 0.001);
+    assert_eq!(ckpt.info.metadata.epoch, Some(42));
+    assert_eq!(ckpt.info.metadata.global_step, Some(123456));
+    assert_eq!(ckpt.info.metadata.model_name, Some("MyTestModel".to_string()));
+    assert_eq!(ckpt.info.metadata.user["git_commit"], "abc123");
+    assert_eq!(ckpt.info.metadata.user["learning_rate"], 0.001);
+    // Verify written_at is populated
+    assert!(!ckpt.info.written_at.is_empty());
 
     Ok(())
 }
@@ -350,25 +360,26 @@ fn checkpoint_inspect_without_loading() -> bolt_serialize::Result<()> {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("inspect_test");
 
+    let metadata = CheckpointMetadata {
+        epoch: Some(99),
+        global_step: Some(999999),
+        model_name: Some("InspectTest".to_string()),
+        ..Default::default()
+    };
+
     save_checkpoint(
         [make_tensor("test", TensorRole::ModelParam, 100)],
         &out_dir,
-        &CheckpointSaveOptions {
-            metadata: CheckpointMetadata {
-                epoch: Some(99),
-                global_step: Some(999999),
-                model_name: Some("InspectTest".to_string()),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        &metadata,
+        &CheckpointSaveOptions::default(),
     )?;
 
-    let meta = inspect_checkpoint(&out_dir)?;
+    let info = inspect_checkpoint(&out_dir)?;
 
-    assert_eq!(meta.epoch, Some(99));
-    assert_eq!(meta.global_step, Some(999999));
-    assert_eq!(meta.model_name, Some("InspectTest".to_string()));
+    assert_eq!(info.metadata.epoch, Some(99));
+    assert_eq!(info.metadata.global_step, Some(999999));
+    assert_eq!(info.metadata.model_name, Some("InspectTest".to_string()));
+    assert!(!info.written_at.is_empty());
 
     Ok(())
 }
@@ -381,6 +392,7 @@ fn checkpoint_lazy_loading() -> bolt_serialize::Result<()> {
     save_checkpoint(
         [make_tensor("large", TensorRole::ModelParam, 10000)],
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions::default(),
     )?;
 
@@ -413,6 +425,7 @@ fn checkpoint_tensor_roles_preserved() -> bolt_serialize::Result<()> {
             make_tensor("user", TensorRole::User, 100),
         ],
         &out_dir,
+        &CheckpointMetadata::default(),
         &CheckpointSaveOptions::default(),
     )?;
 
@@ -439,17 +452,17 @@ fn checkpoint_empty_metadata() -> bolt_serialize::Result<()> {
     save_checkpoint(
         [make_tensor("test", TensorRole::ModelParam, 100)],
         &out_dir,
-        &CheckpointSaveOptions {
-            metadata: CheckpointMetadata::default(),
-            ..Default::default()
-        },
+        &CheckpointMetadata::default(),
+        &CheckpointSaveOptions::default(),
     )?;
 
     let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
 
-    assert_eq!(ckpt.metadata.epoch, None);
-    assert_eq!(ckpt.metadata.global_step, None);
-    assert_eq!(ckpt.metadata.model_name, None);
+    assert_eq!(ckpt.info.metadata.epoch, None);
+    assert_eq!(ckpt.info.metadata.global_step, None);
+    assert_eq!(ckpt.info.metadata.model_name, None);
+    // written_at should still be set
+    assert!(!ckpt.info.written_at.is_empty());
 
     Ok(())
 }
@@ -459,26 +472,28 @@ fn checkpoint_overwrite_behavior() -> bolt_serialize::Result<()> {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("overwrite");
 
+    let metadata_v1 = CheckpointMetadata {
+        epoch: Some(1),
+        ..Default::default()
+    };
+
     save_checkpoint(
         [make_tensor("v1", TensorRole::ModelParam, 100)],
         &out_dir,
-        &CheckpointSaveOptions {
-            metadata: CheckpointMetadata {
-                epoch: Some(1),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        &metadata_v1,
+        &CheckpointSaveOptions::default(),
     )?;
+
+    let metadata_v2 = CheckpointMetadata {
+        epoch: Some(2),
+        ..Default::default()
+    };
 
     save_checkpoint(
         [make_tensor("v2", TensorRole::ModelParam, 100)],
         &out_dir,
+        &metadata_v2,
         &CheckpointSaveOptions {
-            metadata: CheckpointMetadata {
-                epoch: Some(2),
-                ..Default::default()
-            },
             tensor_set: TensorSetSaveOptions {
                 overwrite: true,
                 ..Default::default()
@@ -489,7 +504,7 @@ fn checkpoint_overwrite_behavior() -> bolt_serialize::Result<()> {
 
     let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
 
-    assert_eq!(ckpt.metadata.epoch, Some(2));
+    assert_eq!(ckpt.info.metadata.epoch, Some(2));
     assert!(ckpt.tensors.get("v2").is_ok());
     assert!(ckpt.tensors.get("v1").is_err()); // Old tensor should be gone
 

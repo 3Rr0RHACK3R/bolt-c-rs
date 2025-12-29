@@ -106,11 +106,10 @@ where
 
     let element_size = std::mem::size_of::<D>();
     if view.data.len() % element_size != 0 {
-        return Err(Error::ByteSizeMismatch {
+        return Err(Error::ByteSizeNotAligned {
             name: name.to_string(),
-            expected: (view.numel() * element_size as u64),
             actual: view.data.len() as u64,
-            numel: view.numel(),
+            element_size,
             dtype: view.dtype,
         });
     }

@@ -19,13 +19,28 @@ use crate::{
     Error, ErrorMode, Result, TensorMeta, TensorRole, TensorSet, TensorToSave, TensorView,
 };
 
+/// User-provided metadata for a checkpoint.
+///
+/// This contains training-related metadata that the user controls.
+/// System-generated fields like `written_at` are stored separately in [`CheckpointInfo`].
 #[derive(Clone, Debug, Default)]
 pub struct CheckpointMetadata {
     pub epoch: Option<u64>,
     pub global_step: Option<u64>,
     pub model_name: Option<String>,
-    pub created_at_rfc3339: String,
     pub user: serde_json::Value,
+}
+
+/// Complete checkpoint information including both user metadata and system fields.
+///
+/// Returned when loading or inspecting a checkpoint.
+#[derive(Clone, Debug)]
+pub struct CheckpointInfo {
+    /// User-provided metadata (epoch, global_step, model_name, user data).
+    pub metadata: CheckpointMetadata,
+    /// RFC 3339 timestamp of when the checkpoint was written to disk.
+    /// This is system-generated and cannot be overridden by the user.
+    pub written_at: String,
 }
 
 #[derive(Clone, Debug)]
@@ -44,7 +59,6 @@ pub struct CheckpointSaveOptions {
     /// see the [glob crate documentation](https://docs.rs/glob/latest/glob/struct.Pattern.html).
     pub exclude: Vec<String>,
     pub tensor_set: TensorSetSaveOptions,
-    pub metadata: CheckpointMetadata,
 }
 
 impl Default for CheckpointSaveOptions {
@@ -55,7 +69,6 @@ impl Default for CheckpointSaveOptions {
             include_buffers: true,
             exclude: Vec::new(),
             tensor_set: TensorSetSaveOptions::default(),
-            metadata: CheckpointMetadata::default(),
         }
     }
 }
@@ -67,7 +80,7 @@ pub struct CheckpointLoadOptions {
 }
 
 pub struct Checkpoint {
-    pub metadata: CheckpointMetadata,
+    pub info: CheckpointInfo,
     pub tensors: TensorSet,
 }
 
@@ -85,12 +98,17 @@ impl Checkpoint {
     }
 }
 
-pub fn save_checkpoint<'a, I>(tensors: I, dir: &Path, opts: &CheckpointSaveOptions) -> Result<()>
+pub fn save_checkpoint<'a, I>(
+    tensors: I,
+    dir: &Path,
+    metadata: &CheckpointMetadata,
+    opts: &CheckpointSaveOptions,
+) -> Result<()>
 where
     I: IntoIterator<Item = TensorToSave<'a>>,
 {
     let tensors: Vec<TensorToSave<'a>> = tensors.into_iter().collect();
-    
+
     // Compile exclude patterns upfront to validate them early
     let compiled_patterns: Result<Vec<Pattern>> = opts
         .exclude
@@ -103,7 +121,7 @@ where
         })
         .collect();
     let compiled_patterns = compiled_patterns?;
-    
+
     let filtered: Vec<TensorToSave<'a>> = tensors
         .into_iter()
         .filter(|t| should_include_tensor(t, opts, &compiled_patterns))
@@ -127,7 +145,7 @@ where
 
     let temp_dir = create_temp_dir(dir, "checkpoint")?;
 
-    match write_checkpoint_to_dir(&filtered, &temp_dir, opts) {
+    match write_checkpoint_to_dir(&filtered, &temp_dir, metadata, opts) {
         Ok(()) => {
             fs::rename(&temp_dir, dir).map_err(|e| Error::AtomicRenameFailed {
                 temp: temp_dir.clone(),
@@ -167,6 +185,7 @@ fn should_include_tensor(
 fn write_checkpoint_to_dir<'a>(
     tensors: &[TensorToSave<'a>],
     dir: &Path,
+    metadata: &CheckpointMetadata,
     opts: &CheckpointSaveOptions,
 ) -> Result<()> {
     ensure_directory_structure(dir)?;
@@ -181,10 +200,10 @@ fn write_checkpoint_to_dir<'a>(
 
     let mut manifest = CheckpointManifest::new();
     manifest.metadata = CheckpointMetadataJson {
-        epoch: opts.metadata.epoch,
-        global_step: opts.metadata.global_step,
-        model_name: opts.metadata.model_name.clone(),
-        user: opts.metadata.user.clone(),
+        epoch: metadata.epoch,
+        global_step: metadata.global_step,
+        model_name: metadata.model_name.clone(),
+        user: metadata.user.clone(),
     };
     manifest.shards = ShardInfo {
         files: plan.shards.iter().map(|s| s.relative_path()).collect(),
@@ -229,30 +248,40 @@ pub fn load_checkpoint(dir: &Path, opts: &CheckpointLoadOptions) -> Result<Check
         &corrupted_shards,
     )?;
 
-    let metadata = CheckpointMetadata {
-        epoch: manifest.metadata.epoch,
-        global_step: manifest.metadata.global_step,
-        model_name: manifest.metadata.model_name.clone(),
-        created_at_rfc3339: manifest.created_at.clone(),
-        user: manifest.metadata.user.clone(),
+    let info = CheckpointInfo {
+        metadata: CheckpointMetadata {
+            epoch: manifest.metadata.epoch,
+            global_step: manifest.metadata.global_step,
+            model_name: manifest.metadata.model_name.clone(),
+            user: manifest.metadata.user.clone(),
+        },
+        written_at: manifest.written_at.clone(),
     };
 
     Ok(Checkpoint {
-        metadata,
+        info,
         tensors: TensorSet::new(dir.to_path_buf(), shards, index),
     })
 }
 
-pub fn inspect_checkpoint(dir: &Path) -> Result<CheckpointMetadata> {
+pub fn inspect_checkpoint(dir: &Path) -> Result<CheckpointInfo> {
     let manifest_path = validate_load_directory(dir, CHECKPOINT_MANIFEST_NAME)?;
 
     let manifest = read_and_parse_manifest::<CheckpointManifest>(&manifest_path)?;
 
-    Ok(CheckpointMetadata {
-        epoch: manifest.metadata.epoch,
-        global_step: manifest.metadata.global_step,
-        model_name: manifest.metadata.model_name,
-        created_at_rfc3339: manifest.created_at,
-        user: manifest.metadata.user,
+    validate_schema_version(
+        &manifest.schema_version,
+        CHECKPOINT_SCHEMA_VERSION,
+        manifest_path,
+    )?;
+
+    Ok(CheckpointInfo {
+        metadata: CheckpointMetadata {
+            epoch: manifest.metadata.epoch,
+            global_step: manifest.metadata.global_step,
+            model_name: manifest.metadata.model_name,
+            user: manifest.metadata.user,
+        },
+        written_at: manifest.written_at,
     })
 }

@@ -57,6 +57,9 @@ pub fn validate_no_duplicates<'a>(
 }
 
 pub fn validate_tensor_bytes(tensor: &TensorToSave<'_>) -> Result<()> {
+    let numel = tensor.meta.numel().ok_or_else(|| Error::NumelOverflow {
+        shape: tensor.meta.shape.as_slice().to_vec(),
+    })?;
     let expected = tensor.meta.nbytes().ok_or_else(|| Error::NumelOverflow {
         shape: tensor.meta.shape.as_slice().to_vec(),
     })?;
@@ -67,7 +70,7 @@ pub fn validate_tensor_bytes(tensor: &TensorToSave<'_>) -> Result<()> {
             name: tensor.meta.name.clone(),
             expected,
             actual,
-            numel: tensor.meta.numel().unwrap_or(0),
+            numel,
             dtype: tensor.meta.dtype,
         });
     }

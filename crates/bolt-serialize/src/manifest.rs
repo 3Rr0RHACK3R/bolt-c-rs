@@ -49,7 +49,7 @@ pub struct ShardInfo {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TensorSetManifest {
     pub schema_version: String,
-    pub created_at: String,
+    pub written_at: String,
     pub min_reader_version: String,
     pub shards: ShardInfo,
     pub tensors: BTreeMap<String, TensorEntry>,
@@ -59,7 +59,7 @@ impl TensorSetManifest {
     pub fn new() -> Self {
         Self {
             schema_version: TENSOR_SET_SCHEMA_VERSION.to_string(),
-            created_at: now_rfc3339(),
+            written_at: now_rfc3339(),
             min_reader_version: MIN_READER_VERSION.to_string(),
             shards: ShardInfo {
                 files: Vec::new(),
@@ -91,7 +91,7 @@ pub struct CheckpointMetadataJson {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointManifest {
     pub schema_version: String,
-    pub created_at: String,
+    pub written_at: String,
     pub min_reader_version: String,
     pub metadata: CheckpointMetadataJson,
     pub shards: ShardInfo,
@@ -102,7 +102,7 @@ impl CheckpointManifest {
     pub fn new() -> Self {
         Self {
             schema_version: CHECKPOINT_SCHEMA_VERSION.to_string(),
-            created_at: now_rfc3339(),
+            written_at: now_rfc3339(),
             min_reader_version: MIN_READER_VERSION.to_string(),
             metadata: CheckpointMetadataJson::default(),
             shards: ShardInfo {
