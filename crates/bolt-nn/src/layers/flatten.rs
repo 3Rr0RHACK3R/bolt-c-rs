@@ -23,8 +23,7 @@ where
             return Ok(x);
         }
         let batch = shape[0];
-        let rest: usize = shape[1..].iter().product();
+        let rest: usize = shape.as_slice()[1..].iter().product();
         Ok(x.reshape(&[batch, rest])?)
     }
 }
-

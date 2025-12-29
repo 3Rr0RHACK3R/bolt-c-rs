@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_nn::layers::Linear;
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;

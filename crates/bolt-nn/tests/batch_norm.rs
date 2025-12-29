@@ -196,8 +196,8 @@ fn batch_norm_multiple_train_passes() {
     let mut ctx2 = ForwardCtx::train();
     let y2 = bn.forward(x2, &mut ctx2).unwrap();
 
-    assert_eq!(y1.shape(), &[2, 2]);
-    assert_eq!(y2.shape(), &[2, 2]);
+    assert_eq!(y1.shape().as_slice(), &[2, 2]);
+    assert_eq!(y2.shape().as_slice(), &[2, 2]);
 }
 
 #[test]
@@ -206,8 +206,8 @@ fn batch_norm_train_then_eval_deterministic() {
     let store = store(&backend);
     let bn = BatchNorm::<B, D>::init_default(&store.sub("bn"), 2).unwrap();
 
-    let x_train = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2])
-        .unwrap();
+    let x_train =
+        Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2]).unwrap();
 
     let mut train_ctx = ForwardCtx::train();
     let _ = bn.forward(x_train, &mut train_ctx).unwrap();
@@ -231,43 +231,40 @@ fn batch_norm_train_then_eval_deterministic() {
 fn batch_norm_normalized_before_linear() {
     let backend = backend();
     let store = store(&backend);
-    
+
     let num_features = 3;
     let batch_size = 4;
-    
+
     let bn = BatchNorm::<B, D>::init_default(&store.sub("bn"), num_features).unwrap();
-    
+
     let x = Tensor::<B, D>::from_slice(
         &backend,
         &[
-            10.0, 20.0, 30.0,
-            15.0, 25.0, 35.0,
-            20.0, 30.0, 40.0,
-            25.0, 35.0, 45.0,
+            10.0, 20.0, 30.0, 15.0, 25.0, 35.0, 20.0, 30.0, 40.0, 25.0, 35.0, 45.0,
         ],
         &[batch_size, num_features],
     )
     .unwrap();
-    
+
     let mut ctx = ForwardCtx::train();
     let y_normalized = bn.forward(x.clone(), &mut ctx).unwrap();
-    
+
     let y_vals = y_normalized.to_vec().unwrap();
-    
+
     for ch in 0..num_features {
         let mut sum = 0.0;
         let mut sum_sq = 0.0;
-        
+
         for b in 0..batch_size {
             let idx = b * num_features + ch;
             let val = y_vals[idx];
             sum += val;
             sum_sq += val * val;
         }
-        
+
         let mean = sum / batch_size as f32;
         let variance = (sum_sq / batch_size as f32) - (mean * mean);
-        
+
         assert!(
             mean.abs() < 1e-4,
             "channel {} mean should be ~0, got {}",
@@ -281,14 +278,14 @@ fn batch_norm_normalized_before_linear() {
             variance
         );
     }
-    
+
     let bn_for_seq = BatchNorm::<B, D>::init_default(&store.sub("bn_seq"), num_features).unwrap();
     let linear = Linear::init(&store.sub("linear"), num_features, 2, true).unwrap();
-    
+
     let model: Seq<B, D> = Seq::new().push(bn_for_seq).push(linear);
-    
+
     let mut ctx2 = ForwardCtx::train();
     let y_final = model.forward(x, &mut ctx2).unwrap();
-    
-    assert_eq!(y_final.shape(), &[batch_size, 2]);
+
+    assert_eq!(y_final.shape().as_slice(), &[batch_size, 2]);
 }

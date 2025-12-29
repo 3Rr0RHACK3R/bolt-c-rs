@@ -1,6 +1,4 @@
-use bolt_core::backend::{
-    CastOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp,
-};
+use bolt_core::backend::{CastOp, CopyOp, DivOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp};
 use bolt_core::{Backend, NativeType};
 use bolt_tensor::Tensor;
 

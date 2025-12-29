@@ -21,8 +21,8 @@ where
         });
     }
 
-    let batch_dims = &logits_shape[..logits_shape.len() - 1];
-    if target_shape != batch_dims {
+    let batch_dims = &logits_shape.as_slice()[..logits_shape.len() - 1];
+    if target_shape.as_slice() != batch_dims {
         return Err(Error::InvalidTargetShape {
             expected: batch_dims.to_vec(),
             got: target_shape.to_vec(),

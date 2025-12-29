@@ -171,9 +171,7 @@ where
         let (mean, var) = if ctx.is_train() || !self.track_running_stats() {
             let mean = x.mean(Some(reduce_axes), true)?;
             let centered = x.sub(&mean)?;
-            let var = centered
-                .mul(&centered)?
-                .mean(Some(reduce_axes), true)?;
+            let var = centered.mul(&centered)?.mean(Some(reduce_axes), true)?;
 
             if ctx.is_train() {
                 if let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var) {
@@ -214,8 +212,8 @@ where
                 .as_ref()
                 .ok_or_else(|| Error::State("Norm: missing running_var in eval mode".into()))?;
 
-            let mean = expand_to_input_shape(&rm.tensor(), x.shape(), param_axes)?;
-            let var = expand_to_input_shape(&rv.tensor(), x.shape(), param_axes)?;
+            let mean = expand_to_input_shape(&rm.tensor(), x.shape().as_slice(), param_axes)?;
+            let var = expand_to_input_shape(&rv.tensor(), x.shape().as_slice(), param_axes)?;
 
             (mean, var)
         };
@@ -225,8 +223,10 @@ where
         let x_hat = x.sub(&mean)?.div(&std)?;
 
         let y = if let (Some(gamma), Some(beta)) = (&self.gamma, &self.beta) {
-            let gamma_expanded = expand_to_input_shape(&gamma.tensor(), x_hat.shape(), param_axes)?;
-            let beta_expanded = expand_to_input_shape(&beta.tensor(), x_hat.shape(), param_axes)?;
+            let gamma_expanded =
+                expand_to_input_shape(&gamma.tensor(), x_hat.shape().as_slice(), param_axes)?;
+            let beta_expanded =
+                expand_to_input_shape(&beta.tensor(), x_hat.shape().as_slice(), param_axes)?;
             x_hat.mul(&gamma_expanded)?.add(&beta_expanded)?
         } else {
             x_hat

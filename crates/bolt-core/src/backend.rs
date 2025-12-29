@@ -4,7 +4,7 @@ use crate::{
     dtype::{Float, NativeType},
     error::Result,
     layout::Layout,
-    shape::ConcreteShape,
+    shape::Shape,
 };
 
 #[derive(Clone, Debug)]
@@ -276,7 +276,7 @@ pub trait ReshapeOp<D: NativeType>: Backend {
         layout: &Layout,
         new_shape: &[usize],
     ) -> Result<TensorParts<Self::Storage<D>>> {
-        let shape = ConcreteShape::from_slice(new_shape)?;
+        let shape = Shape::from_slice(new_shape)?;
         let new_layout = layout.reshape(shape)?;
         Ok(TensorParts {
             storage: storage.clone(),
@@ -350,7 +350,7 @@ pub trait BroadcastToOp<D: NativeType>: Backend {
         layout: &Layout,
         shape: &[usize],
     ) -> Result<TensorParts<Self::Storage<D>>> {
-        let target_shape = ConcreteShape::from_slice(shape)?;
+        let target_shape = Shape::from_slice(shape)?;
         let new_layout = layout.broadcast_to(&target_shape)?;
         Ok(TensorParts {
             storage: storage.clone(),

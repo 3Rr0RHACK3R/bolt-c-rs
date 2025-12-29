@@ -1,7 +1,7 @@
 use crate::{
     dtype::DType,
     error::{Error, Result},
-    shape::{ConcreteShape, MAX_RANK, broadcast_shapes},
+    shape::{MAX_RANK, Shape, broadcast_shapes},
 };
 use tinyvec::ArrayVec;
 
@@ -13,7 +13,7 @@ pub enum LayoutKind {
 
 #[derive(Clone, Debug)]
 pub struct Layout {
-    shape: ConcreteShape,
+    shape: Shape,
     strides: ArrayVec<[isize; MAX_RANK]>,
     offset_bytes: usize,
     kind: LayoutKind,
@@ -74,21 +74,17 @@ impl Iterator for LayoutIter {
 }
 
 impl Layout {
-    pub fn contiguous(shape: ConcreteShape) -> Self {
+    pub fn contiguous(shape: Shape) -> Self {
         let strides = shape.contiguous_strides();
         Self::new_unchecked(shape, strides, 0)
     }
 
-    pub fn contiguous_with_offset(shape: ConcreteShape, offset_bytes: usize) -> Self {
+    pub fn contiguous_with_offset(shape: Shape, offset_bytes: usize) -> Self {
         let strides = shape.contiguous_strides();
         Self::new_unchecked(shape, strides, offset_bytes)
     }
 
-    pub fn with_strides(
-        shape: ConcreteShape,
-        strides: &[isize],
-        offset_bytes: usize,
-    ) -> Result<Self> {
+    pub fn with_strides(shape: Shape, strides: &[isize], offset_bytes: usize) -> Result<Self> {
         if shape.rank() != strides.len() {
             return Err(Error::invalid_shape("strides rank must match shape rank"));
         }
@@ -99,11 +95,7 @@ impl Layout {
         Ok(Self::new_unchecked(shape, stride_store, offset_bytes))
     }
 
-    pub fn shape(&self) -> &[usize] {
-        self.shape.as_slice()
-    }
-
-    pub fn concrete_shape(&self) -> &ConcreteShape {
+    pub fn shape(&self) -> &Shape {
         &self.shape
     }
 
@@ -211,7 +203,7 @@ impl Layout {
             }
         }
 
-        let shape = ConcreteShape::from_slice(&new_shape)?;
+        let shape = Shape::from_slice(&new_shape)?;
         Layout::with_strides(shape, new_strides.as_slice(), current_offset_bytes)
     }
 
@@ -271,7 +263,7 @@ impl Layout {
             new_shape.push(self.shape()[axis]);
             new_strides.push(self.strides()[axis]);
         }
-        let shape = ConcreteShape::from_slice(&new_shape)?;
+        let shape = Shape::from_slice(&new_shape)?;
         Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
@@ -284,7 +276,7 @@ impl Layout {
         self.permute(&axes)
     }
 
-    pub fn reshape(&self, new_shape: ConcreteShape) -> Result<Self> {
+    pub fn reshape(&self, new_shape: Shape) -> Result<Self> {
         if new_shape.num_elements() != self.shape.num_elements() {
             return Err(Error::SizeMismatch {
                 expected: self.shape.num_elements(),
@@ -314,7 +306,7 @@ impl Layout {
         if new_shape.len() == self.shape.rank() {
             return Ok(self.clone());
         }
-        let shape = ConcreteShape::from_slice(&new_shape)?;
+        let shape = Shape::from_slice(&new_shape)?;
         Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
@@ -333,7 +325,7 @@ impl Layout {
             new_shape.push(dim);
             new_strides.push(stride);
         }
-        let shape = ConcreteShape::from_slice(&new_shape)?;
+        let shape = Shape::from_slice(&new_shape)?;
         Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
@@ -343,7 +335,7 @@ impl Layout {
         if self.is_contiguous() {
             let mut new_dims = self.shape().to_vec();
             new_dims.insert(insert, 1);
-            let shape = ConcreteShape::from_slice(&new_dims)?;
+            let shape = Shape::from_slice(&new_dims)?;
             return Ok(Layout::contiguous_with_offset(shape, self.offset_bytes));
         }
         let mut new_shape = Vec::with_capacity(rank + 1);
@@ -363,11 +355,11 @@ impl Layout {
             new_shape.push(self.shape()[i]);
             new_strides.push(self.strides()[i]);
         }
-        let shape = ConcreteShape::from_slice(&new_shape)?;
+        let shape = Shape::from_slice(&new_shape)?;
         Layout::with_strides(shape, new_strides.as_slice(), self.offset_bytes)
     }
 
-    pub fn broadcast_to(&self, new_shape: &ConcreteShape) -> Result<Self> {
+    pub fn broadcast_to(&self, new_shape: &Shape) -> Result<Self> {
         let mut new_strides = ArrayVec::<[isize; MAX_RANK]>::new();
         let mut shape_iter = self.shape().iter().rev();
         let mut strides_iter = self.strides().iter().rev();
@@ -384,7 +376,7 @@ impl Layout {
             } else {
                 return Err(Error::ShapeMismatch {
                     lhs: self.shape().to_vec(),
-                    rhs: new_shape.as_slice().to_vec(),
+                    rhs: new_shape.to_vec(),
                 });
             }
         }
@@ -392,7 +384,7 @@ impl Layout {
         if shape_iter.any(|&dim| dim != 1) {
             return Err(Error::ShapeMismatch {
                 lhs: self.shape().to_vec(),
-                rhs: new_shape.as_slice().to_vec(),
+                rhs: new_shape.to_vec(),
             });
         }
 
@@ -401,8 +393,8 @@ impl Layout {
     }
 
     pub fn broadcast_binary(lhs: &Layout, rhs: &Layout) -> Result<(Layout, Layout)> {
-        let new_shape = broadcast_shapes(lhs.shape(), rhs.shape())?;
-        let new_shape = ConcreteShape::from_slice(&new_shape)?;
+        let new_shape = broadcast_shapes(lhs.shape().as_slice(), rhs.shape().as_slice())?;
+        let new_shape = Shape::from_slice(&new_shape)?;
         let lhs = lhs.broadcast_to(&new_shape)?;
         let rhs = rhs.broadcast_to(&new_shape)?;
         Ok((lhs, rhs))
@@ -576,7 +568,7 @@ impl Layout {
     }
 
     fn new_unchecked(
-        shape: ConcreteShape,
+        shape: Shape,
         strides: ArrayVec<[isize; MAX_RANK]>,
         offset_bytes: usize,
     ) -> Self {

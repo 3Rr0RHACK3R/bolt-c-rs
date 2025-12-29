@@ -32,8 +32,8 @@ fn sgd_converges_on_linear_regression() {
     for _ in 0..200 {
         store.zero_grad();
 
-        let wv = w.tensor().broadcast_to(xs.shape()).unwrap();
-        let bv = b.tensor().broadcast_to(xs.shape()).unwrap();
+        let wv = w.tensor().broadcast_to(xs.shape().as_slice()).unwrap();
+        let bv = b.tensor().broadcast_to(xs.shape().as_slice()).unwrap();
         let y_pred = xs.mul(&wv).unwrap().add(&bv).unwrap();
         let diff = y_pred.sub(&ys).unwrap();
         let loss = diff.mul(&diff).unwrap().mean(None, false).unwrap();

@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::error::{Error, Result};
 use tinyvec::ArrayVec;
 
@@ -6,11 +8,11 @@ pub const MAX_ELEMENTS: usize = isize::MAX as usize;
 
 /// Runtime-validated shape metadata (every dimension > 0).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ConcreteShape {
+pub struct Shape {
     dims: ArrayVec<[usize; MAX_RANK]>,
 }
 
-impl ConcreteShape {
+impl Shape {
     pub fn from_slice(dims: &[usize]) -> Result<Self> {
         Ok(Self {
             dims: Self::collect_dims(dims)?,
@@ -21,8 +23,24 @@ impl ConcreteShape {
         self.dims.as_slice()
     }
 
+    pub fn to_vec(&self) -> Vec<usize> {
+        self.dims.to_vec()
+    }
+
     pub fn rank(&self) -> usize {
         self.dims.len()
+    }
+
+    pub fn len(&self) -> usize {
+        self.dims.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.dims.is_empty()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, usize> {
+        self.dims.iter()
     }
 
     pub fn num_elements(&self) -> usize {
@@ -33,6 +51,19 @@ impl ConcreteShape {
                 .expect("shape invariant violated: num_elements overflow");
         }
         num
+    }
+
+    /// Compute the number of elements in this shape, checking for overflow.
+    /// Returns None if the product would overflow u64.
+    pub fn numel_checked(&self) -> Option<u64> {
+        if self.dims.is_empty() {
+            return Some(1);
+        }
+        let mut result: u64 = 1;
+        for &dim in self.dims.iter() {
+            result = result.checked_mul(dim as u64)?;
+        }
+        Some(result)
     }
 
     pub fn contiguous_strides(&self) -> ArrayVec<[isize; MAX_RANK]> {
@@ -82,25 +113,11 @@ impl ConcreteShape {
     }
 }
 
-impl From<&ConcreteShape> for ConcreteShape {
-    fn from(value: &ConcreteShape) -> Self {
-        value.clone()
-    }
-}
+impl Index<usize> for Shape {
+    type Output = usize;
 
-impl TryFrom<Vec<usize>> for ConcreteShape {
-    type Error = Error;
-
-    fn try_from(dims: Vec<usize>) -> Result<Self> {
-        ConcreteShape::from_slice(&dims)
-    }
-}
-
-impl TryFrom<&[usize]> for ConcreteShape {
-    type Error = Error;
-
-    fn try_from(dims: &[usize]) -> Result<Self> {
-        ConcreteShape::from_slice(dims)
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.dims[index]
     }
 }
 

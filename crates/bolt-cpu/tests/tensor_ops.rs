@@ -108,16 +108,16 @@ fn squeeze_and_unsqueeze_round_trip() -> Result<()> {
         Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 2, 2])?;
 
     let squeezed = tensor.squeeze()?;
-    assert_eq!(squeezed.shape(), &[2, 2]);
+    assert_eq!(squeezed.shape().as_slice(), &[2, 2]);
 
     let axis_squeezed = tensor.squeeze_axis(0)?;
-    assert_eq!(axis_squeezed.shape(), &[2, 2]);
+    assert_eq!(axis_squeezed.shape().as_slice(), &[2, 2]);
 
     let unsqueezed = squeezed.unsqueeze(-1)?;
-    assert_eq!(unsqueezed.shape(), &[2, 2, 1]);
+    assert_eq!(unsqueezed.shape().as_slice(), &[2, 2, 1]);
 
     let restored = unsqueezed.squeeze()?;
-    assert_eq!(restored.shape(), &[2, 2]);
+    assert_eq!(restored.shape().as_slice(), &[2, 2]);
     Ok(())
 }
 
@@ -126,9 +126,9 @@ fn unsqueeze_negative_axis_inserts_front() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
     let tensor = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0], &[3])?;
     let unsqueezed = tensor.unsqueeze(-2)?;
-    assert_eq!(unsqueezed.shape(), &[1, 3]);
+    assert_eq!(unsqueezed.shape().as_slice(), &[1, 3]);
     let expanded = unsqueezed.expand(&[2, -1])?;
-    assert_eq!(expanded.shape(), &[2, 3]);
+    assert_eq!(expanded.shape().as_slice(), &[2, 3]);
     assert_eq!(expanded.to_vec()?, vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
     Ok(())
 }
@@ -139,7 +139,7 @@ fn expand_supports_negative_one() -> Result<()> {
     let tensor =
         Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 1, 2])?;
     let expanded = tensor.expand(&[2, 3, -1])?;
-    assert_eq!(expanded.shape(), &[2, 3, 2]);
+    assert_eq!(expanded.shape().as_slice(), &[2, 3, 2]);
     let values = expanded.to_vec()?;
     assert_eq!(
         values,

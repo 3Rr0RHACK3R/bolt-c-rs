@@ -78,6 +78,12 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<std::convert::Infallible> for Error {
+    fn from(value: std::convert::Infallible) -> Self {
+        match value {}
+    }
+}
+
 impl Error {
     pub fn invalid_shape(msg: impl Into<String>) -> Self {
         Self::InvalidShape {

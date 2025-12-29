@@ -12,7 +12,7 @@ fn broadcast_scalar_to_vector() -> Result<()> {
     let scalar = Tensor::<CpuBackend, f32>::from_slice(&backend, &[5.0], &[1])?;
     let broadcasted = scalar.broadcast_to(&[3])?;
 
-    assert_eq!(broadcasted.shape(), &[3]);
+    assert_eq!(broadcasted.shape().as_slice(), &[3]);
     assert_eq!(broadcasted.to_vec()?, vec![5.0, 5.0, 5.0]);
 
     Ok(())
@@ -25,7 +25,7 @@ fn broadcast_rank_increase_updates_strides() -> Result<()> {
     let vector = Tensor::<CpuBackend, f32>::from_slice(&backend, &[1.0, 2.0], &[2])?;
     let broadcasted = vector.broadcast_to(&[3, 2])?;
 
-    assert_eq!(broadcasted.shape(), &[3, 2]);
+    assert_eq!(broadcasted.shape().as_slice(), &[3, 2]);
     let strides = broadcasted.strides();
     assert_eq!(strides[0], 0);
     assert_ne!(strides[1], 0);

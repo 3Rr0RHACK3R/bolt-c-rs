@@ -1,7 +1,7 @@
 use bolt_core::{
     backend::{
-        AbsOp, AddOp, Backend, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp,
-        NegOp, ReluOp, ReshapeOp, SubOp, SumOp,
+        AbsOp, AddOp, Backend, CopyOp, ExpOp, FillOp, LogOp, MaxOp, MeanOp, MulOp, NegOp, ReluOp,
+        ReshapeOp, SubOp, SumOp,
     },
     dtype::Float,
 };
@@ -86,14 +86,7 @@ pub fn cross_entropy<B, D>(
     reduction: Reduction,
 ) -> Result<Tensor<B, D>>
 where
-    B: Backend
-        + CopyOp<D>
-        + LogOp<D>
-        + MulOp<D>
-        + SumOp<D>
-        + MeanOp<D>
-        + NegOp<D>
-        + ReshapeOp<D>,
+    B: Backend + CopyOp<D> + LogOp<D> + MulOp<D> + SumOp<D> + MeanOp<D> + NegOp<D> + ReshapeOp<D>,
     D: Float,
 {
     ensure_same_shape(probs, target)?;

@@ -76,7 +76,7 @@ impl RngStream {
 
         let len_u64 = len as u64;
         let threshold = u64::MAX - (u64::MAX % len_u64);
-        
+
         loop {
             let value = self.next_u64();
             if value < threshold {
@@ -141,10 +141,7 @@ impl RngStreams {
     }
 
     pub fn split2(&mut self) -> (Self, Self) {
-        (
-            self.split(),
-            self.split(),
-        )
+        (self.split(), self.split())
     }
 }
 

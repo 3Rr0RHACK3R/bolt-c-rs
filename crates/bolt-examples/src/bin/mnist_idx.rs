@@ -35,7 +35,13 @@ impl MnistMLP {
         let fc2 = Linear::init(&store.sub("fc2"), hidden1, hidden2, true)?;
         let bn2 = BatchNorm::init_default(&store.sub("bn2"), hidden2)?;
         let fc3 = Linear::init(&store.sub("fc3"), hidden2, NUM_CLASSES, true)?;
-        Ok(Self { fc1, bn1, fc2, bn2, fc3 })
+        Ok(Self {
+            fc1,
+            bn1,
+            fc2,
+            bn2,
+            fc3,
+        })
     }
 }
 
@@ -83,7 +89,7 @@ fn train_loader(
             let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
             Ok::<_, bolt_data::DataError>(MnistBatch { images, labels })
         });
-        // .take(10);
+    // .take(10);
     Ok(stream)
 }
 

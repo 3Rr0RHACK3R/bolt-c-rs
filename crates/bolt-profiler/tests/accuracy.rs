@@ -1,6 +1,6 @@
 use bolt_core::backend::FillOp;
 use bolt_core::layout::Layout;
-use bolt_core::shape::ConcreteShape;
+use bolt_core::shape::Shape;
 use bolt_cpu::CpuBackend;
 use bolt_profiler::{HostMemTracker, ProfiledBackend};
 use serial_test::serial;
@@ -10,7 +10,7 @@ use std::sync::Arc;
 static GLOBAL: HostMemTracker = HostMemTracker::new();
 
 fn make_layout(len: usize) -> Layout {
-    let shape = ConcreteShape::from_slice(&[len]).expect("shape");
+    let shape = Shape::from_slice(&[len]).expect("shape");
     Layout::contiguous(shape)
 }
 

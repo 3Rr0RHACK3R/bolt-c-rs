@@ -197,5 +197,3 @@ fn binary_cross_entropy_with_logits_numerical_stability() {
     assert!(loss.is_finite());
     assert!(loss >= 0.0);
 }
-
-

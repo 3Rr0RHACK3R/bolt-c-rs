@@ -1,6 +1,6 @@
 use bolt_core::backend::{BroadcastToOp, CopyOp, ReshapeOp, SqueezeOp, UnsqueezeOp};
-use bolt_core::{BaseBackend, Float};
 use bolt_core::shape::normalize_axis;
+use bolt_core::{BaseBackend, Float};
 use bolt_tensor::Tensor;
 
 use crate::{Error, Result};
@@ -54,9 +54,9 @@ where
 
     normalized_param_axes.sort_unstable();
     let mut param_axes_iter = normalized_param_axes.into_iter().peekable();
-    
+
     let mut expanded = param.clone();
-    
+
     for pos in 0..input_rank {
         if Some(&pos) == param_axes_iter.peek() {
             param_axes_iter.next();

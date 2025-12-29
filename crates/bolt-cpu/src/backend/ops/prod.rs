@@ -4,7 +4,7 @@ use bolt_core::{
     NativeType, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
-    shape::{ConcreteShape, canonical_axes},
+    shape::{Shape, canonical_axes},
 };
 
 use super::super::allocator::CpuAllocator;
@@ -41,7 +41,8 @@ where
     let canonical = axes
         .map(|ax| canonical_axes(ax, view_shape.len()))
         .transpose()?;
-    let output_shape = compute_reduction_shape(view_shape, canonical.as_deref(), keepdims)?;
+    let output_shape =
+        compute_reduction_shape(view_shape.as_slice(), canonical.as_deref(), keepdims)?;
 
     let output_numel: usize = if output_shape.is_empty() {
         1
@@ -77,7 +78,7 @@ where
         for (logical_idx, idx) in view.layout.iter_element_indices(D::DTYPE)?.enumerate() {
             let value = unsafe { view_data[idx].assume_init() };
 
-            let input_indices = compute_multi_index_from_linear(logical_idx, view_shape);
+            let input_indices = compute_multi_index_from_linear(logical_idx, view_shape.as_slice());
 
             let output_linear_idx =
                 compute_output_linear_index(&input_indices, &canonical, &output_shape, keepdims);
@@ -87,7 +88,7 @@ where
         }
     }
 
-    let out_layout = Layout::contiguous(ConcreteShape::from_slice(&output_shape)?);
+    let out_layout = Layout::contiguous(Shape::from_slice(&output_shape)?);
 
     Ok(TensorParts {
         storage: out_storage,

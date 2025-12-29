@@ -3,7 +3,7 @@ use bolt_core::backend::{Backend, FillOp};
 use bolt_core::device::{BackendDevice, DeviceKind};
 use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
-use bolt_core::shape::ConcreteShape;
+use bolt_core::shape::Shape;
 use bolt_core::{AllocatorDiagnostics, StorageAllocator};
 use bolt_cpu::CpuBackend;
 use bolt_profiler::{OpCategory, ProfiledBackend};
@@ -103,7 +103,7 @@ impl FillOp<f32> for NoDiagBackend {
 }
 
 fn make_layout(len: usize) -> Layout {
-    let shape = ConcreteShape::from_slice(&[len]).expect("shape");
+    let shape = Shape::from_slice(&[len]).expect("shape");
     Layout::contiguous(shape)
 }
 

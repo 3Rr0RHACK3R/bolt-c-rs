@@ -4,7 +4,7 @@ use bolt_core::{
     NativeType,
     backend::{Backend, FillOp},
     layout::Layout,
-    shape::ConcreteShape,
+    shape::Shape,
 };
 use bolt_cpu::CpuBackend;
 
@@ -12,7 +12,7 @@ use bolt_cpu::CpuBackend;
 #[test]
 fn miri_no_ub_on_fill_allocation() {
     let backend = Arc::new(CpuBackend::new());
-    let shape = ConcreteShape::from_slice(&[4]).unwrap();
+    let shape = Shape::from_slice(&[4]).unwrap();
     let layout = Layout::contiguous(shape);
 
     // This exercised UB previously because fill operated over a logically
@@ -27,7 +27,7 @@ fn miri_no_ub_on_fill_allocation() {
 #[test]
 fn fill_and_read_strided_layout() {
     let backend = Arc::new(CpuBackend::new());
-    let shape = ConcreteShape::from_slice(&[2, 2]).unwrap();
+    let shape = Shape::from_slice(&[2, 2]).unwrap();
     // Strided layout with an offset into the underlying buffer.
     let layout = Layout::with_strides(shape, &[3, 1], f32::DTYPE.size_in_bytes()).unwrap();
 

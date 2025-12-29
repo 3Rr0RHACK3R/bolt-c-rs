@@ -24,7 +24,14 @@ fn store(backend: &Arc<B>) -> Store<B, D> {
 fn batch_norm_affine_broadcasts_along_channel_axis_4d() {
     let backend = backend();
     let store = store(&backend);
-    let bn = BatchNorm::<B, D>::init(&store.sub("bn"), /*C=*/3, /*affine=*/true, /*eps=*/0.0, 0.1).unwrap();
+    let bn = BatchNorm::<B, D>::init(
+        &store.sub("bn"),
+        /*C=*/ 3,
+        /*affine=*/ true,
+        /*eps=*/ 0.0,
+        0.1,
+    )
+    .unwrap();
 
     // Set gamma = [1.0, 2.0, 3.0]
     let gamma_vals = [1.0_f32, 2.0, 3.0];
@@ -73,7 +80,14 @@ fn batch_norm_affine_broadcasts_along_channel_axis_4d() {
 fn batch_norm_affine_broadcasts_along_channel_axis_3d() {
     let backend = backend();
     let store = store(&backend);
-    let bn = BatchNorm::<B, D>::init(&store.sub("bn3"), /*C=*/2, /*affine=*/true, /*eps=*/0.0, 0.1).unwrap();
+    let bn = BatchNorm::<B, D>::init(
+        &store.sub("bn3"),
+        /*C=*/ 2,
+        /*affine=*/ true,
+        /*eps=*/ 0.0,
+        0.1,
+    )
+    .unwrap();
 
     // Set gamma = [1.5, 0.5]
     let gamma_vals = [1.5_f32, 0.5];

@@ -32,7 +32,7 @@ where
         for (g, v) in gout.into_iter().zip(y.into_iter()) {
             grad.push(g / (two * v));
         }
-        let grad_input = Tensor::from_vec(&backend, grad, ctx.saved(0).shape())?;
+        let grad_input = Tensor::from_vec(&backend, grad, ctx.saved(0).shape().as_slice())?;
         Ok(vec![Some(grad_input)])
     }
 

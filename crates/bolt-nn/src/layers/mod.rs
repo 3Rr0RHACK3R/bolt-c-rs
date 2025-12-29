@@ -5,8 +5,8 @@ mod global_avg_pool;
 mod linear;
 mod norm;
 mod relu;
-mod sigmoid;
 mod sequential;
+mod sigmoid;
 mod utils;
 
 pub use batch_norm::BatchNorm;
@@ -16,5 +16,5 @@ pub use global_avg_pool::GlobalAvgPool;
 pub use linear::Linear;
 pub use norm::{Norm, NormConfig};
 pub use relu::Relu;
-pub use sigmoid::Sigmoid;
 pub use sequential::Seq;
+pub use sigmoid::Sigmoid;

@@ -5,14 +5,14 @@ use bolt_core::{
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp, CopyOp,
         CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp,
-        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp,
-        TransposeOp, UnsqueezeOp,
+        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp,
+        TanhOp, TransposeOp, UnsqueezeOp,
     },
     dtype::{Float, NativeType},
     error::{Error, Result},
     index::TensorIndex,
     layout::Layout,
-    shape::ConcreteShape,
+    shape::Shape,
 };
 
 use crate::{autograd, utils::tensor_creation};
@@ -125,7 +125,7 @@ where
     }
 
     pub fn from_slice(backend: &Arc<B>, data: &[D], shape: &[usize]) -> Result<Self> {
-        let shape = ConcreteShape::from_slice(shape)?;
+        let shape = Shape::from_slice(shape)?;
         if shape.num_elements() != data.len() {
             return Err(Error::SizeMismatch {
                 expected: shape.num_elements(),
@@ -141,7 +141,7 @@ where
     }
 
     pub fn from_vec(backend: &Arc<B>, data: Vec<D>, shape: &[usize]) -> Result<Self> {
-        let shape = ConcreteShape::from_slice(shape)?;
+        let shape = Shape::from_slice(shape)?;
         if shape.num_elements() != data.len() {
             return Err(Error::SizeMismatch {
                 expected: shape.num_elements(),
@@ -160,7 +160,7 @@ where
     where
         B: FillOp<D>,
     {
-        let shape = ConcreteShape::from_slice(shape)?;
+        let shape = Shape::from_slice(shape)?;
         let numel = shape.num_elements();
         let layout = Layout::contiguous(shape);
         let storage = backend.allocator::<D>().allocate_zeroed(numel)?;
@@ -180,7 +180,7 @@ where
     where
         B: FillOp<D>,
     {
-        let shape = ConcreteShape::from_slice(shape)?;
+        let shape = Shape::from_slice(shape)?;
         let layout = Layout::contiguous(shape);
         let storage = backend.fill(&layout, value)?;
         let tensor = Self::from_parts(backend.clone(), storage, layout);
@@ -192,11 +192,7 @@ where
     where
         B: FillOp<D>,
     {
-        let layout = Layout::with_strides(
-            other.layout.concrete_shape().clone(),
-            other.layout.strides(),
-            0,
-        )?;
+        let layout = Layout::with_strides(other.layout.shape().clone(), other.layout.strides(), 0)?;
         let storage = other.backend.fill(&layout, D::one())?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -204,7 +200,7 @@ where
     }
 
     pub fn zeros_like(other: &Tensor<B, D>) -> Result<Self> {
-        let layout = Layout::contiguous(other.layout.concrete_shape().clone());
+        let layout = Layout::contiguous(other.layout.shape().clone());
         let numel = layout.num_elements();
         let storage = other.backend.allocator::<D>().allocate_zeroed(numel)?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
@@ -216,11 +212,7 @@ where
     where
         B: FillOp<D>,
     {
-        let layout = Layout::with_strides(
-            other.layout.concrete_shape().clone(),
-            other.layout.strides(),
-            0,
-        )?;
+        let layout = Layout::with_strides(other.layout.shape().clone(), other.layout.strides(), 0)?;
         let storage = other.backend.fill(&layout, value)?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -277,7 +269,7 @@ where
 
     pub fn arange(backend: &Arc<B>, start: D, end: D, step: D) -> Result<Self> {
         let len = tensor_creation::compute_arange_len(start, end, step)?;
-        let shape = ConcreteShape::from_slice(&[len])?;
+        let shape = Shape::from_slice(&[len])?;
         let layout = Layout::contiguous(shape);
         let mut storage = backend.allocator::<D>().allocate(len)?;
         let values = tensor_creation::build_arange_values(len, start, step)?;
@@ -288,7 +280,7 @@ where
     }
 
     pub fn eye(backend: &Arc<B>, rows: usize, cols: usize) -> Result<Self> {
-        let shape = ConcreteShape::from_slice(&[rows, cols])?;
+        let shape = Shape::from_slice(&[rows, cols])?;
         let numel = shape.num_elements();
         let mut values = vec![D::default(); numel];
         let diag = rows.min(cols);
@@ -328,7 +320,7 @@ where
 
     pub fn linspace(backend: &Arc<B>, start: D, end: D, steps: usize) -> Result<Self> {
         let values = tensor_creation::build_linspace_values(start, end, steps)?;
-        let shape = ConcreteShape::from_slice(&[values.len()])?;
+        let shape = Shape::from_slice(&[values.len()])?;
         let layout = Layout::contiguous(shape);
         let mut storage = backend.allocator::<D>().allocate(values.len())?;
         backend.write(&mut storage, &layout, &values)?;
@@ -339,7 +331,7 @@ where
 
     pub fn logspace(backend: &Arc<B>, start: D, end: D, steps: usize, base: D) -> Result<Self> {
         let values = tensor_creation::build_logspace_values(start, end, steps, base)?;
-        let shape = ConcreteShape::from_slice(&[values.len()])?;
+        let shape = Shape::from_slice(&[values.len()])?;
         let layout = Layout::contiguous(shape);
         let mut storage = backend.allocator::<D>().allocate(values.len())?;
         backend.write(&mut storage, &layout, &values)?;
@@ -375,7 +367,7 @@ where
         }
         let mut out_shape = Vec::with_capacity(first_shape.len() + 1);
         out_shape.push(n);
-        out_shape.extend_from_slice(first_shape);
+        out_shape.extend_from_slice(first_shape.as_slice());
         Tensor::from_vec(backend, buf, &out_shape)
     }
 
@@ -401,7 +393,7 @@ where
         self.backend.device()
     }
 
-    pub fn shape(&self) -> &[usize] {
+    pub fn shape(&self) -> &Shape {
         self.layout.shape()
     }
 
@@ -410,7 +402,7 @@ where
     }
 
     pub fn rank(&self) -> usize {
-        self.layout.shape().len()
+        self.shape().len()
     }
 
     pub fn layout(&self) -> &Layout {
@@ -533,7 +525,7 @@ where
     }
 
     pub fn i<I: TensorIndex>(&self, index: I) -> Result<Self> {
-        let indexers = index.to_indexers(self.shape())?;
+        let indexers = index.to_indexers(self.shape().as_slice())?;
         let layout = self.layout.perform_indexing(&indexers, D::DTYPE)?;
         self.validate_layout_for_storage(&self.storage, &layout)?;
         Ok(self.with_layout(layout))
@@ -555,8 +547,8 @@ where
     where
         B: BroadcastToOp<D> + ReshapeOp<D> + SumOp<D> + 'static,
     {
-        let target_shape = ConcreteShape::from_slice(shape)?;
-        let src_shape = self.layout.concrete_shape().as_slice();
+        let target_shape = Shape::from_slice(shape)?;
+        let src_shape = self.layout.shape().as_slice();
         let src_rank = src_shape.len();
         let target_rank = target_shape.as_slice().len();
 

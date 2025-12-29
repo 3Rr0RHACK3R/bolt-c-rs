@@ -4,7 +4,7 @@ use bolt_core::backend::{Backend, BernoulliMaskOp, RandomOp, TensorParts};
 use bolt_core::dtype::Float;
 use bolt_core::error::{Error, Result};
 use bolt_core::layout::Layout;
-use bolt_core::shape::ConcreteShape;
+use bolt_core::shape::Shape;
 use bolt_rng::RngStream;
 use rand::Rng;
 use rand::SeedableRng;
@@ -17,8 +17,7 @@ impl<D: Float> RandomOp<D> for CpuBackend {
         high: D,
         seed: Option<u64>,
     ) -> Result<TensorParts<Self::Storage<D>>> {
-        let shape = ConcreteShape::from_slice(shape)?;
-        let numel = shape.num_elements();
+        let numel: usize = shape.iter().product();
         let mut storage = self.allocator().allocate(numel)?;
         let slice = unsafe { storage.try_as_mut_slice()? };
         let l: f64 = D::to_f64(low);
@@ -45,7 +44,7 @@ impl<D: Float> RandomOp<D> for CpuBackend {
             }
         }
 
-        let layout = Layout::contiguous(shape);
+        let layout = Layout::contiguous(Shape::from_slice(shape)?);
         Ok(TensorParts { storage, layout })
     }
 
@@ -56,8 +55,7 @@ impl<D: Float> RandomOp<D> for CpuBackend {
         std: D,
         seed: Option<u64>,
     ) -> Result<TensorParts<Self::Storage<D>>> {
-        let shape = ConcreteShape::from_slice(shape)?;
-        let numel = shape.num_elements();
+        let numel: usize = shape.iter().product();
         let mut storage = self.allocator().allocate(numel)?;
         let slice = unsafe { storage.try_as_mut_slice()? };
         let m: f64 = D::to_f64(mean);
@@ -110,7 +108,7 @@ impl<D: Float> RandomOp<D> for CpuBackend {
             }
         }
 
-        let layout = Layout::contiguous(shape);
+        let layout = Layout::contiguous(Shape::from_slice(shape)?);
         Ok(TensorParts { storage, layout })
     }
 }
@@ -129,8 +127,7 @@ impl<D: Float> BernoulliMaskOp<D> for CpuBackend {
             )));
         }
 
-        let shape = ConcreteShape::from_slice(shape)?;
-        let numel = shape.num_elements();
+        let numel: usize = shape.iter().product();
         let mut storage = self.allocator().allocate(numel)?;
         let slice = unsafe { storage.try_as_mut_slice()? };
 
@@ -153,7 +150,7 @@ impl<D: Float> BernoulliMaskOp<D> for CpuBackend {
             }
         }
 
-        let layout = Layout::contiguous(shape);
+        let layout = Layout::contiguous(Shape::from_slice(shape)?);
         Ok(TensorParts { storage, layout })
     }
 }

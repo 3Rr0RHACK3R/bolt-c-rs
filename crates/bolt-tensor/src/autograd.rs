@@ -16,8 +16,8 @@ pub(crate) mod utils;
 pub(crate) use ops::{
     AbsBackward, AddBackward, BroadcastToBackward, CosBackward, DivBackward, ExpBackward,
     LogBackward, MatmulBackward, MaxBackward, MeanBackward, MinBackward, MulBackward, NegBackward,
-    PowBackward, ProdBackward, ReluBackward, ReshapeBackward, SigmoidBackward, SinBackward, SqrtBackward,
-    SqueezeAllBackward, SqueezeAxisBackward, SubBackward, SumBackward, TanhBackward,
+    PowBackward, ProdBackward, ReluBackward, ReshapeBackward, SigmoidBackward, SinBackward,
+    SqrtBackward, SqueezeAllBackward, SqueezeAxisBackward, SubBackward, SumBackward, TanhBackward,
     TransposeBackward, UnsqueezeBackward,
 };
 pub use utils::canonical_axes;

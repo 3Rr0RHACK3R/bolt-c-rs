@@ -33,7 +33,7 @@ where
             let grad_sigmoid = s * (one - s);
             grad.push(g * grad_sigmoid);
         }
-        let grad_input = Tensor::from_vec(&backend, grad, ctx.saved(0).shape())?;
+        let grad_input = Tensor::from_vec(&backend, grad, ctx.saved(0).shape().as_slice())?;
         Ok(vec![Some(grad_input)])
     }
 
@@ -41,4 +41,3 @@ where
         "SigmoidBackward"
     }
 }
-

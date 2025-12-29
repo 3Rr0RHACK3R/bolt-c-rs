@@ -12,7 +12,7 @@ fn ones_contiguous_f32() {
     let backend = Arc::new(B::new());
     let tensor = Tensor::<B, D>::ones(&backend, &[2, 3]).unwrap();
 
-    assert_eq!(tensor.shape(), &[2, 3]);
+    assert_eq!(tensor.shape().as_slice(), &[2, 3]);
     assert!(tensor.layout().is_contiguous());
     assert_eq!(tensor.to_vec().unwrap(), vec![1.0; 6]);
 }
@@ -22,7 +22,7 @@ fn full_contiguous_i32() {
     let backend = Arc::new(B::new());
     let tensor = Tensor::<B, i32>::full(&backend, &[2, 2], 7).unwrap();
 
-    assert_eq!(tensor.shape(), &[2, 2]);
+    assert_eq!(tensor.shape().as_slice(), &[2, 2]);
     assert_eq!(tensor.to_vec().unwrap(), vec![7; 4]);
 }
 
@@ -61,7 +61,7 @@ fn arange_f32_positive_step() {
     let backend = Arc::new(B::new());
     let tensor = Tensor::<B, D>::arange(&backend, 0.0, 5.0, 1.0).unwrap();
 
-    assert_eq!(tensor.shape(), &[5]);
+    assert_eq!(tensor.shape().as_slice(), &[5]);
     assert_eq!(tensor.to_vec().unwrap(), vec![0.0, 1.0, 2.0, 3.0, 4.0]);
 }
 
@@ -70,7 +70,7 @@ fn arange_i32_negative_step() {
     let backend = Arc::new(B::new());
     let tensor = Tensor::<B, i32>::arange(&backend, 5, -1, -2).unwrap();
 
-    assert_eq!(tensor.shape(), &[3]);
+    assert_eq!(tensor.shape().as_slice(), &[3]);
     assert_eq!(tensor.to_vec().unwrap(), vec![5, 3, 1]);
 }
 
@@ -130,11 +130,11 @@ fn zeros_like_resets_offset_and_values() {
 fn eye_and_identity_match_expected_patterns() {
     let backend = Arc::new(B::new());
     let eye = Tensor::<B, D>::eye(&backend, 2, 3).unwrap();
-    assert_eq!(eye.shape(), &[2, 3]);
+    assert_eq!(eye.shape().as_slice(), &[2, 3]);
     assert_eq!(eye.to_vec().unwrap(), vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
 
     let identity = Tensor::<B, D>::identity(&backend, 3).unwrap();
-    assert_eq!(identity.shape(), &[3, 3]);
+    assert_eq!(identity.shape().as_slice(), &[3, 3]);
     assert_eq!(
         identity.to_vec().unwrap(),
         vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
@@ -145,7 +145,7 @@ fn eye_and_identity_match_expected_patterns() {
 fn linspace_includes_end_point() {
     let backend = Arc::new(B::new());
     let tensor = Tensor::<B, D>::linspace(&backend, 0.0, 3.0, 4).unwrap();
-    assert_eq!(tensor.shape(), &[4]);
+    assert_eq!(tensor.shape().as_slice(), &[4]);
     assert_eq!(tensor.to_vec().unwrap(), vec![0.0, 1.0, 2.0, 3.0]);
 }
 
