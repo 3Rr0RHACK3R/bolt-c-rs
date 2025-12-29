@@ -108,6 +108,13 @@ pub enum Error {
         "internal inconsistency: shape data missing for tensor '{name}' in artifact at {dir:?}. This indicates a bug or data corruption."
     )]
     ShapeMissing { name: String, dir: PathBuf },
+
+    #[error("invalid exclude pattern '{pattern}': {source}")]
+    InvalidExcludePattern {
+        pattern: String,
+        #[source]
+        source: glob::PatternError,
+    },
 }
 
 impl Error {

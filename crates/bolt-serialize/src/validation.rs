@@ -25,10 +25,10 @@ pub fn validate_tensor_name(name: &str) -> Result<()> {
         });
     }
 
-    if name == ".." || name.contains("..") {
+    if name == ".." {
         return Err(Error::InvalidName {
             name: name.to_string(),
-            reason: "name cannot contain '..' (parent directory reference)".to_string(),
+            reason: "name cannot be '..' (reserved directory name)".to_string(),
         });
     }
 

@@ -135,7 +135,7 @@ fn checkpoint_exclude_by_pattern() -> bolt_serialize::Result<()> {
         tensors,
         &out_dir,
         &CheckpointSaveOptions {
-            exclude: vec!["decoder".to_string()],
+            exclude: vec!["decoder.*".to_string()],
             ..Default::default()
         },
     )?;
@@ -146,6 +146,164 @@ fn checkpoint_exclude_by_pattern() -> bolt_serialize::Result<()> {
     assert!(names.contains(&"encoder.weight".to_string()));
     assert!(names.contains(&"encoder.bias".to_string()));
     assert!(!names.contains(&"decoder.weight".to_string()));
+
+    Ok(())
+}
+
+#[test]
+fn checkpoint_exclude_glob_wildcard() -> bolt_serialize::Result<()> {
+    let tmp = TempDir::new().unwrap();
+    let out_dir = tmp.path().join("exclude_glob_wildcard");
+
+    let tensors = vec![
+        make_tensor("encoder.weight", TensorRole::ModelParam, 100),
+        make_tensor("decoder.weight", TensorRole::ModelParam, 100),
+        make_tensor("decoder.bias", TensorRole::ModelParam, 100),
+        make_tensor("encoder.decoder.weight", TensorRole::ModelParam, 100),
+    ];
+
+    save_checkpoint(
+        tensors,
+        &out_dir,
+        &CheckpointSaveOptions {
+            exclude: vec!["decoder.*".to_string()],
+            ..Default::default()
+        },
+    )?;
+
+    let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
+    let names: Vec<_> = ckpt.tensors.list().iter().map(|m| m.name.clone()).collect();
+
+    assert!(names.contains(&"encoder.weight".to_string()));
+    assert!(!names.contains(&"decoder.weight".to_string()));
+    assert!(!names.contains(&"decoder.bias".to_string()));
+    // encoder.decoder.weight should NOT be excluded (demonstrates glob is not substring)
+    assert!(names.contains(&"encoder.decoder.weight".to_string()));
+
+    Ok(())
+}
+
+#[test]
+fn checkpoint_exclude_no_substring_matching() -> bolt_serialize::Result<()> {
+    let tmp = TempDir::new().unwrap();
+    let out_dir = tmp.path().join("exclude_no_substring");
+
+    let tensors = vec![
+        make_tensor("layer1.weight", TensorRole::ModelParam, 100),
+        make_tensor("layer2.weight", TensorRole::ModelParam, 100),
+        make_tensor("embedding_layer.weight", TensorRole::ModelParam, 100),
+        make_tensor("layer.weight", TensorRole::ModelParam, 100),
+    ];
+
+    // With glob matching, "layer" should only match exactly "layer", not substrings
+    save_checkpoint(
+        tensors,
+        &out_dir,
+        &CheckpointSaveOptions {
+            exclude: vec!["layer".to_string()],
+            ..Default::default()
+        },
+    )?;
+
+    let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
+    let names: Vec<_> = ckpt.tensors.list().iter().map(|m| m.name.clone()).collect();
+
+    // All should be included because "layer" doesn't match any of these names exactly
+    assert!(names.contains(&"layer1.weight".to_string()));
+    assert!(names.contains(&"layer2.weight".to_string()));
+    assert!(names.contains(&"embedding_layer.weight".to_string()));
+    assert!(names.contains(&"layer.weight".to_string()));
+
+    Ok(())
+}
+
+#[test]
+fn checkpoint_exclude_optimizer_pattern() -> bolt_serialize::Result<()> {
+    let tmp = TempDir::new().unwrap();
+    let out_dir = tmp.path().join("exclude_optimizer");
+
+    let tensors = vec![
+        make_tensor("model.weight", TensorRole::ModelParam, 100),
+        make_tensor("opt.model.weight.exp_avg", TensorRole::OptimizerState, 100),
+        make_tensor("opt.model.weight.exp_avg_sq", TensorRole::OptimizerState, 100),
+        make_tensor("opt.model.bias.momentum", TensorRole::OptimizerState, 100),
+    ];
+
+    save_checkpoint(
+        tensors,
+        &out_dir,
+        &CheckpointSaveOptions {
+            exclude: vec!["opt.*".to_string()],
+            ..Default::default()
+        },
+    )?;
+
+    let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
+    let names: Vec<_> = ckpt.tensors.list().iter().map(|m| m.name.clone()).collect();
+
+    assert!(names.contains(&"model.weight".to_string()));
+    assert!(!names.contains(&"opt.model.weight.exp_avg".to_string()));
+    assert!(!names.contains(&"opt.model.weight.exp_avg_sq".to_string()));
+    assert!(!names.contains(&"opt.model.bias.momentum".to_string()));
+
+    Ok(())
+}
+
+#[test]
+fn checkpoint_exclude_multiple_patterns() -> bolt_serialize::Result<()> {
+    let tmp = TempDir::new().unwrap();
+    let out_dir = tmp.path().join("exclude_multiple");
+
+    let tensors = vec![
+        make_tensor("encoder.weight", TensorRole::ModelParam, 100),
+        make_tensor("decoder.weight", TensorRole::ModelParam, 100),
+        make_tensor("head.weight", TensorRole::ModelParam, 100),
+        make_tensor("model.tmp_buffer", TensorRole::ModelBuffer, 100),
+    ];
+
+    save_checkpoint(
+        tensors,
+        &out_dir,
+        &CheckpointSaveOptions {
+            exclude: vec!["decoder.*".to_string(), "*.tmp*".to_string()],
+            ..Default::default()
+        },
+    )?;
+
+    let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
+    let names: Vec<_> = ckpt.tensors.list().iter().map(|m| m.name.clone()).collect();
+
+    assert!(names.contains(&"encoder.weight".to_string()));
+    assert!(names.contains(&"head.weight".to_string()));
+    assert!(!names.contains(&"decoder.weight".to_string()));
+    assert!(!names.contains(&"model.tmp_buffer".to_string()));
+
+    Ok(())
+}
+
+#[test]
+fn checkpoint_exclude_invalid_pattern() -> bolt_serialize::Result<()> {
+    let tmp = TempDir::new().unwrap();
+    let out_dir = tmp.path().join("exclude_invalid");
+
+    let tensors = vec![make_tensor("model.weight", TensorRole::ModelParam, 100)];
+
+    let result = save_checkpoint(
+        tensors,
+        &out_dir,
+        &CheckpointSaveOptions {
+            exclude: vec!["[invalid".to_string()], // Invalid glob pattern (unclosed bracket)
+            ..Default::default()
+        },
+    );
+
+    assert!(result.is_err());
+    match result {
+        Err(bolt_serialize::Error::InvalidExcludePattern { pattern, .. }) => {
+            assert_eq!(pattern, "[invalid");
+        }
+        _ => panic!("Expected InvalidExcludePattern error"),
+    }
 
     Ok(())
 }

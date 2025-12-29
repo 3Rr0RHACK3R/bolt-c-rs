@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use glob::Pattern;
+
 use crate::io::{
     build_tensor_entries, build_tensor_index, ensure_directory_structure,
     load_shards_with_verification, read_and_parse_manifest, validate_load_directory,
@@ -31,6 +33,15 @@ pub struct CheckpointSaveOptions {
     pub include_optimizer: bool,
     pub include_rng: bool,
     pub include_buffers: bool,
+    /// Patterns to exclude from the checkpoint. Uses glob pattern syntax.
+    ///
+    /// Common examples:
+    /// - `"opt.*"` - exclude all optimizer tensors (e.g., `opt.weight.exp_avg`)
+    /// - `"**/*.tmp*"` - exclude temporary buffers with `.tmp` in the name
+    /// - `"decoder.*"` - exclude all tensors starting with `decoder.`
+    ///
+    /// Patterns are matched against the full tensor name. For glob syntax details,
+    /// see the [glob crate documentation](https://docs.rs/glob/latest/glob/struct.Pattern.html).
     pub exclude: Vec<String>,
     pub tensor_set: TensorSetSaveOptions,
     pub metadata: CheckpointMetadata,
@@ -79,9 +90,23 @@ where
     I: IntoIterator<Item = TensorToSave<'a>>,
 {
     let tensors: Vec<TensorToSave<'a>> = tensors.into_iter().collect();
+    
+    // Compile exclude patterns upfront to validate them early
+    let compiled_patterns: Result<Vec<Pattern>> = opts
+        .exclude
+        .iter()
+        .map(|pattern| {
+            Pattern::new(pattern).map_err(|e| Error::InvalidExcludePattern {
+                pattern: pattern.clone(),
+                source: e,
+            })
+        })
+        .collect();
+    let compiled_patterns = compiled_patterns?;
+    
     let filtered: Vec<TensorToSave<'a>> = tensors
         .into_iter()
-        .filter(|t| should_include_tensor(t, opts))
+        .filter(|t| should_include_tensor(t, opts, &compiled_patterns))
         .collect();
 
     for t in &filtered {
@@ -118,7 +143,11 @@ where
     }
 }
 
-fn should_include_tensor(tensor: &TensorToSave<'_>, opts: &CheckpointSaveOptions) -> bool {
+fn should_include_tensor(
+    tensor: &TensorToSave<'_>,
+    opts: &CheckpointSaveOptions,
+    compiled_patterns: &[Pattern],
+) -> bool {
     match &tensor.meta.role {
         TensorRole::OptimizerState if !opts.include_optimizer => return false,
         TensorRole::RngState if !opts.include_rng => return false,
@@ -126,8 +155,8 @@ fn should_include_tensor(tensor: &TensorToSave<'_>, opts: &CheckpointSaveOptions
         _ => {}
     }
 
-    for pattern in &opts.exclude {
-        if tensor.meta.name.contains(pattern) {
+    for pattern in compiled_patterns {
+        if pattern.matches(&tensor.meta.name) {
             return false;
         }
     }

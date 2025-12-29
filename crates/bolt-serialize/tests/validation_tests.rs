@@ -72,19 +72,12 @@ fn reject_path_separator_in_name() {
 }
 
 #[test]
-fn reject_parent_dir_reference_in_name() {
+fn reject_reserved_directory_name() {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("test");
 
     let result = save_tensor_set(
         [make_tensor("..", 100)],
-        &out_dir,
-        &TensorSetSaveOptions::default(),
-    );
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-
-    let result = save_tensor_set(
-        [make_tensor("foo..bar", 100)],
         &out_dir,
         &TensorSetSaveOptions::default(),
     );
@@ -154,6 +147,7 @@ fn accept_valid_tensor_names() {
         "simple",
         "a",
         "tensor_123",
+        "foo..bar",
     ];
 
     for name in valid_names {
