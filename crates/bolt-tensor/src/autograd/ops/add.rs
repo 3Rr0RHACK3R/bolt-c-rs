@@ -4,8 +4,8 @@ use bolt_core::dtype::NativeType;
 use bolt_core::error::Result;
 
 use crate::Tensor;
-use crate::autograd::{BackwardContext, BackwardOp};
 use crate::autograd::utils;
+use crate::autograd::{BackwardContext, BackwardOp};
 
 pub(crate) struct AddBackward {
     lhs_shape: Vec<usize>,
@@ -14,7 +14,10 @@ pub(crate) struct AddBackward {
 
 impl AddBackward {
     pub(crate) fn new(lhs_shape: Vec<usize>, rhs_shape: Vec<usize>) -> Self {
-        Self { lhs_shape, rhs_shape }
+        Self {
+            lhs_shape,
+            rhs_shape,
+        }
     }
 }
 

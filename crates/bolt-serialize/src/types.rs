@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use bolt_core::{shape, DType};
+use bolt_core::{DType, shape};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

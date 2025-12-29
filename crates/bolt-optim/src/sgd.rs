@@ -61,8 +61,19 @@ where
 
     pub fn step(&mut self, params: &[Param<B, D>]) -> Result<()>
     where
-        B: CopyOp<D> + AddOp<D> + SubOp<D> + MulOp<D> + FillOp<D> + ReshapeOp<D> + SumOp<D> + NegOp<D> + 'static,
-        D: std::ops::Neg<Output = D> + std::ops::Sub<Output = D> + std::ops::Mul<Output = D> + 'static,
+        B: CopyOp<D>
+            + AddOp<D>
+            + SubOp<D>
+            + MulOp<D>
+            + FillOp<D>
+            + ReshapeOp<D>
+            + SumOp<D>
+            + NegOp<D>
+            + 'static,
+        D: std::ops::Neg<Output = D>
+            + std::ops::Sub<Output = D>
+            + std::ops::Mul<Output = D>
+            + 'static,
     {
         let _ng = no_grad();
         let mut seen = HashSet::new();

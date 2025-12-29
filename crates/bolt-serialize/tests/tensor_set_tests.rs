@@ -4,8 +4,8 @@ use std::sync::Arc;
 use bolt_core::DType;
 use bolt_cpu::CpuBackend;
 use bolt_serialize::{
-    inspect_tensor_set, load_tensor_set, save_tensor_set, tensor, Error, ErrorMode,
-    TensorMeta, TensorRole, TensorSetLoadOptions, TensorSetSaveOptions, TensorToSave,
+    Error, ErrorMode, TensorMeta, TensorRole, TensorSetLoadOptions, TensorSetSaveOptions,
+    TensorToSave, inspect_tensor_set, load_tensor_set, save_tensor_set, tensor,
 };
 use bolt_tensor::Tensor;
 use tempfile::TempDir;
@@ -20,7 +20,12 @@ fn make_tensor_to_save<'a>(
     data: Vec<u8>,
 ) -> TensorToSave<'a> {
     TensorToSave::new(
-        TensorMeta::new(name, dtype, bolt_core::shape::Shape::from_slice(&shape).unwrap()).with_role(TensorRole::User),
+        TensorMeta::new(
+            name,
+            dtype,
+            bolt_core::shape::Shape::from_slice(&shape).unwrap(),
+        )
+        .with_role(TensorRole::User),
         data,
     )
 }
@@ -83,7 +88,12 @@ fn tensor_set_lazy_get_and_materialize() -> bolt_serialize::Result<()> {
     let bytes: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
 
     save_tensor_set(
-        [make_tensor_to_save("test", DType::F32, vec![3], bytes.clone())],
+        [make_tensor_to_save(
+            "test",
+            DType::F32,
+            vec![3],
+            bytes.clone(),
+        )],
         &out_dir,
         &TensorSetSaveOptions::default(),
     )?;
@@ -204,8 +214,12 @@ fn tensor_set_inspect_without_loading() -> bolt_serialize::Result<()> {
         [
             make_tensor_to_save("big_tensor", DType::F32, vec![32, 32], bytes.clone()),
             TensorToSave::new(
-                TensorMeta::new("small", DType::F32, bolt_core::shape::Shape::from_slice(&[4]).unwrap())
-                    .with_role(TensorRole::ModelParam),
+                TensorMeta::new(
+                    "small",
+                    DType::F32,
+                    bolt_core::shape::Shape::from_slice(&[4]).unwrap(),
+                )
+                .with_role(TensorRole::ModelParam),
                 bytemuck::cast_slice::<f32, u8>(&[1.0, 2.0, 3.0, 4.0]).to_vec(),
             ),
         ],
@@ -234,13 +248,23 @@ fn overwrite_behavior() -> bolt_serialize::Result<()> {
     let bytes: Vec<u8> = bytemuck::cast_slice::<f32, u8>(&[1.0, 2.0]).to_vec();
 
     save_tensor_set(
-        [make_tensor_to_save("v1", DType::F32, vec![2], bytes.clone())],
+        [make_tensor_to_save(
+            "v1",
+            DType::F32,
+            vec![2],
+            bytes.clone(),
+        )],
         &out_dir,
         &TensorSetSaveOptions::default(),
     )?;
 
     let result = save_tensor_set(
-        [make_tensor_to_save("v2", DType::F32, vec![2], bytes.clone())],
+        [make_tensor_to_save(
+            "v2",
+            DType::F32,
+            vec![2],
+            bytes.clone(),
+        )],
         &out_dir,
         &TensorSetSaveOptions {
             overwrite: false,
@@ -273,9 +297,9 @@ fn bolt_tensor_convenience_roundtrip() -> bolt_serialize::Result<()> {
 
     let original = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3])
         .map_err(|e| Error::Safetensors {
-            shard: out_dir.clone(),
-            reason: e.to_string(),
-        })?;
+        shard: out_dir.clone(),
+        reason: e.to_string(),
+    })?;
 
     tensor::save(
         "my_tensor",
@@ -351,8 +375,12 @@ fn atomic_save_cleanup_on_failure() {
     let out_dir = tmp.path().join("atomic_test");
 
     let invalid_tensor = TensorToSave {
-        meta: TensorMeta::new("bad", DType::F32, bolt_core::shape::Shape::from_slice(&[100]).unwrap()), // expects 400 bytes
-        data: vec![0u8; 10].into(),                          // only 10 bytes
+        meta: TensorMeta::new(
+            "bad",
+            DType::F32,
+            bolt_core::shape::Shape::from_slice(&[100]).unwrap(),
+        ), // expects 400 bytes
+        data: vec![0u8; 10].into(), // only 10 bytes
     };
 
     let result = save_tensor_set([invalid_tensor], &out_dir, &TensorSetSaveOptions::default());
@@ -409,19 +437,22 @@ fn sharding_creates_multiple_files() -> bolt_serialize::Result<()> {
 
     let shards_dir = out_dir.join("shards");
     let shard_count = fs::read_dir(&shards_dir).unwrap().count();
-    assert!(shard_count >= 2, "Expected multiple shards, got {}", shard_count);
+    assert!(
+        shard_count >= 2,
+        "Expected multiple shards, got {}",
+        shard_count
+    );
 
     let set = load_tensor_set(&out_dir, &TensorSetLoadOptions::default())?;
-    
-    // Verify tensors can be loaded and data matches
+
     let t1_view = set.get("t1")?;
     assert_eq!(t1_view.shape.as_slice(), &[1000]);
     assert_eq!(t1_view.data.len(), 1000);
-    
+
     let t2_view = set.get("t2")?;
     assert_eq!(t2_view.shape.as_slice(), &[1000]);
     assert_eq!(t2_view.data.len(), 1000);
-    
+
     let t3_view = set.get("t3")?;
     assert_eq!(t3_view.shape.as_slice(), &[1000]);
     assert_eq!(t3_view.data.len(), 1000);

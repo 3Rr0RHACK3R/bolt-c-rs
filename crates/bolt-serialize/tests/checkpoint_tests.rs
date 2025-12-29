@@ -1,17 +1,24 @@
-use bolt_core::{shape::Shape, DType};
+use bolt_core::{DType, shape::Shape};
 use bolt_serialize::{
-    inspect_checkpoint, load_checkpoint, save_checkpoint, CheckpointLoadOptions,
-    CheckpointMetadata, CheckpointSaveOptions, ErrorMode, TensorMeta, TensorRole,
-    TensorSetSaveOptions, TensorToSave,
+    CheckpointLoadOptions, CheckpointMetadata, CheckpointSaveOptions, ErrorMode, TensorMeta,
+    TensorRole, TensorSetSaveOptions, TensorToSave, inspect_checkpoint, load_checkpoint,
+    save_checkpoint,
 };
 use tempfile::TempDir;
 
-fn make_tensor<'a>(name: &str, role: TensorRole, size: usize) -> TensorToSave<'a> {
-    // size must be divisible by 4 (F32 byte size)
-    debug_assert_eq!(size % 4, 0, "size must be divisible by 4 for F32 dtype");
+fn make_tensor<'a>(name: &str, role: TensorRole, byte_len: usize) -> TensorToSave<'a> {
+    debug_assert!(
+        byte_len % 4 == 0,
+        "tensor byte length must be divisible by 4 for F32 dtype"
+    );
     TensorToSave::new(
-        TensorMeta::new(name, DType::F32, Shape::from_slice(&[size / 4]).unwrap()).with_role(role),
-        vec![0u8; size],
+        TensorMeta::new(
+            name,
+            DType::F32,
+            Shape::from_slice(&[byte_len / 4]).unwrap(),
+        )
+        .with_role(role),
+        vec![0u8; byte_len],
     )
 }
 
@@ -47,7 +54,7 @@ fn checkpoint_filters_by_role() -> bolt_serialize::Result<()> {
 
     assert!(names.contains(&"model.weight".to_string()));
     assert!(names.contains(&"model.running_mean".to_string()));
-    assert!(!names.contains(&"optimizer.momentum".to_string())); // Excluded
+    assert!(!names.contains(&"optimizer.momentum".to_string()));
     assert!(names.contains(&"rng.state".to_string()));
 
     Ok(())
@@ -68,7 +75,7 @@ fn checkpoint_exclude_rng() -> bolt_serialize::Result<()> {
         &out_dir,
         &CheckpointSaveOptions {
             include_optimizer: true,
-            include_rng: false, // Exclude RNG
+            include_rng: false,
             include_buffers: true,
             ..Default::default()
         },
@@ -78,7 +85,7 @@ fn checkpoint_exclude_rng() -> bolt_serialize::Result<()> {
     let names: Vec<_> = ckpt.tensors.list().iter().map(|m| m.name.clone()).collect();
 
     assert!(names.contains(&"model.weight".to_string()));
-    assert!(!names.contains(&"rng.state".to_string())); // Excluded
+    assert!(!names.contains(&"rng.state".to_string()));
 
     Ok(())
 }
@@ -99,7 +106,7 @@ fn checkpoint_exclude_buffers() -> bolt_serialize::Result<()> {
         &CheckpointSaveOptions {
             include_optimizer: true,
             include_rng: true,
-            include_buffers: false, // Exclude buffers
+            include_buffers: false,
             ..Default::default()
         },
     )?;
@@ -108,7 +115,7 @@ fn checkpoint_exclude_buffers() -> bolt_serialize::Result<()> {
     let names: Vec<_> = ckpt.tensors.list().iter().map(|m| m.name.clone()).collect();
 
     assert!(names.contains(&"model.weight".to_string()));
-    assert!(!names.contains(&"model.running_mean".to_string())); // Excluded
+    assert!(!names.contains(&"model.running_mean".to_string()));
 
     Ok(())
 }
@@ -138,7 +145,7 @@ fn checkpoint_exclude_by_pattern() -> bolt_serialize::Result<()> {
 
     assert!(names.contains(&"encoder.weight".to_string()));
     assert!(names.contains(&"encoder.bias".to_string()));
-    assert!(!names.contains(&"decoder.weight".to_string())); // Excluded by pattern
+    assert!(!names.contains(&"decoder.weight".to_string()));
 
     Ok(())
 }
@@ -228,8 +235,8 @@ fn checkpoint_lazy_loading() -> bolt_serialize::Result<()> {
     )?;
 
     let view = ckpt.tensors.get("large")?;
-    assert_eq!(view.shape.as_slice(), &[2500]); // 10000 bytes / 4 bytes per f32
-    assert_eq!(view.data.len(), 10000); // Verify data size matches
+    assert_eq!(view.shape.as_slice(), &[2500]);
+    assert_eq!(view.data.len(), 10000);
 
     Ok(())
 }
@@ -254,9 +261,8 @@ fn checkpoint_tensor_roles_preserved() -> bolt_serialize::Result<()> {
     let ckpt = load_checkpoint(&out_dir, &CheckpointLoadOptions::default())?;
     let metas = ckpt.tensors.list();
 
-    let find_role = |name: &str| -> TensorRole {
-        metas.iter().find(|m| m.name == name).unwrap().role.clone()
-    };
+    let find_role =
+        |name: &str| -> TensorRole { metas.iter().find(|m| m.name == name).unwrap().role.clone() };
 
     assert_eq!(find_role("param"), TensorRole::ModelParam);
     assert_eq!(find_role("buffer"), TensorRole::ModelBuffer);

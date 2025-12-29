@@ -21,4 +21,3 @@ where
         Ok(x.sigmoid()?)
     }
 }
-

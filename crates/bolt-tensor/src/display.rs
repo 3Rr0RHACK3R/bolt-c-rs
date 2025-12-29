@@ -37,8 +37,7 @@ where
     D: NativeType,
 {
     fn new(tensor: &'a Tensor<B, D>) -> Self {
-        let scalar_shape =
-            Shape::from_slice(&[1]).expect("scalar shape construction must succeed");
+        let scalar_shape = Shape::from_slice(&[1]).expect("scalar shape construction must succeed");
         Self {
             tensor,
             scalar_shape,

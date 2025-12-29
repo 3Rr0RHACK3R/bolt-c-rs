@@ -1,18 +1,25 @@
 use std::fs;
 use std::path::Path;
 
-use bolt_core::{shape::Shape, DType};
+use bolt_core::{DType, shape::Shape};
 use bolt_serialize::{
-    save_tensor_set, Error, TensorMeta, TensorRole, TensorSetSaveOptions, TensorToSave,
+    Error, TensorMeta, TensorRole, TensorSetSaveOptions, TensorToSave, save_tensor_set,
 };
 use tempfile::TempDir;
 
-fn make_tensor<'a>(name: &str, size: usize) -> TensorToSave<'a> {
-    // size must be divisible by 4 (F32 byte size)
-    debug_assert_eq!(size % 4, 0, "size must be divisible by 4 for F32 dtype");
+fn make_tensor<'a>(name: &str, byte_len: usize) -> TensorToSave<'a> {
+    debug_assert!(
+        byte_len % 4 == 0,
+        "tensor byte length must be divisible by 4 for F32 dtype"
+    );
     TensorToSave::new(
-        TensorMeta::new(name, DType::F32, Shape::from_slice(&[size / 4]).unwrap()).with_role(TensorRole::User),
-        vec![0u8; size],
+        TensorMeta::new(
+            name,
+            DType::F32,
+            Shape::from_slice(&[byte_len / 4]).unwrap(),
+        )
+        .with_role(TensorRole::User),
+        vec![0u8; byte_len],
     )
 }
 
@@ -49,7 +56,6 @@ fn reject_path_separator_in_name() {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("test");
 
-    // Forward slash
     let result = save_tensor_set(
         [make_tensor("foo/bar", 100)],
         &out_dir,
@@ -57,7 +63,6 @@ fn reject_path_separator_in_name() {
     );
     assert!(matches!(result, Err(Error::InvalidName { .. })));
 
-    // Backslash
     let result = save_tensor_set(
         [make_tensor("foo\\bar", 100)],
         &out_dir,
@@ -121,7 +126,7 @@ fn reject_byte_size_mismatch() {
 
     let bad_tensor = TensorToSave {
         meta: TensorMeta::new("bad", DType::F32, Shape::from_slice(&[100]).unwrap()), // expects 400 bytes
-        data: vec![0u8; 50].into(),                          // only 50 bytes
+        data: vec![0u8; 50].into(), // only 50 bytes
     };
 
     let result = save_tensor_set([bad_tensor], &out_dir, &TensorSetSaveOptions::default());
@@ -178,8 +183,10 @@ fn manifest_not_found_on_load() {
     let empty_dir = tmp.path().join("empty");
     fs::create_dir(&empty_dir).unwrap();
 
-    let result =
-        bolt_serialize::load_tensor_set(&empty_dir, &bolt_serialize::TensorSetLoadOptions::default());
+    let result = bolt_serialize::load_tensor_set(
+        &empty_dir,
+        &bolt_serialize::TensorSetLoadOptions::default(),
+    );
 
     assert!(matches!(result, Err(Error::ManifestNotFound { .. })));
 }
@@ -207,7 +214,9 @@ fn schema_version_mismatch() -> bolt_serialize::Result<()> {
         bolt_serialize::load_tensor_set(&out_dir, &bolt_serialize::TensorSetLoadOptions::default());
 
     match result {
-        Err(Error::SchemaVersionMismatch { expected, found, .. }) => {
+        Err(Error::SchemaVersionMismatch {
+            expected, found, ..
+        }) => {
             assert_eq!(expected, "bolt-tensorset:1");
             assert_eq!(found, "bolt-tensorset:999");
         }

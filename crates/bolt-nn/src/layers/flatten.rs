@@ -27,4 +27,3 @@ where
         Ok(x.reshape(&[batch, rest])?)
     }
 }
-

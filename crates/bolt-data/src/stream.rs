@@ -1,5 +1,5 @@
-use bolt_rng::RngStream;
 use crate::{BatchSource, EnumerateSource, MapSource, Result, ShuffleSource, Source, TakeSource};
+use bolt_rng::RngStream;
 
 pub struct Stream<E> {
     pub(crate) inner: Box<dyn Source<E>>, // visible within crate for adapters

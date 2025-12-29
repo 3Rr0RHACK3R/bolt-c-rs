@@ -1,5 +1,5 @@
-use bolt_rng::RngStream;
 use crate::{DataError, Result};
+use bolt_rng::RngStream;
 
 pub trait Source<E>: Send {
     fn next(&mut self) -> Result<Option<E>>;

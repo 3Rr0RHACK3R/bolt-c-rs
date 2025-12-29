@@ -1,7 +1,7 @@
 use crate::{
     dtype::DType,
     error::{Error, Result},
-    shape::{Shape, MAX_RANK, broadcast_shapes},
+    shape::{MAX_RANK, Shape, broadcast_shapes},
 };
 use tinyvec::ArrayVec;
 
@@ -84,11 +84,7 @@ impl Layout {
         Self::new_unchecked(shape, strides, offset_bytes)
     }
 
-    pub fn with_strides(
-        shape: Shape,
-        strides: &[isize],
-        offset_bytes: usize,
-    ) -> Result<Self> {
+    pub fn with_strides(shape: Shape, strides: &[isize], offset_bytes: usize) -> Result<Self> {
         if shape.rank() != strides.len() {
             return Err(Error::invalid_shape("strides rank must match shape rank"));
         }

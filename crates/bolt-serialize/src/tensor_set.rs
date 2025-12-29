@@ -3,18 +3,17 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 use crate::io::{
-    build_tensor_index, build_tensor_entries, ensure_directory_structure,
+    build_tensor_entries, build_tensor_index, ensure_directory_structure,
     load_shards_with_verification, read_and_parse_manifest, validate_load_directory,
     validate_schema_version, write_manifest, write_shards_with_checksums,
 };
-use crate::manifest::{ShardInfo, TensorSetManifest, TENSOR_SET_MANIFEST_NAME, TENSOR_SET_SCHEMA_VERSION};
-use crate::shard::{dtype_from_safe, LoadedShard};
-use crate::validation::{
-    validate_no_duplicates, validate_tensor_bytes, validate_tensor_name,
+use crate::manifest::{
+    ShardInfo, TENSOR_SET_MANIFEST_NAME, TENSOR_SET_SCHEMA_VERSION, TensorSetManifest,
 };
+use crate::shard::{LoadedShard, dtype_from_safe};
 use crate::utils::create_temp_dir;
+use crate::validation::{validate_no_duplicates, validate_tensor_bytes, validate_tensor_name};
 use crate::{Error, ErrorMode, Result, TensorMeta, TensorToSave, TensorView};
-use bolt_core::shape::Shape;
 
 #[derive(Clone, Debug)]
 pub struct TensorSetSaveOptions {
@@ -63,7 +62,6 @@ pub struct TensorSet {
     artifact_dir: PathBuf,
     shards: Vec<LoadedShard>,
     index: HashMap<String, TensorIndex>,
-    shapes: HashMap<String, Shape>,
 }
 
 impl TensorSet {
@@ -71,13 +69,11 @@ impl TensorSet {
         artifact_dir: PathBuf,
         shards: Vec<LoadedShard>,
         index: HashMap<String, TensorIndex>,
-        shapes: HashMap<String, Shape>,
     ) -> Self {
         Self {
             artifact_dir,
             shards,
             index,
-            shapes,
         }
     }
 
@@ -109,13 +105,7 @@ impl TensorSet {
             reason: format!("unsupported dtype: {:?}", tensor_view.dtype()),
         })?;
 
-        let shape = self.shapes.get(name).cloned().unwrap_or_else(|| {
-            // Fallback: create Shape from empty slice if shape not found
-            Shape::from_slice(&[]).unwrap_or_else(|_| {
-                // This should never fail for empty slice, but handle it just in case
-                Shape::from_slice(&[1]).expect("failed to create fallback shape")
-            })
-        });
+        let shape = idx.meta.shape.clone();
 
         Ok(TensorView {
             dtype,
@@ -179,11 +169,8 @@ fn write_tensor_set_to_dir<'a>(
     dir: &Path,
     opts: &TensorSetSaveOptions,
 ) -> Result<()> {
-    // Step 1: Ensure directory structure exists
-    // Note: this is idempotent and creates `dir` if it doesn't exist.
     ensure_directory_structure(dir)?;
 
-    // Step 2: Plan and write shards with checksums
     let (plan, shard_checksums) = write_shards_with_checksums(
         tensors,
         dir,
@@ -192,7 +179,6 @@ fn write_tensor_set_to_dir<'a>(
         opts.checksum,
     )?;
 
-    // Step 3: Build manifest with tensor entries
     let mut manifest = TensorSetManifest::new();
     manifest.shards = ShardInfo {
         files: plan.shards.iter().map(|s| s.relative_path()).collect(),
@@ -200,11 +186,9 @@ fn write_tensor_set_to_dir<'a>(
     };
     build_tensor_entries(&mut manifest.tensors, tensors, &plan, opts.checksum)?;
 
-    // Step 4: Write manifest
     let manifest_path = dir.join(TENSOR_SET_MANIFEST_NAME);
     write_manifest(&manifest, &manifest_path)?;
 
-    // Step 5: Sync manifest to disk (best effort)
     if let Ok(file) = File::open(&manifest_path) {
         let _ = file.sync_all();
     }
@@ -213,20 +197,16 @@ fn write_tensor_set_to_dir<'a>(
 }
 
 pub fn load_tensor_set(dir: &Path, opts: &TensorSetLoadOptions) -> Result<TensorSet> {
-    // Step 1: Validate directory and get manifest path
     let manifest_path = validate_load_directory(dir, TENSOR_SET_MANIFEST_NAME)?;
 
-    // Step 2: Read and parse manifest
     let manifest = read_and_parse_manifest::<TensorSetManifest>(&manifest_path)?;
 
-    // Step 3: Validate schema version
     validate_schema_version(
         &manifest.schema_version,
         TENSOR_SET_SCHEMA_VERSION,
         manifest_path,
     )?;
 
-    // Step 4: Load shards with checksum verification
     let (shards, corrupted_shards) = load_shards_with_verification(
         &manifest.shards.files,
         &manifest.shards.checksums,
@@ -235,22 +215,19 @@ pub fn load_tensor_set(dir: &Path, opts: &TensorSetLoadOptions) -> Result<Tensor
         opts.error_mode.clone(),
     )?;
 
-    // Step 5: Build tensor index
-    let (index, shapes) = build_tensor_index(
+    let index = build_tensor_index(
         &manifest.tensors,
         &manifest.shards.files,
         dir,
         &corrupted_shards,
     )?;
 
-    Ok(TensorSet::new(dir.to_path_buf(), shards, index, shapes))
+    Ok(TensorSet::new(dir.to_path_buf(), shards, index))
 }
 
 pub fn inspect_tensor_set(dir: &Path) -> Result<Vec<TensorMeta>> {
-    // Step 1: Validate directory and get manifest path
     let manifest_path = validate_load_directory(dir, TENSOR_SET_MANIFEST_NAME)?;
 
-    // Step 2: Read and parse manifest
     let manifest = read_and_parse_manifest::<TensorSetManifest>(&manifest_path)?;
 
     let mut metas = Vec::new();
@@ -271,5 +248,3 @@ pub fn inspect_tensor_set(dir: &Path) -> Result<Vec<TensorMeta>> {
 
     Ok(metas)
 }
-
-

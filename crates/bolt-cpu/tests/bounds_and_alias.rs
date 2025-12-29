@@ -10,8 +10,7 @@ fn read_rejects_out_of_bounds_layout() {
     let backend = Arc::new(CpuBackend::new());
     let tensor = Tensor::<CpuBackend, f32>::zeros(&backend, &[2, 2]).unwrap();
 
-    let bad_layout =
-        Layout::with_strides(Shape::from_slice(&[2, 2]).unwrap(), &[4, 1], 0).unwrap();
+    let bad_layout = Layout::with_strides(Shape::from_slice(&[2, 2]).unwrap(), &[4, 1], 0).unwrap();
     let mut dst = vec![0f32; 4];
     let err = backend
         .read(tensor.storage(), &bad_layout, &mut dst)

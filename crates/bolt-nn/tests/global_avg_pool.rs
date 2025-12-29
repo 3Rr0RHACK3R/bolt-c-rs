@@ -35,10 +35,7 @@ fn global_avg_pool_4d_to_4d_shape() {
 #[test]
 fn global_avg_pool_computes_correct_mean() {
     let backend = Arc::new(CpuBackend::new());
-    let data = vec![
-        1.0, 2.0, 3.0, 4.0,
-        5.0, 6.0, 7.0, 8.0,
-    ];
+    let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
     let input = Tensor::<B, D>::from_slice(&backend, &data, &[1, 2, 2, 2]).unwrap();
 
     let layer = GlobalAvgPool::new(true);
@@ -54,10 +51,7 @@ fn global_avg_pool_computes_correct_mean() {
 #[test]
 fn global_avg_pool_batch_independence() {
     let backend = Arc::new(CpuBackend::new());
-    let data = vec![
-        1.0, 2.0, 3.0, 4.0,
-        9.0, 10.0, 11.0, 12.0,
-    ];
+    let data = vec![1.0, 2.0, 3.0, 4.0, 9.0, 10.0, 11.0, 12.0];
     let input = Tensor::<B, D>::from_slice(&backend, &data, &[2, 1, 2, 2]).unwrap();
 
     let layer = GlobalAvgPool::new(true);
@@ -154,7 +148,7 @@ fn global_avg_pool_3d_input_keepdim() {
     let layer = GlobalAvgPool::new(true);
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    
+
     assert_eq!(output.shape().as_slice(), &[1, 2, 1]);
     let result = output.to_vec().unwrap();
     assert_close(result[0], 2.0, 1e-5, "channel 0 mean (1+2+3)/3");
@@ -170,7 +164,7 @@ fn global_avg_pool_3d_input_no_keepdim() {
     let layer = GlobalAvgPool::new(false);
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    
+
     assert_eq!(output.shape().as_slice(), &[1, 2]);
     let result = output.to_vec().unwrap();
     assert_close(result[0], 2.0, 1e-5, "channel 0 mean");
@@ -180,16 +174,13 @@ fn global_avg_pool_3d_input_no_keepdim() {
 #[test]
 fn global_avg_pool_4d_input_no_keepdim() {
     let backend = Arc::new(CpuBackend::new());
-    let data = vec![
-        1.0, 2.0, 3.0, 4.0,
-        5.0, 6.0, 7.0, 8.0,
-    ];
+    let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
     let input = Tensor::<B, D>::from_slice(&backend, &data, &[1, 2, 2, 2]).unwrap();
 
     let layer = GlobalAvgPool::new(false);
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    
+
     assert_eq!(output.shape().as_slice(), &[1, 2]);
     let result = output.to_vec().unwrap();
     assert_close(result[0], 2.5, 1e-5, "channel 0 mean");
@@ -205,7 +196,7 @@ fn global_avg_pool_5d_input_keepdim() {
     let layer = GlobalAvgPool::new(true);
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    
+
     assert_eq!(output.shape().as_slice(), &[1, 2, 1, 1, 1]);
 }
 
@@ -218,7 +209,7 @@ fn global_avg_pool_5d_input_no_keepdim() {
     let layer = GlobalAvgPool::new(false);
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
-    
+
     assert_eq!(output.shape().as_slice(), &[1, 2]);
 }
 
@@ -231,11 +222,10 @@ fn global_avg_pool_6d_input() {
     let layer = GlobalAvgPool::new(true);
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input.clone(), &mut ctx).unwrap();
-    
+
     assert_eq!(output.shape().as_slice(), &[1, 2, 1, 1, 1, 1]);
-    
+
     let layer_no_keepdim = GlobalAvgPool::new(false);
     let output_no_keepdim = layer_no_keepdim.forward(input, &mut ctx).unwrap();
     assert_eq!(output_no_keepdim.shape().as_slice(), &[1, 2]);
 }
-

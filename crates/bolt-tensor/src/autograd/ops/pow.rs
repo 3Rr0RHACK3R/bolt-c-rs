@@ -39,12 +39,7 @@ where
 
         let one = Tensor::ones(&backend, base.shape().as_slice())?;
         let exp_minus_one = {
-            let parts = backend.sub(
-                exp.storage(),
-                one.storage(),
-                exp.layout(),
-                one.layout(),
-            )?;
+            let parts = backend.sub(exp.storage(), one.storage(), exp.layout(), one.layout())?;
             Tensor::from_parts(backend.clone(), parts.storage, parts.layout)
         };
         let base_pow_exp_minus_one = base.pow(&exp_minus_one)?;

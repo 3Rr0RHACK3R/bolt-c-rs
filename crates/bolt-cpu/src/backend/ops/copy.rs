@@ -1,6 +1,4 @@
-use bolt_core::{
-    Layout, NativeType, StorageAllocator, TensorParts, error::Result,
-};
+use bolt_core::{Layout, NativeType, StorageAllocator, TensorParts, error::Result};
 
 use crate::backend::{CpuStorage, allocator::CpuAllocator, storage::read_into_uninit_slice};
 

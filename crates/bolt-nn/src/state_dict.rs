@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use bolt_core::BaseBackend;
 use bolt_core::Float;
-use bolt_core::shape::Shape;
 use bolt_core::backend::CopyOp;
+use bolt_core::shape::Shape;
 
 use crate::store::{Entry, Kind, Store};
 use crate::{Error, Result};
@@ -88,8 +88,11 @@ where
 
                     let mut t = e.tensor.lock().unwrap();
                     let backend = t.backend();
-                    let new_t =
-                        bolt_tensor::Tensor::from_vec(&backend, blob.data.clone(), blob.shape.as_slice())?;
+                    let new_t = bolt_tensor::Tensor::from_vec(
+                        &backend,
+                        blob.data.clone(),
+                        blob.shape.as_slice(),
+                    )?;
 
                     let requires_grad = e.requires_grad.load(std::sync::atomic::Ordering::Relaxed);
                     *t = new_t.with_requires_grad(requires_grad);

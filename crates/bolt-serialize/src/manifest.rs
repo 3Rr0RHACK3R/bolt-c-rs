@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use bolt_core::shape::Shape;
 use bolt_core::DType;
+use bolt_core::shape::Shape;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::now_rfc3339;
 use crate::TensorRole;
+use crate::utils::now_rfc3339;
 
 pub const TENSOR_SET_SCHEMA_VERSION: &str = "bolt-tensorset:1";
 pub const CHECKPOINT_SCHEMA_VERSION: &str = "bolt-checkpoint:1";

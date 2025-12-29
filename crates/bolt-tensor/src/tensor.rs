@@ -5,8 +5,8 @@ use bolt_core::{
     backend::{
         AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp, CopyOp,
         CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp,
-        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp,
-        TransposeOp, UnsqueezeOp,
+        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp,
+        TanhOp, TransposeOp, UnsqueezeOp,
     },
     dtype::{Float, NativeType},
     error::{Error, Result},
@@ -192,11 +192,7 @@ where
     where
         B: FillOp<D>,
     {
-        let layout = Layout::with_strides(
-            other.layout.shape().clone(),
-            other.layout.strides(),
-            0,
-        )?;
+        let layout = Layout::with_strides(other.layout.shape().clone(), other.layout.strides(), 0)?;
         let storage = other.backend.fill(&layout, D::one())?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
@@ -216,11 +212,7 @@ where
     where
         B: FillOp<D>,
     {
-        let layout = Layout::with_strides(
-            other.layout.shape().clone(),
-            other.layout.strides(),
-            0,
-        )?;
+        let layout = Layout::with_strides(other.layout.shape().clone(), other.layout.strides(), 0)?;
         let storage = other.backend.fill(&layout, value)?;
         let tensor = Self::from_parts(other.backend.clone(), storage, layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;

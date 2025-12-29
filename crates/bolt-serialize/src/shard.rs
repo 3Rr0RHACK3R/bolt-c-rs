@@ -20,12 +20,10 @@ pub struct ShardPlan {
 }
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub struct PlannedShard {
     pub index: usize,
     pub total: usize,
     pub tensor_names: Vec<String>,
-    pub total_bytes: u64,
 }
 
 impl PlannedShard {
@@ -42,73 +40,58 @@ impl PlannedShard {
     }
 }
 
-pub fn plan_shards<'a>(
-    tensors: &[TensorToSave<'a>],
-    max_bytes: Option<u64>,
-) -> Result<ShardPlan> {
+pub fn plan_shards<'a>(tensors: &[TensorToSave<'a>], max_bytes: Option<u64>) -> Result<ShardPlan> {
     let max_bytes = max_bytes.unwrap_or(DEFAULT_SHARD_MAX_BYTES);
 
-    // Sort by name for deterministic order
-    let mut sorted_indices: Vec<usize> = (0..tensors.len()).collect();
-    sorted_indices.sort_by(|&a, &b| tensors[a].meta.name.cmp(&tensors[b].meta.name));
+    let mut tensor_indices_by_name: Vec<usize> = (0..tensors.len()).collect();
+    tensor_indices_by_name.sort_by(|&a, &b| tensors[a].meta.name.cmp(&tensors[b].meta.name));
 
     let mut shards: Vec<PlannedShard> = Vec::new();
-    let mut current_names: Vec<String> = Vec::new();
-    let mut current_bytes: u64 = 0;
+    let mut shard_tensor_names: Vec<String> = Vec::new();
+    let mut shard_bytes: u64 = 0;
 
-    for &idx in &sorted_indices {
-        let tensor = &tensors[idx];
+    for &tensor_index in &tensor_indices_by_name {
+        let tensor = &tensors[tensor_index];
         let tensor_bytes = tensor.data.len() as u64;
 
-        // Oversized tensor rule: if one tensor exceeds max, it gets its own shard
         if tensor_bytes > max_bytes {
-            // Flush current shard if not empty
-            if !current_names.is_empty() {
+            if !shard_tensor_names.is_empty() {
                 shards.push(PlannedShard {
                     index: shards.len(),
                     total: 0, // will be updated later
-                    tensor_names: std::mem::take(&mut current_names),
-                    total_bytes: current_bytes,
+                    tensor_names: std::mem::take(&mut shard_tensor_names),
                 });
-                current_bytes = 0;
+                shard_bytes = 0;
             }
-            // Create oversized shard
             shards.push(PlannedShard {
                 index: shards.len(),
                 total: 0,
                 tensor_names: vec![tensor.meta.name.clone()],
-                total_bytes: tensor_bytes,
             });
             continue;
         }
 
-        // Would adding this tensor exceed the limit?
-        if current_bytes + tensor_bytes > max_bytes && !current_names.is_empty() {
-            // Flush current shard
+        if shard_bytes + tensor_bytes > max_bytes && !shard_tensor_names.is_empty() {
             shards.push(PlannedShard {
                 index: shards.len(),
                 total: 0,
-                tensor_names: std::mem::take(&mut current_names),
-                total_bytes: current_bytes,
+                tensor_names: std::mem::take(&mut shard_tensor_names),
             });
-            current_bytes = 0;
+            shard_bytes = 0;
         }
 
-        current_names.push(tensor.meta.name.clone());
-        current_bytes += tensor_bytes;
+        shard_tensor_names.push(tensor.meta.name.clone());
+        shard_bytes += tensor_bytes;
     }
 
-    // Flush remaining
-    if !current_names.is_empty() {
+    if !shard_tensor_names.is_empty() {
         shards.push(PlannedShard {
             index: shards.len(),
             total: 0,
-            tensor_names: current_names,
-            total_bytes: current_bytes,
+            tensor_names: shard_tensor_names,
         });
     }
 
-    // Update total count
     let total = shards.len();
     for shard in &mut shards {
         shard.total = total;
@@ -123,28 +106,29 @@ pub fn write_shard<'a>(
     out_path: &Path,
     alignment_bytes: u64,
 ) -> Result<()> {
-    let tensor_map: HashMap<&str, &TensorToSave<'a>> = tensors
-        .iter()
-        .map(|t| (t.meta.name.as_str(), t))
-        .collect();
+    let tensor_map: HashMap<&str, &TensorToSave<'a>> =
+        tensors.iter().map(|t| (t.meta.name.as_str(), t)).collect();
 
     // Build safetensors data
     let mut views: Vec<(&str, SafeTensorView<'_>)> = Vec::with_capacity(shard.tensor_names.len());
 
     for name in &shard.tensor_names {
-        let tensor = tensor_map.get(name.as_str()).ok_or_else(|| Error::TensorNotFound {
-            name: name.clone(),
-            dir: out_path.parent().unwrap_or(Path::new(".")).to_path_buf(),
-        })?;
+        let tensor = tensor_map
+            .get(name.as_str())
+            .ok_or_else(|| Error::TensorNotFound {
+                name: name.clone(),
+                dir: out_path.parent().unwrap_or(Path::new(".")).to_path_buf(),
+            })?;
 
         let safe_dtype = dtype_to_safe(tensor.meta.dtype);
         let shape: Vec<usize> = tensor.meta.shape.as_slice().to_vec();
 
-        let view = SafeTensorView::new(safe_dtype, shape, &tensor.data)
-            .map_err(|e| Error::Safetensors {
+        let view = SafeTensorView::new(safe_dtype, shape, &tensor.data).map_err(|e| {
+            Error::Safetensors {
                 shard: out_path.to_path_buf(),
                 reason: e.to_string(),
-            })?;
+            }
+        })?;
 
         views.push((name.as_str(), view));
     }
@@ -166,30 +150,19 @@ pub fn write_shard<'a>(
     };
 
     // Write to file
-    let mut file = BufWriter::new(
-        File::create(out_path).map_err(|e| Error::io(out_path, e))?,
-    );
-    file.write_all(&aligned_bytes).map_err(|e| Error::io(out_path, e))?;
+    let mut file = BufWriter::new(File::create(out_path).map_err(|e| Error::io(out_path, e))?);
+    file.write_all(&aligned_bytes)
+        .map_err(|e| Error::io(out_path, e))?;
     file.flush().map_err(|e| Error::io(out_path, e))?;
 
     Ok(())
 }
 
 fn pad_for_alignment(data: &[u8], alignment: u64) -> Vec<u8> {
-    // The safetensors format starts with an 8-byte header size field
-    // followed by a JSON header (already padded to 8 bytes by safetensors)
-    // We need to ensure tensor data starts at an aligned offset.
-    //
-    // File structure: [8-byte size][JSON header][tensor data]
-    // JSON header length is stored in the first 8 bytes as little-endian u64.
-    //
-    // To achieve alignment, we can add extra spaces to the JSON header.
-
     if data.len() < 8 {
         return data.to_vec();
     }
 
-    // Read the current header size
     let header_size = u64::from_le_bytes(data[0..8].try_into().unwrap());
     let current_data_offset = 8 + header_size;
 
@@ -202,23 +175,16 @@ fn pad_for_alignment(data: &[u8], alignment: u64) -> Vec<u8> {
 
     let padding_needed = (alignment - remainder) as usize;
 
-    // Create new buffer with additional padding in the header
     let new_header_size = header_size + padding_needed as u64;
     let mut result = Vec::with_capacity(data.len() + padding_needed);
 
-    // Write new header size
     result.extend_from_slice(&new_header_size.to_le_bytes());
 
-    // Write original JSON header content (without the closing brace area, we'll add spaces)
-    // The JSON header ends with '}' potentially followed by spaces for alignment
-    // We need to add more spaces before the tensor data
     let original_header = &data[8..(8 + header_size as usize)];
     result.extend_from_slice(original_header);
 
-    // Add padding spaces (valid JSON whitespace)
     result.extend(std::iter::repeat(b' ').take(padding_needed));
 
-    // Append tensor data
     result.extend_from_slice(&data[(8 + header_size as usize)..]);
 
     result

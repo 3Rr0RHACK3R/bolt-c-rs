@@ -2,7 +2,7 @@
 //! while validating shape constraints (rank <= 12, no zero dims, no overflow) on deserialize.
 
 use bolt_core::shape::Shape;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 pub fn serialize<S>(shape: &Shape, serializer: S) -> Result<S::Ok, S::Error>
 where

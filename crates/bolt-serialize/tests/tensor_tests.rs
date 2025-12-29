@@ -12,10 +12,12 @@ fn roundtrip_single_tensor() -> Result<()> {
     let dir = tempfile::tempdir().unwrap();
     let out_path = dir.path().join("test_tensor");
 
-    let original = Tensor::<B, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2])
-        .map_err(|e| Error::Safetensors {
-            shard: out_path.clone(),
-            reason: e.to_string(),
+    let original =
+        Tensor::<B, f32>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).map_err(|e| {
+            Error::Safetensors {
+                shard: out_path.clone(),
+                reason: e.to_string(),
+            }
         })?;
 
     bolt_serialize::tensor::save(
@@ -28,8 +30,12 @@ fn roundtrip_single_tensor() -> Result<()> {
         },
     )?;
 
-    let loaded: Tensor<B, f32> =
-        bolt_serialize::tensor::load("test", &out_path, &backend, &TensorSetLoadOptions::default())?;
+    let loaded: Tensor<B, f32> = bolt_serialize::tensor::load(
+        "test",
+        &out_path,
+        &backend,
+        &TensorSetLoadOptions::default(),
+    )?;
 
     assert_eq!(loaded.shape().as_slice(), &[2, 2]);
     let original_data = original.to_vec().unwrap();
@@ -100,11 +106,18 @@ fn dtype_mismatch_error() -> Result<()> {
         },
     )?;
 
-    let result: Result<Tensor<B, f64>> =
-        bolt_serialize::tensor::load("test", &out_path, &backend, &TensorSetLoadOptions::default());
+    let result: Result<Tensor<B, f64>> = bolt_serialize::tensor::load(
+        "test",
+        &out_path,
+        &backend,
+        &TensorSetLoadOptions::default(),
+    );
 
     assert!(result.is_err());
-    if let Err(Error::DTypeMismatch { expected, found, .. }) = result {
+    if let Err(Error::DTypeMismatch {
+        expected, found, ..
+    }) = result
+    {
         assert_eq!(expected, bolt_core::DType::F64);
         assert_eq!(found, bolt_core::DType::F32);
     } else {

@@ -72,7 +72,9 @@ fn dropout_rate_statistics() {
     let total_elements = num_samples * tensor_size;
 
     for i in 0..num_samples {
-        let x_data: Vec<f32> = (0..tensor_size).map(|j| (i * tensor_size + j) as f32).collect();
+        let x_data: Vec<f32> = (0..tensor_size)
+            .map(|j| (i * tensor_size + j) as f32)
+            .collect();
         let x = Tensor::<B, D>::from_slice(&backend, &x_data, &[tensor_size]).unwrap();
 
         let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(i as u64));
@@ -107,7 +109,9 @@ fn dropout_mean_preservation() {
     let mut total_elements = 0;
 
     for i in 0..num_samples {
-        let x_data: Vec<f32> = (0..tensor_size).map(|j| (i * tensor_size + j) as f32).collect();
+        let x_data: Vec<f32> = (0..tensor_size)
+            .map(|j| (i * tensor_size + j) as f32)
+            .collect();
         let x = Tensor::<B, D>::from_slice(&backend, &x_data, &[tensor_size]).unwrap();
 
         let input_mean = x.mean(None, false).unwrap();
@@ -144,16 +148,17 @@ fn dropout_edge_cases() {
     let dropout_p0 = Dropout::new(0.0).unwrap();
     let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(42));
     let y_p0 = dropout_p0.forward(x.clone(), &mut ctx).unwrap();
-    assert_eq!(y_p0.to_vec().unwrap(), x.to_vec().unwrap(), "p=0.0 should be identity");
+    assert_eq!(
+        y_p0.to_vec().unwrap(),
+        x.to_vec().unwrap(),
+        "p=0.0 should be identity"
+    );
 
     let dropout_p1 = Dropout::new(1.0).unwrap();
     let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(42));
     let y_p1 = dropout_p1.forward(x, &mut ctx).unwrap();
     let y_p1_vec = y_p1.to_vec().unwrap();
     for val in y_p1_vec {
-        assert!(
-            val.abs() < 1e-6,
-            "p=1.0 should output all zeros, got {val}"
-        );
+        assert!(val.abs() < 1e-6, "p=1.0 should output all zeros, got {val}");
     }
 }

@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_tensor::Tensor;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use std::sync::Arc;
 
 fn bench_gemm_f32(c: &mut Criterion) {
     let backend = Arc::new(CpuBackend::new());
@@ -36,4 +36,3 @@ fn bench_gemm_f32(c: &mut Criterion) {
 
 criterion_group!(benches, bench_gemm_f32);
 criterion_main!(benches);
-

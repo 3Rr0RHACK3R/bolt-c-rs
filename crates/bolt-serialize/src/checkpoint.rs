@@ -2,18 +2,20 @@ use std::fs;
 use std::path::Path;
 
 use crate::io::{
-    build_tensor_index, build_tensor_entries, ensure_directory_structure,
+    build_tensor_entries, build_tensor_index, ensure_directory_structure,
     load_shards_with_verification, read_and_parse_manifest, validate_load_directory,
     validate_schema_version, write_manifest, write_shards_with_checksums,
 };
 use crate::manifest::{
-    CheckpointManifest, CheckpointMetadataJson, ShardInfo, CHECKPOINT_MANIFEST_NAME,
-    CHECKPOINT_SCHEMA_VERSION,
+    CHECKPOINT_MANIFEST_NAME, CHECKPOINT_SCHEMA_VERSION, CheckpointManifest,
+    CheckpointMetadataJson, ShardInfo,
 };
 use crate::tensor_set::TensorSetSaveOptions;
-use crate::validation::{validate_no_duplicates, validate_tensor_bytes, validate_tensor_name};
 use crate::utils::create_temp_dir;
-use crate::{Error, ErrorMode, Result, TensorMeta, TensorRole, TensorSet, TensorToSave, TensorView};
+use crate::validation::{validate_no_duplicates, validate_tensor_bytes, validate_tensor_name};
+use crate::{
+    Error, ErrorMode, Result, TensorMeta, TensorRole, TensorSet, TensorToSave, TensorView,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct CheckpointMetadata {
@@ -77,8 +79,6 @@ where
     I: IntoIterator<Item = TensorToSave<'a>>,
 {
     let tensors: Vec<TensorToSave<'a>> = tensors.into_iter().collect();
-
-    // Filter tensors based on options
     let filtered: Vec<TensorToSave<'a>> = tensors
         .into_iter()
         .filter(|t| should_include_tensor(t, opts))
@@ -140,11 +140,8 @@ fn write_checkpoint_to_dir<'a>(
     dir: &Path,
     opts: &CheckpointSaveOptions,
 ) -> Result<()> {
-    // Step 1: Ensure directory structure exists
-    // Note: this is idempotent and creates `dir` if it doesn't exist.
     ensure_directory_structure(dir)?;
 
-    // Step 2: Plan and write shards with checksums
     let (plan, shard_checksums) = write_shards_with_checksums(
         tensors,
         dir,
@@ -153,7 +150,6 @@ fn write_checkpoint_to_dir<'a>(
         opts.tensor_set.checksum,
     )?;
 
-    // Step 3: Build manifest with metadata and tensor entries
     let mut manifest = CheckpointManifest::new();
     manifest.metadata = CheckpointMetadataJson {
         epoch: opts.metadata.epoch,
@@ -172,7 +168,6 @@ fn write_checkpoint_to_dir<'a>(
         opts.tensor_set.checksum,
     )?;
 
-    // Step 4: Write manifest
     let manifest_path = dir.join(CHECKPOINT_MANIFEST_NAME);
     write_manifest(&manifest, &manifest_path)?;
 
@@ -180,20 +175,16 @@ fn write_checkpoint_to_dir<'a>(
 }
 
 pub fn load_checkpoint(dir: &Path, opts: &CheckpointLoadOptions) -> Result<Checkpoint> {
-    // Step 1: Validate directory and get manifest path
     let manifest_path = validate_load_directory(dir, CHECKPOINT_MANIFEST_NAME)?;
 
-    // Step 2: Read and parse manifest
     let manifest = read_and_parse_manifest::<CheckpointManifest>(&manifest_path)?;
 
-    // Step 3: Validate schema version
     validate_schema_version(
         &manifest.schema_version,
         CHECKPOINT_SCHEMA_VERSION,
         manifest_path,
     )?;
 
-    // Step 4: Load shards with checksum verification
     let (shards, corrupted_shards) = load_shards_with_verification(
         &manifest.shards.files,
         &manifest.shards.checksums,
@@ -202,15 +193,13 @@ pub fn load_checkpoint(dir: &Path, opts: &CheckpointLoadOptions) -> Result<Check
         opts.error_mode.clone(),
     )?;
 
-    // Step 5: Build tensor index
-    let (index, shapes) = build_tensor_index(
+    let index = build_tensor_index(
         &manifest.tensors,
         &manifest.shards.files,
         dir,
         &corrupted_shards,
     )?;
 
-    // Step 6: Extract metadata
     let metadata = CheckpointMetadata {
         epoch: manifest.metadata.epoch,
         global_step: manifest.metadata.global_step,
@@ -221,15 +210,13 @@ pub fn load_checkpoint(dir: &Path, opts: &CheckpointLoadOptions) -> Result<Check
 
     Ok(Checkpoint {
         metadata,
-        tensors: TensorSet::new(dir.to_path_buf(), shards, index, shapes),
+        tensors: TensorSet::new(dir.to_path_buf(), shards, index),
     })
 }
 
 pub fn inspect_checkpoint(dir: &Path) -> Result<CheckpointMetadata> {
-    // Step 1: Validate directory and get manifest path
     let manifest_path = validate_load_directory(dir, CHECKPOINT_MANIFEST_NAME)?;
 
-    // Step 2: Read and parse manifest
     let manifest = read_and_parse_manifest::<CheckpointManifest>(&manifest_path)?;
 
     Ok(CheckpointMetadata {
@@ -240,5 +227,3 @@ pub fn inspect_checkpoint(dir: &Path) -> Result<CheckpointMetadata> {
         user: manifest.metadata.user,
     })
 }
-
-

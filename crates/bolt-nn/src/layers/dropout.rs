@@ -54,7 +54,8 @@ where
         let seed = rngs.dropout.next_u64();
 
         let backend = x.backend();
-        let mask = Tensor::<B, D>::bernoulli_mask(&backend, x.shape().as_slice(), keep, Some(seed))?;
+        let mask =
+            Tensor::<B, D>::bernoulli_mask(&backend, x.shape().as_slice(), keep, Some(seed))?;
 
         let y = x.mul(&mask)?;
         let keep_tensor = Tensor::<B, D>::full_like(&y, keep)?;

@@ -1,29 +1,32 @@
-use bolt_core::shape::Shape;
-use bolt_core::DType;
-use bolt_serialize::{TensorMeta, TensorRole, TensorToSave};
+use std::fs;
 
-fn make_tensor(name: &str, size: usize) -> TensorToSave<'static> {
-    // size must be divisible by 4 (F32 byte size)
-    debug_assert_eq!(size % 4, 0, "size must be divisible by 4 for F32 dtype");
+use bolt_core::DType;
+use bolt_core::shape::Shape;
+use bolt_serialize::{
+    TensorMeta, TensorRole, TensorSetLoadOptions, TensorSetSaveOptions, TensorToSave,
+    load_tensor_set, save_tensor_set,
+};
+use tempfile::TempDir;
+
+fn make_tensor(name: &str, byte_len: usize) -> TensorToSave<'static> {
+    debug_assert!(
+        byte_len % 4 == 0,
+        "byte_len must be divisible by 4 for F32 dtype"
+    );
     TensorToSave {
         meta: TensorMeta {
             name: name.to_string(),
             dtype: DType::F32,
-            shape: Shape::from_slice(&[size / 4]).unwrap(),
+            shape: Shape::from_slice(&[byte_len / 4]).unwrap(),
             role: TensorRole::User,
             group: 0,
         },
-        data: vec![0u8; size].into(),
+        data: vec![0u8; byte_len].into(),
     }
 }
 
 #[test]
 fn shard_integration_via_save() {
-    use bolt_serialize::{
-        load_tensor_set, save_tensor_set, TensorSetLoadOptions, TensorSetSaveOptions,
-    };
-    use tempfile::TempDir;
-
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("test_sharding");
 
@@ -33,22 +36,20 @@ fn shard_integration_via_save() {
         make_tensor("b_tensor", 100),
     ];
 
-    let result = save_tensor_set(
+    save_tensor_set(
         tensors,
         &out_dir,
         &TensorSetSaveOptions {
             overwrite: true,
             ..Default::default()
         },
-    );
-
-    assert!(result.is_ok());
+    )
+    .unwrap();
 
     let set = load_tensor_set(&out_dir, &TensorSetLoadOptions::default()).unwrap();
 
-    // Verify tensors can be loaded and data matches
     let a_view = set.get("a_tensor").unwrap();
-    assert_eq!(a_view.shape.as_slice(), &[25]); // 100 bytes / 4 = 25 elements
+    assert_eq!(a_view.shape.as_slice(), &[25]);
     assert_eq!(a_view.data.len(), 100);
 
     let b_view = set.get("b_tensor").unwrap();
@@ -62,10 +63,6 @@ fn shard_integration_via_save() {
 
 #[test]
 fn many_tensors_creates_shards() {
-    use bolt_serialize::{save_tensor_set, TensorSetSaveOptions};
-    use std::fs;
-    use tempfile::TempDir;
-
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("test_many_shards");
 
@@ -73,7 +70,7 @@ fn many_tensors_creates_shards() {
         .map(|i| make_tensor(&format!("tensor_{:03}", i), 1000))
         .collect();
 
-    let result = save_tensor_set(
+    save_tensor_set(
         tensors,
         &out_dir,
         &TensorSetSaveOptions {
@@ -81,9 +78,8 @@ fn many_tensors_creates_shards() {
             shard_max_bytes: Some(2000),
             ..Default::default()
         },
-    );
-
-    assert!(result.is_ok());
+    )
+    .unwrap();
 
     let shards_dir = out_dir.join("shards");
     assert!(shards_dir.exists());
@@ -91,7 +87,11 @@ fn many_tensors_creates_shards() {
     let shard_files: Vec<_> = fs::read_dir(&shards_dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "safetensors"))
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map_or(false, |ext| ext == "safetensors")
+        })
         .collect();
 
     assert!(

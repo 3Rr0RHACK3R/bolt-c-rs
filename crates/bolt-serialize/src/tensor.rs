@@ -6,8 +6,8 @@ use bolt_core::{Backend, NativeType};
 use bolt_tensor::Tensor;
 
 use crate::{
-    load_tensor_set, save_tensor_set, Error, Result, TensorMeta, TensorRole, TensorSet,
-    TensorSetLoadOptions, TensorSetSaveOptions, TensorToSave,
+    Error, Result, TensorMeta, TensorRole, TensorSet, TensorSetLoadOptions, TensorSetSaveOptions,
+    TensorToSave, load_tensor_set, save_tensor_set,
 };
 
 fn prepare_tensor_to_save<B, D>(
@@ -46,11 +46,7 @@ where
     save_tensor_set([tensor_to_save], out_dir, opts)
 }
 
-pub fn save_many<'a, B, D, I>(
-    tensors: I,
-    out_dir: &Path,
-    opts: &TensorSetSaveOptions,
-) -> Result<()>
+pub fn save_many<'a, B, D, I>(tensors: I, out_dir: &Path, opts: &TensorSetSaveOptions) -> Result<()>
 where
     B: Backend + CopyOp<D>,
     D: NativeType,
@@ -58,16 +54,7 @@ where
 {
     let tensors_to_save: Vec<TensorToSave<'static>> = tensors
         .into_iter()
-        .map(|(name, tensor)| {
-            let data = tensor.to_vec().map_err(|e| Error::Safetensors {
-                shard: out_dir.to_path_buf(),
-                reason: e.to_string(),
-            })?;
-            let bytes: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
-
-            let meta = TensorMeta::new(name, D::DTYPE, tensor.shape().clone());
-            Ok(TensorToSave::new(meta, bytes))
-        })
+        .map(|(name, tensor)| prepare_tensor_to_save(name, tensor, None, out_dir))
         .collect::<Result<Vec<_>>>()?;
 
     save_tensor_set(tensors_to_save, out_dir, opts)
@@ -128,7 +115,7 @@ where
         });
     }
 
-    let data_vec: Vec<D> = match bytemuck::try_cast_slice::<u8, D>(view.data) {
+    let data: Vec<D> = match bytemuck::try_cast_slice::<u8, D>(view.data) {
         Ok(typed_data) => typed_data.to_vec(),
         Err(bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
             let mut aligned = vec![0u8; view.data.len()];
@@ -143,7 +130,7 @@ where
         }
     };
 
-    Tensor::from_vec(backend, data_vec, view.shape.as_slice()).map_err(|e| Error::Safetensors {
+    Tensor::from_vec(backend, data, view.shape.as_slice()).map_err(|e| Error::Safetensors {
         shard: set.artifact_dir().to_path_buf(),
         reason: e.to_string(),
     })

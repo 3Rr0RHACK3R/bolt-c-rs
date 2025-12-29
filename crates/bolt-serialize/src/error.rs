@@ -13,7 +13,9 @@ pub enum Error {
     #[error("duplicate tensor name: '{name}'")]
     DuplicateName { name: String },
 
-    #[error("tensor '{name}' byte size mismatch: expected {expected} bytes (numel={numel}, dtype={dtype:?}), got {actual}")]
+    #[error(
+        "tensor '{name}' byte size mismatch: expected {expected} bytes (numel={numel}, dtype={dtype:?}), got {actual}"
+    )]
     ByteSizeMismatch {
         name: String,
         expected: u64,
@@ -39,7 +41,9 @@ pub enum Error {
         found: Vec<usize>,
     },
 
-    #[error("unsafe path detected: '{path}' (reason: {reason}). Try using a relative path within the artifact directory.")]
+    #[error(
+        "unsafe path detected: '{path}' (reason: {reason}). Try using a relative path within the artifact directory."
+    )]
     UnsafePath { path: String, reason: String },
 
     #[error("checksum mismatch for shard '{shard}': expected {expected}, computed {computed}")]
@@ -95,10 +99,14 @@ pub enum Error {
     #[error("numel overflow: shape {shape:?} exceeds maximum representable size")]
     NumelOverflow { shape: Vec<usize> },
 
-    #[error("tensor '{name}' is unavailable due to shard corruption. Try loading with ErrorMode::Permissive to inspect remaining tensors.")]
+    #[error(
+        "tensor '{name}' is unavailable due to shard corruption. Try loading with ErrorMode::Permissive to inspect remaining tensors."
+    )]
     TensorUnavailable { name: String },
 
-    #[error("internal inconsistency: shape data missing for tensor '{name}' in artifact at {dir:?}. This indicates a bug or data corruption.")]
+    #[error(
+        "internal inconsistency: shape data missing for tensor '{name}' in artifact at {dir:?}. This indicates a bug or data corruption."
+    )]
     ShapeMissing { name: String, dir: PathBuf },
 }
 
