@@ -324,9 +324,23 @@ fn multi_dtype_tensor_set() -> bolt_serialize::Result<()> {
 
     let set = load_tensor_set(&out_dir, &TensorSetLoadOptions::default())?;
 
-    assert_eq!(set.get("f32_tensor")?.dtype, DType::F32);
-    assert_eq!(set.get("f64_tensor")?.dtype, DType::F64);
-    assert_eq!(set.get("i32_tensor")?.dtype, DType::I32);
+    let f32_view = set.get("f32_tensor")?;
+    assert_eq!(f32_view.dtype, DType::F32);
+    assert_eq!(f32_view.shape.as_slice(), &[2]);
+    let f32_data: &[f32] = bytemuck::cast_slice(f32_view.data);
+    assert_eq!(f32_data, &[1.0, 2.0]);
+
+    let f64_view = set.get("f64_tensor")?;
+    assert_eq!(f64_view.dtype, DType::F64);
+    assert_eq!(f64_view.shape.as_slice(), &[2]);
+    let f64_data: &[f64] = bytemuck::cast_slice(f64_view.data);
+    assert_eq!(f64_data, &[3.0, 4.0]);
+
+    let i32_view = set.get("i32_tensor")?;
+    assert_eq!(i32_view.dtype, DType::I32);
+    assert_eq!(i32_view.shape.as_slice(), &[2]);
+    let i32_data: &[i32] = bytemuck::cast_slice(i32_view.data);
+    assert_eq!(i32_data, &[5, 6]);
 
     Ok(())
 }
@@ -398,9 +412,19 @@ fn sharding_creates_multiple_files() -> bolt_serialize::Result<()> {
     assert!(shard_count >= 2, "Expected multiple shards, got {}", shard_count);
 
     let set = load_tensor_set(&out_dir, &TensorSetLoadOptions::default())?;
-    assert!(set.get("t1").is_ok());
-    assert!(set.get("t2").is_ok());
-    assert!(set.get("t3").is_ok());
+    
+    // Verify tensors can be loaded and data matches
+    let t1_view = set.get("t1")?;
+    assert_eq!(t1_view.shape.as_slice(), &[1000]);
+    assert_eq!(t1_view.data.len(), 1000);
+    
+    let t2_view = set.get("t2")?;
+    assert_eq!(t2_view.shape.as_slice(), &[1000]);
+    assert_eq!(t2_view.data.len(), 1000);
+    
+    let t3_view = set.get("t3")?;
+    assert_eq!(t3_view.shape.as_slice(), &[1000]);
+    assert_eq!(t3_view.data.len(), 1000);
 
     Ok(())
 }

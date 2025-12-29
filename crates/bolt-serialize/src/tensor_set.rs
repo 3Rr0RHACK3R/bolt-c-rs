@@ -387,7 +387,10 @@ pub fn inspect_tensor_set(dir: &Path) -> Result<Vec<TensorMeta>> {
 
     let mut metas = Vec::new();
     for (name, entry) in &manifest.tensors {
-        let dtype = entry.parse_dtype().unwrap_or(bolt_core::DType::F32);
+        let dtype = entry.parse_dtype().ok_or_else(|| Error::Safetensors {
+            shard: dir.to_path_buf(),
+            reason: format!("unknown dtype '{}' for tensor '{}'", entry.dtype, name),
+        })?;
 
         metas.push(TensorMeta {
             name: name.clone(),

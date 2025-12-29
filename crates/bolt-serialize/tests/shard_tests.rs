@@ -3,6 +3,8 @@ use bolt_core::DType;
 use bolt_serialize::{TensorMeta, TensorRole, TensorToSave};
 
 fn make_tensor(name: &str, size: usize) -> TensorToSave<'static> {
+    // size must be divisible by 4 (F32 byte size)
+    debug_assert_eq!(size % 4, 0, "size must be divisible by 4 for F32 dtype");
     TensorToSave {
         meta: TensorMeta {
             name: name.to_string(),
@@ -44,9 +46,18 @@ fn shard_integration_via_save() {
 
     let set = load_tensor_set(&out_dir, &TensorSetLoadOptions::default()).unwrap();
 
-    assert!(set.get("a_tensor").is_ok());
-    assert!(set.get("b_tensor").is_ok());
-    assert!(set.get("c_tensor").is_ok());
+    // Verify tensors can be loaded and data matches
+    let a_view = set.get("a_tensor").unwrap();
+    assert_eq!(a_view.shape.as_slice(), &[25]); // 100 bytes / 4 = 25 elements
+    assert_eq!(a_view.data.len(), 100);
+
+    let b_view = set.get("b_tensor").unwrap();
+    assert_eq!(b_view.shape.as_slice(), &[25]);
+    assert_eq!(b_view.data.len(), 100);
+
+    let c_view = set.get("c_tensor").unwrap();
+    assert_eq!(c_view.shape.as_slice(), &[25]);
+    assert_eq!(c_view.data.len(), 100);
 }
 
 #[test]

@@ -8,6 +8,8 @@ use bolt_serialize::{
 use tempfile::TempDir;
 
 fn make_tensor<'a>(name: &str, size: usize) -> TensorToSave<'a> {
+    // size must be divisible by 4 (F32 byte size)
+    debug_assert_eq!(size % 4, 0, "size must be divisible by 4 for F32 dtype");
     TensorToSave::new(
         TensorMeta::new(name, DType::F32, Shape::from_slice(&[size / 4]).unwrap()).with_role(TensorRole::User),
         vec![0u8; size],

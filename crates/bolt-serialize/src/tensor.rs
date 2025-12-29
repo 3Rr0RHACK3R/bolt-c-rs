@@ -10,6 +10,28 @@ use crate::{
     TensorSetLoadOptions, TensorSetSaveOptions, TensorToSave,
 };
 
+fn prepare_tensor_to_save<B, D>(
+    name: &str,
+    tensor: &Tensor<B, D>,
+    role: Option<TensorRole>,
+    out_dir: &Path,
+) -> Result<TensorToSave<'static>>
+where
+    B: Backend + CopyOp<D>,
+    D: NativeType,
+{
+    let data = tensor.to_vec().map_err(|e| Error::Safetensors {
+        shard: out_dir.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+    let bytes: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
+    let mut meta = TensorMeta::new(name, D::DTYPE, tensor.shape().clone());
+    if let Some(r) = role {
+        meta = meta.with_role(r);
+    }
+    Ok(TensorToSave::new(meta, bytes))
+}
+
 pub fn save<B, D>(
     name: &str,
     tensor: &Tensor<B, D>,
@@ -20,16 +42,7 @@ where
     B: Backend + CopyOp<D>,
     D: NativeType,
 {
-    let data = tensor.to_vec().map_err(|e| Error::Safetensors {
-        shard: out_dir.to_path_buf(),
-        reason: e.to_string(),
-    })?;
-
-    let bytes: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
-
-    let meta = TensorMeta::new(name, D::DTYPE, tensor.layout().shape().clone());
-    let tensor_to_save = TensorToSave::new(meta, bytes);
-
+    let tensor_to_save = prepare_tensor_to_save(name, tensor, None, out_dir)?;
     save_tensor_set([tensor_to_save], out_dir, opts)
 }
 
@@ -52,7 +65,7 @@ where
             })?;
             let bytes: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
 
-            let meta = TensorMeta::new(name, D::DTYPE, tensor.layout().shape().clone());
+            let meta = TensorMeta::new(name, D::DTYPE, tensor.shape().clone());
             Ok(TensorToSave::new(meta, bytes))
         })
         .collect::<Result<Vec<_>>>()?;
@@ -71,17 +84,7 @@ where
     B: Backend + CopyOp<D>,
     D: NativeType,
 {
-    let data = tensor.to_vec().map_err(|e| Error::Safetensors {
-        shard: out_dir.to_path_buf(),
-        reason: e.to_string(),
-    })?;
-
-    let bytes: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
-
-    let meta = TensorMeta::new(name, D::DTYPE, tensor.layout().shape().clone())
-        .with_role(role);
-    let tensor_to_save = TensorToSave::new(meta, bytes);
-
+    let tensor_to_save = prepare_tensor_to_save(name, tensor, Some(role), out_dir)?;
     save_tensor_set([tensor_to_save], out_dir, opts)
 }
 

@@ -7,6 +7,8 @@ use bolt_serialize::{
 use tempfile::TempDir;
 
 fn make_tensor<'a>(name: &str, role: TensorRole, size: usize) -> TensorToSave<'a> {
+    // size must be divisible by 4 (F32 byte size)
+    debug_assert_eq!(size % 4, 0, "size must be divisible by 4 for F32 dtype");
     TensorToSave::new(
         TensorMeta::new(name, DType::F32, Shape::from_slice(&[size / 4]).unwrap()).with_role(role),
         vec![0u8; size],
@@ -227,6 +229,7 @@ fn checkpoint_lazy_loading() -> bolt_serialize::Result<()> {
 
     let view = ckpt.tensors.get("large")?;
     assert_eq!(view.shape.as_slice(), &[2500]); // 10000 bytes / 4 bytes per f32
+    assert_eq!(view.data.len(), 10000); // Verify data size matches
 
     Ok(())
 }

@@ -150,7 +150,7 @@ pub fn write_shard<'a>(
     }
 
     // Serialize to bytes (safetensors already pads header to 8-byte alignment)
-    let bytes = serialize(views, &None).map_err(|e| Error::Safetensors {
+    let bytes = serialize(views, None).map_err(|e| Error::Safetensors {
         shard: out_path.to_path_buf(),
         reason: e.to_string(),
     })?;
