@@ -12,7 +12,7 @@ mod validation;
 pub mod tensor;
 
 pub use checkpoint::{
-    Checkpoint, CheckpointLoadOptions, CheckpointMetadata, CheckpointSaveOptions,
+    Checkpoint, CheckpointInfo, CheckpointLoadOptions, CheckpointMetadata, CheckpointSaveOptions,
     inspect_checkpoint, load_checkpoint, save_checkpoint,
 };
 pub use error::{Error, Result};

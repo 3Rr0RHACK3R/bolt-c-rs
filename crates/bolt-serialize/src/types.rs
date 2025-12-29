@@ -106,12 +106,4 @@ impl<'a> TensorView<'a> {
             data: view.data(),
         })
     }
-
-    pub fn numel(&self) -> u64 {
-        self.numel_checked().unwrap_or(0)
-    }
-
-    pub fn numel_checked(&self) -> Option<u64> {
-        self.shape.numel_checked()
-    }
 }

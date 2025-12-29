@@ -24,6 +24,16 @@ pub enum Error {
         dtype: DType,
     },
 
+    #[error(
+        "tensor '{name}' has invalid byte size: {actual} bytes is not a multiple of element size {element_size} for dtype {dtype:?}"
+    )]
+    ByteSizeNotAligned {
+        name: String,
+        actual: u64,
+        element_size: usize,
+        dtype: DType,
+    },
+
     #[error("tensor '{name}' not found in artifact at {dir:?}")]
     TensorNotFound { name: String, dir: PathBuf },
 
