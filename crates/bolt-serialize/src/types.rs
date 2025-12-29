@@ -1,7 +1,12 @@
 use std::borrow::Cow;
+use std::path::Path;
 
 use bolt_core::{DType, shape};
+use safetensors::tensor::TensorView as SafeTensorView;
 use serde::{Deserialize, Serialize};
+
+use crate::shard::dtype_from_safe;
+use crate::{Error, Result};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -84,6 +89,24 @@ pub struct TensorView<'a> {
 }
 
 impl<'a> TensorView<'a> {
+    pub fn from_safetensors_view(view: &SafeTensorView<'a>, shard_path: &Path) -> Result<Self> {
+        let dtype = dtype_from_safe(view.dtype()).ok_or_else(|| Error::Safetensors {
+            shard: shard_path.to_path_buf(),
+            reason: format!("unsupported dtype: {:?}", view.dtype()),
+        })?;
+
+        let shape = shape::Shape::from_slice(view.shape()).map_err(|e| Error::Safetensors {
+            shard: shard_path.to_path_buf(),
+            reason: format!("invalid shape: {e}"),
+        })?;
+
+        Ok(Self {
+            dtype,
+            shape,
+            data: view.data(),
+        })
+    }
+
     pub fn numel(&self) -> u64 {
         self.numel_checked().unwrap_or(0)
     }

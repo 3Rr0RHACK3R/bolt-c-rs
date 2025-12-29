@@ -10,7 +10,7 @@ use crate::io::{
 use crate::manifest::{
     ShardInfo, TENSOR_SET_MANIFEST_NAME, TENSOR_SET_SCHEMA_VERSION, TensorSetManifest,
 };
-use crate::shard::{LoadedShard, dtype_from_safe};
+use crate::shard::LoadedShard;
 use crate::utils::create_temp_dir;
 use crate::validation::{validate_no_duplicates, validate_tensor_bytes, validate_tensor_name};
 use crate::{Error, ErrorMode, Result, TensorMeta, TensorToSave, TensorView};
@@ -100,18 +100,7 @@ impl TensorSet {
             reason: e.to_string(),
         })?;
 
-        let dtype = dtype_from_safe(tensor_view.dtype()).ok_or_else(|| Error::Safetensors {
-            shard: shard.path.clone(),
-            reason: format!("unsupported dtype: {:?}", tensor_view.dtype()),
-        })?;
-
-        let shape = idx.meta.shape.clone();
-
-        Ok(TensorView {
-            dtype,
-            shape,
-            data: tensor_view.data(),
-        })
+        TensorView::from_safetensors_view(&tensor_view, &shard.path)
     }
 
     pub fn materialize(&self, name: &str) -> Result<Vec<u8>> {
