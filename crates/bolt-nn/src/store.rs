@@ -24,7 +24,6 @@ where
     D: Float,
 {
     pub(crate) key: String,
-    pub(crate) kind: Kind,
     pub(crate) group: AtomicU32,
     pub(crate) shape: Shape,
     pub(crate) requires_grad: AtomicBool,
@@ -122,6 +121,14 @@ where
 {
     pub fn key(&self) -> &str {
         &self.0.key
+    }
+
+    pub fn group(&self) -> u32 {
+        self.0.group.load(Ordering::Relaxed)
+    }
+
+    pub fn set_group(&self, group: u32) {
+        self.0.group.store(group, Ordering::Relaxed);
     }
 
     pub fn shape(&self) -> &Shape {
@@ -241,6 +248,13 @@ where
             .collect()
     }
 
+    pub fn named_buffers(&self) -> Vec<(String, Buffer<B, D>)> {
+        let map = self.inner.buffers.read().unwrap();
+        map.iter()
+            .map(|(k, v)| (k.clone(), Buffer(v.clone())))
+            .collect()
+    }
+
     pub fn trainable_by_group(&self, group_id: u32) -> Vec<Param<B, D>> {
         let map = self.inner.params.read().unwrap();
         map.values()
@@ -313,7 +327,6 @@ where
 
         let entry = Arc::new(Entry {
             key: key.clone(),
-            kind,
             group: AtomicU32::new(self.group),
             shape: Shape::from_slice(shape)?,
             requires_grad: AtomicBool::new(requires_grad),
@@ -341,34 +354,7 @@ where
         Ok(entry)
     }
 
-    pub(crate) fn all_entries(&self) -> (Vec<Arc<Entry<B, D>>>, Vec<Arc<Entry<B, D>>>) {
-        let ps = self
-            .inner
-            .params
-            .read()
-            .unwrap()
-            .values()
-            .cloned()
-            .collect();
-        let bs = self
-            .inner
-            .buffers
-            .read()
-            .unwrap()
-            .values()
-            .cloned()
-            .collect();
-        (ps, bs)
-    }
-
-    pub(crate) fn get_entry(&self, key: &str) -> Option<Arc<Entry<B, D>>> {
-        if let Some(e) = self.inner.params.read().unwrap().get(key) {
-            return Some(e.clone());
-        }
-        self.inner.buffers.read().unwrap().get(key).cloned()
-    }
-
-    pub(crate) fn expected_keys(&self) -> Vec<String> {
+    pub fn expected_keys(&self) -> Vec<String> {
         let mut out: Vec<String> = self.inner.params.read().unwrap().keys().cloned().collect();
         out.extend(self.inner.buffers.read().unwrap().keys().cloned());
         out.sort();

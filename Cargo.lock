@@ -88,9 +88,12 @@ dependencies = [
 name = "bolt-benchmark"
 version = "0.1.0"
 dependencies = [
+ "bolt-core",
  "bolt-cpu",
+ "bolt-serialize",
  "bolt-tensor",
  "criterion",
+ "tempfile",
 ]
 
 [[package]]
@@ -209,9 +212,12 @@ dependencies = [
  "blake3",
  "bolt-core",
  "bolt-cpu",
+ "bolt-nn",
+ "bolt-optim",
  "bolt-tensor",
  "bytemuck",
  "glob",
+ "libc",
  "memmap2",
  "safetensors",
  "serde",

@@ -1,85 +1,84 @@
 use std::fs;
 
-use bolt_core::DType;
-use bolt_core::shape::Shape;
+use bolt_core::{DType, shape::Shape};
 use bolt_serialize::{
-    TensorMeta, TensorRole, TensorSetLoadOptions, TensorSetSaveOptions, TensorToSave,
-    load_tensor_set, save_tensor_set,
+    CheckpointMeta, LoadOpts, Record, RecordMeta, Role, SaveOpts, load_checkpoint, save_checkpoint,
 };
 use tempfile::TempDir;
 
-fn make_tensor(name: &str, byte_len: usize) -> TensorToSave<'static> {
+fn make_record(name: &str, byte_len: usize) -> Record<'static> {
     debug_assert!(
         byte_len % 4 == 0,
         "byte_len must be divisible by 4 for F32 dtype"
     );
-    TensorToSave {
-        meta: TensorMeta {
-            name: name.to_string(),
-            dtype: DType::F32,
-            shape: Shape::from_slice(&[byte_len / 4]).unwrap(),
-            role: TensorRole::User,
-            group: 0,
-        },
-        data: vec![0u8; byte_len].into(),
-    }
+    Record::new(
+        RecordMeta::new(
+            name,
+            DType::F32,
+            Shape::from_slice(&[byte_len / 4]).unwrap(),
+        )
+        .with_role(Role::User),
+        vec![0u8; byte_len],
+    )
 }
 
 #[test]
-fn shard_integration_via_save() {
+fn shard_integration_via_checkpoint_save() -> bolt_serialize::Result<()> {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("test_sharding");
 
-    let tensors = vec![
-        make_tensor("c_tensor", 100),
-        make_tensor("a_tensor", 100),
-        make_tensor("b_tensor", 100),
+    let records = vec![
+        make_record("c_tensor", 100),
+        make_record("a_tensor", 100),
+        make_record("b_tensor", 100),
     ];
 
-    save_tensor_set(
-        tensors,
+    save_checkpoint(
+        records.into_iter().map(Ok),
         &out_dir,
-        &TensorSetSaveOptions {
+        &CheckpointMeta::default(),
+        &SaveOpts {
             overwrite: true,
             ..Default::default()
         },
-    )
-    .unwrap();
+    )?;
 
-    let set = load_tensor_set(&out_dir, &TensorSetLoadOptions::default()).unwrap();
+    let ckpt = load_checkpoint(&out_dir, &LoadOpts::default())?;
 
-    let a_view = set.get("a_tensor").unwrap();
+    let a_view = ckpt.get("a_tensor")?;
     assert_eq!(a_view.shape.as_slice(), &[25]);
     assert_eq!(a_view.data.len(), 100);
 
-    let b_view = set.get("b_tensor").unwrap();
+    let b_view = ckpt.get("b_tensor")?;
     assert_eq!(b_view.shape.as_slice(), &[25]);
     assert_eq!(b_view.data.len(), 100);
 
-    let c_view = set.get("c_tensor").unwrap();
+    let c_view = ckpt.get("c_tensor")?;
     assert_eq!(c_view.shape.as_slice(), &[25]);
     assert_eq!(c_view.data.len(), 100);
+
+    Ok(())
 }
 
 #[test]
-fn many_tensors_creates_shards() {
+fn many_records_creates_shards() -> bolt_serialize::Result<()> {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path().join("test_many_shards");
 
-    let tensors: Vec<_> = (0..10)
-        .map(|i| make_tensor(&format!("tensor_{:03}", i), 1000))
+    let records: Vec<_> = (0..10)
+        .map(|i| make_record(&format!("tensor_{:03}", i), 1000))
         .collect();
 
-    save_tensor_set(
-        tensors,
+    save_checkpoint(
+        records.into_iter().map(Ok),
         &out_dir,
-        &TensorSetSaveOptions {
+        &CheckpointMeta::default(),
+        &SaveOpts {
             overwrite: true,
             shard_max_bytes: Some(2000),
             ..Default::default()
         },
-    )
-    .unwrap();
+    )?;
 
     let shards_dir = out_dir.join("shards");
     assert!(shards_dir.exists());
@@ -96,7 +95,9 @@ fn many_tensors_creates_shards() {
 
     assert!(
         shard_files.len() > 1,
-        "Expected multiple shards, got {}",
+        "expected multiple shards, got {}",
         shard_files.len()
     );
+
+    Ok(())
 }

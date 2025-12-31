@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 bolt-core = { path = "../bolt-core" }
+bolt-nn = { path = "../bolt-nn" }
+bolt-optim = { path = "../bolt-optim" }
 bolt-tensor = { path = "../bolt-tensor" }
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -20,4 +22,5 @@ glob = "0.3"
 
 [dev-dependencies]
 bolt-cpu = { path = "../bolt-cpu" }
+libc = "0.2"
 tempfile = "3"

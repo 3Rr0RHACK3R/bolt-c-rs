@@ -8,7 +8,7 @@ use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
 use bolt_nn::layers::{BatchNorm, Linear};
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
-use bolt_rng::RngStream;
+use bolt_rng::{RngStream, RngStreams};
 use bolt_tensor::{Tensor, no_grad};
 use bolt_vision::{ops::tensor, types::ImageLayout};
 
@@ -114,6 +114,7 @@ fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let seed = 42u64;
     let data_root = std::env::var("MNIST_DIR")
         .map(Into::into)
         .unwrap_or_else(|_| std::path::PathBuf::from("data/mnist"));
@@ -122,6 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 1337);
     let model = MnistMLP::init(&store, 512, 256)?;
+    let mut model_rngs = RngStreams::from_seed(seed);
 
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
@@ -140,7 +142,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let params = store.trainable();
 
-    let seed = 42u64;
     let batch_size = 128;
     let epochs = 15;
 
@@ -152,7 +153,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let batch = batch_res?;
             store.zero_grad();
 
-            let mut ctx = ForwardCtx::train();
+            let mut ctx = ForwardCtx::train_with_rngs(model_rngs.split());
             let logits = model.forward(batch.images, &mut ctx)?;
             let loss = cross_entropy_from_logits_sparse(
                 &logits,

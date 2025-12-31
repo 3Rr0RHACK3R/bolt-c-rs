@@ -1,23 +1,19 @@
-mod checkpoint;
 mod error;
-mod io;
-mod manifest;
-mod serde_shape;
-mod shard;
-mod tensor_set;
-mod types;
-mod utils;
-mod validation;
+mod format;
+mod load;
+mod options;
+mod record;
+mod save;
 
-pub mod tensor;
+pub mod adapters;
 
-pub use checkpoint::{
-    Checkpoint, CheckpointInfo, CheckpointLoadOptions, CheckpointMetadata, CheckpointSaveOptions,
-    inspect_checkpoint, load_checkpoint, save_checkpoint,
-};
 pub use error::{Error, Result};
-pub use tensor_set::{
-    TensorSet, TensorSetLoadOptions, TensorSetSaveOptions, inspect_tensor_set, load_tensor_set,
-    save_tensor_set,
-};
-pub use types::{ErrorMode, TensorMeta, TensorRole, TensorToSave, TensorView};
+pub use format::SHARDS_DIR;
+pub use load::{inspect, load_checkpoint, Checkpoint, CheckpointInfo, CheckpointMeta};
+pub use options::{LoadOpts, OnError, RestoreOpts, RestoreReport, SaveOpts};
+pub use record::{Record, RecordMeta, RecordView, Role};
+pub use save::{plan_shards, save_checkpoint, ShardEntry, ShardPlan};
+
+pub use adapters::optim::OptimizerCheckpointAdapter;
+pub use adapters::store::StoreCheckpointAdapter;
+pub use adapters::tensor::{TensorFromCheckpoint, TensorToRecord};
