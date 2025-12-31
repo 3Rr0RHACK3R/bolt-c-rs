@@ -4,23 +4,21 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_data::Stream;
 use bolt_datasets::mnist::{self, INPUT_DIM, MnistBatch, NUM_CLASSES};
-use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
+use bolt_losses::{Reduction, cross_entropy_from_logits_sparse};
 use bolt_nn::layers::{BatchNorm, Linear};
 use bolt_nn::{ForwardCtx, Module, Store};
-use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
-use bolt_rng::{RngStream, RngStreams};
 use bolt_tensor::{Tensor, no_grad};
 use bolt_vision::{ops::tensor, types::ImageLayout};
 
-type B = CpuBackend;
-type D = f32;
-type Batch = MnistBatch<B>;
-type BoxErr = Box<dyn std::error::Error>;
+pub type B = CpuBackend;
+pub type D = f32;
+pub type Batch = MnistBatch<B>;
+pub type BoxErr = Box<dyn std::error::Error>;
 
 const MEAN: [f32; 1] = [0.1307];
 const STD: [f32; 1] = [0.3081];
 
-struct MnistMLP {
+pub struct MnistMLP {
     fc1: Linear<B, D>,
     bn1: BatchNorm<B, D>,
     fc2: Linear<B, D>,
@@ -29,7 +27,7 @@ struct MnistMLP {
 }
 
 impl MnistMLP {
-    fn init(store: &Store<B, D>, hidden1: usize, hidden2: usize) -> bolt_nn::Result<Self> {
+    pub fn init(store: &Store<B, D>, hidden1: usize, hidden2: usize) -> bolt_nn::Result<Self> {
         let fc1 = Linear::init(&store.sub("fc1"), INPUT_DIM, hidden1, true)?;
         let bn1 = BatchNorm::init_default(&store.sub("bn1"), hidden1)?;
         let fc2 = Linear::init(&store.sub("fc2"), hidden1, hidden2, true)?;
@@ -66,11 +64,12 @@ impl Module<B, D> for MnistMLP {
     }
 }
 
-fn train_loader(
+#[allow(dead_code)]
+pub fn train_loader(
     root: &Path,
     backend: Arc<B>,
     batch_size: usize,
-    rng: RngStream,
+    rng: bolt_rng::RngStream,
 ) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::train(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
@@ -89,11 +88,10 @@ fn train_loader(
             let labels = Tensor::from_iter(b, xs.iter().map(|s| s.label))?;
             Ok::<_, bolt_data::DataError>(MnistBatch { images, labels })
         });
-    // .take(10);
     Ok(stream)
 }
 
-fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream<Batch>, BoxErr> {
+pub fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::test(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
         .try_map(|mut s| {
@@ -113,91 +111,20 @@ fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream
     Ok(stream)
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let seed = 42u64;
-    let data_root = std::env::var("MNIST_DIR")
-        .map(Into::into)
-        .unwrap_or_else(|_| std::path::PathBuf::from("data/mnist"));
-    mnist::ensure_downloaded(&data_root)?;
-
-    let backend = Arc::new(CpuBackend::new());
-    let store = Store::<B, D>::new(backend.clone(), 1337);
-    let model = MnistMLP::init(&store, 512, 256)?;
-    let mut model_rngs = RngStreams::from_seed(seed);
-
-    store.group_params_by_name(|name| name.contains("bias"), 1);
-    store.seal();
-
-    let mut opt = Sgd::<B, D>::new(SgdCfg {
-        lr: 0.01,
-        momentum: 0.9,
-        weight_decay: 1e-4,
-    })?;
-    opt.set_group(
-        1,
-        SgdGroupCfg {
-            lr_mult: 1.0,
-            weight_decay: Some(0.0),
-        },
-    )?;
-    let params = store.trainable();
-
-    let batch_size = 128;
-    let epochs = 15;
-
-    for epoch in 0..epochs {
-        let rng = RngStream::from_seed(seed + epoch as u64);
-        let loader = train_loader(&data_root, backend.clone(), batch_size, rng)?;
-
-        for (step, batch_res) in loader.iter().enumerate() {
-            let batch = batch_res?;
-            store.zero_grad();
-
-            let mut ctx = ForwardCtx::train_with_rngs(model_rngs.split());
-            let logits = model.forward(batch.images, &mut ctx)?;
-            let loss = cross_entropy_from_logits_sparse(
-                &logits,
-                &batch.labels,
-                NUM_CLASSES,
-                Reduction::Mean,
-            )?;
-
-            store.backward(&loss)?;
-            opt.step(&params)?;
-
-            if (step + 1) % 50 == 0 || step == 0 {
-                let loss_val = loss.item()?;
-                let logits_detached = logits.clone().with_requires_grad(false);
-                let acc = accuracy_top1(&logits_detached, &batch.labels)?;
-                println!(
-                    "epoch {:>2} step {:>4} loss {:>8.4} acc {:>5.1}%",
-                    epoch + 1,
-                    step + 1,
-                    loss_val,
-                    acc * 100.0
-                );
-            }
-        }
-
-        if (epoch + 1) % 2 == 0 {
-            println!("\n--- Epoch {} Test Evaluation ---", epoch + 1);
-            evaluate(&model, &data_root, backend.clone(), batch_size)?;
-            println!();
-        }
-    }
-
-    println!("\n=== Final Evaluation on Test Set ===");
-    evaluate(&model, &data_root, backend, batch_size)?;
-    Ok(())
+#[derive(Clone, Copy, Debug)]
+pub struct EvalResult {
+    pub loss: f64,
+    pub acc: f64,
+    pub correct: usize,
+    pub total: usize,
 }
 
-fn evaluate(
+pub fn evaluate(
     model: &MnistMLP,
     data_root: &Path,
     backend: Arc<B>,
     batch_size: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n=== Evaluation on Test Set ===");
+) -> Result<EvalResult, BoxErr> {
     let _guard = no_grad();
 
     let loader = test_loader(data_root, backend, batch_size)?;
@@ -231,11 +158,10 @@ fn evaluate(
 
     let test_loss = total_loss / total_samples as f64;
     let test_acc = total_correct as f64 / total_samples as f64;
-    println!(
-        "Test Loss: {:.4}  Test Acc: {:.2}%",
-        test_loss,
-        test_acc * 100.0
-    );
-
-    Ok(())
+    Ok(EvalResult {
+        loss: test_loss,
+        acc: test_acc,
+        correct: total_correct,
+        total: total_samples,
+    })
 }

@@ -153,6 +153,7 @@ dependencies = [
  "bolt-optim",
  "bolt-profiler",
  "bolt-rng",
+ "bolt-serialize",
  "bolt-tensor",
  "bolt-vision",
 ]
