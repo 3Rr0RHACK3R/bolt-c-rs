@@ -7,14 +7,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("invalid tensor name '{name}': {reason}")]
+    #[error("invalid record name '{name}': {reason}")]
     InvalidName { name: String, reason: String },
 
-    #[error("duplicate tensor name: '{name}'")]
+    #[error("duplicate record name: '{name}'")]
     DuplicateName { name: String },
 
     #[error(
-        "tensor '{name}' byte size mismatch: expected {expected} bytes (numel={numel}, dtype={dtype:?}), got {actual}"
+        "record '{name}' byte size mismatch: expected {expected} bytes (numel={numel}, dtype={dtype:?}), got {actual}"
     )]
     ByteSizeMismatch {
         name: String,
@@ -25,7 +25,7 @@ pub enum Error {
     },
 
     #[error(
-        "tensor '{name}' has invalid byte size: {actual} bytes is not a multiple of element size {element_size} for dtype {dtype:?}"
+        "record '{name}' has invalid byte size: {actual} bytes is not a multiple of element size {element_size} for dtype {dtype:?}"
     )]
     ByteSizeNotAligned {
         name: String,
@@ -34,17 +34,17 @@ pub enum Error {
         dtype: DType,
     },
 
-    #[error("tensor '{name}' not found in artifact at {dir:?}")]
-    TensorNotFound { name: String, dir: PathBuf },
+    #[error("record '{name}' not found in artifact at {dir:?}")]
+    RecordNotFound { name: String, dir: PathBuf },
 
-    #[error("dtype mismatch for tensor '{name}': expected {expected:?}, found {found:?}")]
+    #[error("dtype mismatch for record '{name}': expected {expected:?}, found {found:?}")]
     DTypeMismatch {
         name: String,
         expected: DType,
         found: DType,
     },
 
-    #[error("shape mismatch for tensor '{name}': expected {expected:?}, found {found:?}")]
+    #[error("shape mismatch for record '{name}': expected {expected:?}, found {found:?}")]
     ShapeMismatch {
         name: String,
         expected: Vec<usize>,
@@ -63,8 +63,8 @@ pub enum Error {
         computed: String,
     },
 
-    #[error("tensor '{name}' in shard '{shard}' is corrupted (checksum mismatch)")]
-    TensorCorrupted { name: String, shard: PathBuf },
+    #[error("record '{name}' in shard '{shard}' is corrupted (checksum mismatch)")]
+    RecordCorrupted { name: String, shard: PathBuf },
 
     #[error("schema version mismatch in '{file}': expected '{expected}', found '{found}'")]
     SchemaVersionMismatch {
@@ -88,8 +88,8 @@ pub enum Error {
     #[error("failed to parse manifest at {path:?}: {reason}")]
     ManifestParse { path: PathBuf, reason: String },
 
-    #[error("safetensors error for shard '{shard:?}': {reason}")]
-    Safetensors { shard: PathBuf, reason: String },
+    #[error("shard format error for '{shard:?}': {reason}")]
+    ShardFormat { shard: PathBuf, reason: String },
 
     #[error("io error at '{path:?}': {source}")]
     Io {
@@ -109,13 +109,11 @@ pub enum Error {
     #[error("numel overflow: shape {shape:?} exceeds maximum representable size")]
     NumelOverflow { shape: Vec<usize> },
 
-    #[error(
-        "tensor '{name}' is unavailable due to shard corruption. Try loading with ErrorMode::Permissive to inspect remaining tensors."
-    )]
-    TensorUnavailable { name: String },
+    #[error("record '{name}' is unavailable due to shard corruption.")]
+    RecordUnavailable { name: String },
 
     #[error(
-        "internal inconsistency: shape data missing for tensor '{name}' in artifact at {dir:?}. This indicates a bug or data corruption."
+        "internal inconsistency: shape data missing for record '{name}' in artifact at {dir:?}. This indicates a bug or data corruption."
     )]
     ShapeMissing { name: String, dir: PathBuf },
 
@@ -125,6 +123,15 @@ pub enum Error {
         #[source]
         source: glob::PatternError,
     },
+
+    #[error("failed to materialize tensor '{name}': {reason}")]
+    TensorMaterializeFailed { name: String, reason: String },
+
+    #[error("failed to restore tensor '{name}': {reason}")]
+    TensorRestoreFailed { name: String, reason: String },
+
+    #[error("{reason}")]
+    RestoreFailed { reason: String },
 }
 
 impl Error {

@@ -133,6 +133,14 @@ where
         let wd = cfg.weight_decay.unwrap_or(self.base.weight_decay);
         (lr, wd)
     }
+
+    pub fn velocity_state(&self) -> &BTreeMap<String, Tensor<B, D>> {
+        &self.vel
+    }
+
+    pub fn velocity_state_mut(&mut self) -> &mut BTreeMap<String, Tensor<B, D>> {
+        &mut self.vel
+    }
 }
 
 fn validate_cfg(cfg: SgdCfg) -> Result<()> {

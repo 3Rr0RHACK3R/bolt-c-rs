@@ -1,39 +1,40 @@
+//! Checkpoint format - manifest schema, serde helpers, and directory structure.
+
 use std::collections::BTreeMap;
+use std::fs::{self, File};
+use std::io::BufWriter;
+use std::path::Path;
 
-use bolt_core::DType;
 use bolt_core::shape::Shape;
-use serde::{Deserialize, Serialize};
+use bolt_core::DType;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::TensorRole;
-use crate::utils::now_rfc3339;
+use crate::{Error, Result, Role};
 
-pub const TENSOR_SET_SCHEMA_VERSION: &str = "bolt-tensorset:1";
 pub const CHECKPOINT_SCHEMA_VERSION: &str = "bolt-checkpoint:1";
 pub const MIN_READER_VERSION: &str = "0.1.0";
-
-pub const TENSOR_SET_MANIFEST_NAME: &str = "bolt-tensorset.json";
 pub const CHECKPOINT_MANIFEST_NAME: &str = "bolt-checkpoint.json";
 pub const SHARDS_DIR: &str = "shards";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TensorLocation {
+pub struct RecordLocation {
     pub shard: String,
     pub key: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TensorEntry {
-    pub role: TensorRole,
+pub struct RecordEntry {
+    pub role: Role,
     pub group: u32,
     pub dtype: String,
-    #[serde(with = "crate::serde_shape")]
+    #[serde(serialize_with = "serialize_shape", deserialize_with = "deserialize_shape")]
     pub shape: Shape,
-    pub location: TensorLocation,
+    pub location: RecordLocation,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checksum: Option<String>,
 }
 
-impl TensorEntry {
+impl RecordEntry {
     pub fn parse_dtype(&self) -> Option<DType> {
         DType::from_name(&self.dtype)
     }
@@ -44,36 +45,6 @@ pub struct ShardInfo {
     pub files: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub checksums: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TensorSetManifest {
-    pub schema_version: String,
-    pub written_at: String,
-    pub min_reader_version: String,
-    pub shards: ShardInfo,
-    pub tensors: BTreeMap<String, TensorEntry>,
-}
-
-impl TensorSetManifest {
-    pub fn new() -> Self {
-        Self {
-            schema_version: TENSOR_SET_SCHEMA_VERSION.to_string(),
-            written_at: now_rfc3339(),
-            min_reader_version: MIN_READER_VERSION.to_string(),
-            shards: ShardInfo {
-                files: Vec::new(),
-                checksums: Vec::new(),
-            },
-            tensors: BTreeMap::new(),
-        }
-    }
-}
-
-impl Default for TensorSetManifest {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -95,7 +66,7 @@ pub struct CheckpointManifest {
     pub min_reader_version: String,
     pub metadata: CheckpointMetadataJson,
     pub shards: ShardInfo,
-    pub tensors: BTreeMap<String, TensorEntry>,
+    pub tensors: BTreeMap<String, RecordEntry>,
 }
 
 impl CheckpointManifest {
@@ -120,6 +91,40 @@ impl Default for CheckpointManifest {
     }
 }
 
-pub fn dtype_to_name(dtype: DType) -> &'static str {
-    dtype.name()
+pub fn write_manifest(manifest: &impl Serialize, path: &Path) -> Result<()> {
+    let file = File::create(path).map_err(|e| Error::io(path, e))?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, manifest).map_err(|e| Error::ManifestParse {
+        path: path.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+
+    Ok(())
+}
+
+pub fn ensure_shards_dir(dir: &Path) -> Result<()> {
+    let shards_dir = dir.join(SHARDS_DIR);
+    fs::create_dir_all(&shards_dir).map_err(|e| Error::io(&shards_dir, e))?;
+    Ok(())
+}
+
+fn serialize_shape<S>(shape: &Shape, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    shape.as_slice().serialize(serializer)
+}
+
+fn deserialize_shape<'de, D>(deserializer: D) -> std::result::Result<Shape, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let dims: Vec<usize> = Vec::deserialize(deserializer)?;
+    Shape::from_slice(&dims).map_err(de::Error::custom)
+}
+
+fn now_rfc3339() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("RFC3339 formatting should never fail")
 }
