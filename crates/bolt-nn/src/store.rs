@@ -181,18 +181,22 @@ where
     B: BaseBackend,
     D: Float,
 {
-    pub fn new(backend: Arc<B>, seed: u64) -> Self {
+    pub fn new_with_rng(backend: Arc<B>, rng: RngStream) -> Self {
         Self {
             inner: Arc::new(Inner {
                 backend,
                 params: RwLock::new(BTreeMap::new()),
                 buffers: RwLock::new(BTreeMap::new()),
                 sealed: AtomicBool::new(false),
-                rng: Mutex::new(RngStream::from_seed(seed)),
+                rng: Mutex::new(rng),
             }),
             prefix: String::new(),
             group: 0,
         }
+    }
+
+    pub fn new(backend: Arc<B>, seed: u64) -> Self {
+        Self::new_with_rng(backend, RngStream::from_seed(seed))
     }
 
     pub fn backend(&self) -> Arc<B> {

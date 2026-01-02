@@ -145,6 +145,45 @@ impl RngStreams {
     }
 }
 
+/// Manages all model-related RNGs from a single seed.
+///
+/// ModelRng centralizes RNG management for the entire model lifecycle:
+/// - Parameter initialization (via `init_rng()`)
+/// - Forward passes during training (via `forward_rngs()`)
+/// - Data loading/shuffling (via `data_rng_for_epoch()`)
+///
+/// All RNGs derive deterministically from a single seed, ensuring reproducibility.
+#[derive(Clone, Debug)]
+pub struct ModelRng {
+    init: RngStream,
+    forward: RngStream,
+    data: RngStream,
+}
+
+impl ModelRng {
+    pub fn from_seed(seed: u64) -> Self {
+        let mut base = RngStream::from_seed(seed);
+        Self {
+            init: base.split(),
+            forward: base.split(),
+            data: base.split(),
+        }
+    }
+
+    pub fn init_rng(&mut self) -> RngStream {
+        self.init.split()
+    }
+
+    pub fn forward_rngs(&mut self) -> RngStreams {
+        let forward_key = self.forward.next_u64();
+        RngStreams::from_seed(forward_key)
+    }
+
+    pub fn data_rng_for_epoch(&self, epoch: u64) -> RngStream {
+        self.data.fold_in(epoch)
+    }
+}
+
 pub fn mix64(x: u64) -> u64 {
     let mut z = x.wrapping_add(0x9E3779B97F4A7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);

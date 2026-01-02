@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{Flatten, Linear, Relu, Sigmoid};
 use bolt_nn::{ForwardCtx, Init, Module, Store};
+use bolt_rng::ModelRng;
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -126,4 +127,38 @@ fn kaiming_normal_initialization() {
 
     let expected_std = (2.0f64 / 32.0).sqrt() as f32;
     assert!((std - expected_std).abs() < 0.1);
+}
+
+#[test]
+fn store_new_with_rng_works() {
+    let backend = Arc::new(CpuBackend::new());
+    let mut model_rng = ModelRng::from_seed(42);
+    let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
+    let layer = Linear::init(&store.sub("linear"), 4, 2, true).unwrap();
+
+    let input = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 4]).unwrap();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    assert_eq!(output.shape().as_slice(), &[1, 2]);
+}
+
+#[test]
+fn store_new_with_rng_deterministic() {
+    let backend = Arc::new(CpuBackend::new());
+    
+    // Create two stores with same RNG stream
+    let mut model_rng1 = ModelRng::from_seed(123);
+    let mut model_rng2 = ModelRng::from_seed(123);
+    
+    let store1 = Store::<B, D>::new_with_rng(backend.clone(), model_rng1.init_rng());
+    let store2 = Store::<B, D>::new_with_rng(backend.clone(), model_rng2.init_rng());
+    
+    let layer1 = Linear::init(&store1.sub("linear"), 2, 1, true).unwrap();
+    let layer2 = Linear::init(&store2.sub("linear"), 2, 1, true).unwrap();
+    
+    // Same RNG should produce same initial weights
+    assert_eq!(
+        layer1.weight.tensor().to_vec().unwrap(),
+        layer2.weight.tensor().to_vec().unwrap()
+    );
 }

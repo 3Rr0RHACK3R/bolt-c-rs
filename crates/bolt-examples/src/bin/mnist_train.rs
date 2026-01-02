@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use bolt_datasets::mnist;
 use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
-use bolt_nn::{ForwardCtx, Module};
+use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
-use bolt_rng::{RngStream, RngStreams};
+use bolt_rng::ModelRng;
 
 use bolt_serialize::{CheckpointMeta, SaveOpts, StoreCheckpointAdapter, save_checkpoint};
 
@@ -22,9 +22,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     mnist::ensure_downloaded(&data_root)?;
 
     let backend = Arc::new(B::new());
-    let store = bolt_nn::Store::<B, D>::new(backend.clone(), 1337);
+    let mut model_rng = ModelRng::from_seed(seed);
+    
+    let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
     let model = MnistMLP::init(&store, 512, 256)?;
-    let mut model_rngs = RngStreams::from_seed(seed);
 
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
@@ -53,14 +54,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(15);
 
     for epoch in 0..epochs {
-        let rng = RngStream::from_seed(seed + epoch as u64);
-        let loader = train_loader(&data_root, backend.clone(), batch_size, rng)?;
+        let data_rng = model_rng.data_rng_for_epoch(epoch as u64);
+        let loader = train_loader(&data_root, backend.clone(), batch_size, data_rng)?;
 
         for (step, batch_res) in loader.iter().enumerate() {
             let batch = batch_res?;
             store.zero_grad();
 
-            let mut ctx = ForwardCtx::train_with_rngs(model_rngs.split());
+            let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs());
             let logits = model.forward(batch.images, &mut ctx)?;
             let loss = cross_entropy_from_logits_sparse(
                 &logits,
