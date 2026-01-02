@@ -1,4 +1,4 @@
-use bolt_core::backend::Backend;
+use bolt_core::backend::{Backend, CopyOp};
 use bolt_tensor::Tensor;
 
 pub struct MnistBatch<B: Backend> {
@@ -6,7 +6,7 @@ pub struct MnistBatch<B: Backend> {
     pub labels: Tensor<B, i32>,
 }
 
-impl<B1: Backend, B2: Backend> bolt_tensor::ToBackend<B2> for MnistBatch<B1> {
+impl<B1: Backend + CopyOp<f32> + CopyOp<i32>, B2: Backend> bolt_tensor::ToBackend<B2> for MnistBatch<B1> {
     type Output = MnistBatch<B2>;
     fn to_backend(self, backend: &std::sync::Arc<B2>) -> bolt_core::Result<Self::Output> {
         Ok(MnistBatch {

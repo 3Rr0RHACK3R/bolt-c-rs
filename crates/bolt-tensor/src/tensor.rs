@@ -24,17 +24,18 @@ pub trait ToBackend<B: Backend> {
 
 impl<B1, B2, D> ToBackend<B2> for Tensor<B1, D>
 where
-    B1: Backend,
+    B1: Backend + CopyOp<D>,
     B2: Backend,
     D: NativeType,
 {
     type Output = Tensor<B2, D>;
 
     fn to_backend(self, backend: &Arc<B2>) -> Result<Self::Output> {
-        if self.backend().device_kind() == backend.device_kind() {
-            return Ok(unsafe { std::mem::transmute_copy(&self) });
-        }
-        todo!("implement cross-device tensor transfer")
+        // Read tensor data to host memory (needs a better approach maybe?)
+        let data = self.to_vec()?;
+        let shape = self.shape().as_slice().to_vec();
+        
+        Tensor::<B2, D>::from_vec(backend, data, &shape)
     }
 }
 
