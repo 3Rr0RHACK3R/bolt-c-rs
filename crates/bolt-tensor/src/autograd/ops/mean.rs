@@ -17,7 +17,7 @@ impl MeanBackward {
     pub(crate) fn new(input_shape: Vec<usize>, axes: Option<Vec<usize>>, keepdims: bool) -> Self {
         let reduce_count = match axes.as_deref() {
             None => input_shape.iter().product(),
-            Some(axes) if axes.is_empty() => 1,
+            Some([]) => 1,
             Some(axes) => axes.iter().map(|&a| input_shape[a]).product(),
         };
 

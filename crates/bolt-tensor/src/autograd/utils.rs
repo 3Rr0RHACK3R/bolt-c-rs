@@ -19,7 +19,7 @@ pub(crate) fn sum_output_shape(
                 vec![]
             }
         }
-        Some(axes) if axes.is_empty() => input.to_vec(),
+        Some([]) => input.to_vec(),
         Some(axes) => {
             if keepdims {
                 let mut out = input.to_vec();
@@ -85,9 +85,6 @@ pub(crate) fn reduce_out_flat(
 
         let reduced = axes.binary_search(&i).is_ok();
         if reduced {
-            if keepdims {
-                out_flat += 0 * output_strides[i];
-            }
             continue;
         }
 
@@ -138,7 +135,7 @@ where
     let numel: usize = input_shape.iter().product();
     let mut out = vec![D::default(); numel];
 
-    for flat in 0..numel {
+    for (flat, out_val) in out.iter_mut().enumerate() {
         let mut rem = flat;
         let mut out_flat = 0usize;
 
@@ -149,9 +146,6 @@ where
 
             let reduced = axes.map(|a| a.binary_search(&i).is_ok()).unwrap_or(true);
             if reduced {
-                if keepdims {
-                    out_flat += 0 * out_strides[i];
-                }
                 continue;
             }
 
@@ -167,7 +161,7 @@ where
             return Err(Error::OpError("sum grad shape mismatch".into()));
         }
 
-        out[flat] = grad_output[out_flat];
+        *out_val = grad_output[out_flat];
     }
 
     Tensor::from_vec(backend, out, input_shape)

@@ -48,7 +48,7 @@ where
         let in_strides = utils::row_major_strides(&self.input_shape);
         let out_strides = utils::row_major_strides(&self.output_shape);
 
-        for flat in 0..input_numel {
+        for (flat, &v) in x.iter().enumerate() {
             let out_flat = utils::reduce_out_flat(
                 flat,
                 &self.input_shape,
@@ -57,7 +57,6 @@ where
                 self.axes.as_deref(),
                 self.keepdims,
             );
-            let v = x[flat];
             match mins[out_flat] {
                 None => {
                     mins[out_flat] = Some(v);
@@ -75,7 +74,7 @@ where
         }
 
         let mut grad_x = vec![D::default(); input_numel];
-        for flat in 0..input_numel {
+        for (flat, grad) in grad_x.iter_mut().enumerate() {
             let out_flat = utils::reduce_out_flat(
                 flat,
                 &self.input_shape,
@@ -86,7 +85,7 @@ where
             );
             if Some(x[flat]) == mins[out_flat] {
                 let denom = D::from_usize(counts[out_flat].max(1));
-                grad_x[flat] = gout[out_flat] / denom;
+                *grad = gout[out_flat] / denom;
             }
         }
 

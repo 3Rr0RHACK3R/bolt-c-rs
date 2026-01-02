@@ -1,6 +1,6 @@
 use bolt_core::Result as CoreResult;
 use bolt_core::backend::{Backend, FillOp};
-use bolt_core::device::{BackendDevice, DeviceKind};
+use bolt_core::device::{BackendDevice, DeviceId};
 use bolt_core::dtype::NativeType;
 use bolt_core::layout::Layout;
 use bolt_core::shape::Shape;

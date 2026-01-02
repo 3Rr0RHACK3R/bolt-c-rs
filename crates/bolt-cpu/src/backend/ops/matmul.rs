@@ -14,6 +14,7 @@ use super::super::allocator::CpuAllocator;
 use super::super::storage::{CpuStorage, CpuTensorView};
 
 trait BlasGemm: NativeType {
+    #[allow(clippy::too_many_arguments)]
     unsafe fn gemm(
         m: usize,
         k: usize,

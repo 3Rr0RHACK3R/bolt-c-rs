@@ -25,7 +25,7 @@ pub struct HostTimeStats {
     pub available: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DeviceTimeStats {
     pub kernel_time: Option<Duration>,
     pub queue_time: Option<Duration>,
@@ -33,32 +33,11 @@ pub struct DeviceTimeStats {
     pub available: bool,
 }
 
-impl Default for DeviceTimeStats {
-    fn default() -> Self {
-        Self {
-            kernel_time: None,
-            queue_time: None,
-            extensions: HashMap::new(),
-            available: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MemoryStats {
     pub host: HostMemoryStats,
     pub device: DeviceMemoryStats,
     pub peak_rss_bytes: u64,
-}
-
-impl Default for MemoryStats {
-    fn default() -> Self {
-        Self {
-            host: HostMemoryStats::default(),
-            device: DeviceMemoryStats::default(),
-            peak_rss_bytes: 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -72,7 +51,7 @@ pub struct HostMemoryStats {
     pub available: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DeviceMemoryStats {
     pub bytes_requested: u64,
     pub bytes_granted: u64,
@@ -84,21 +63,4 @@ pub struct DeviceMemoryStats {
     pub scratch_bytes: Option<u64>,
     pub extensions: HashMap<&'static str, i64>,
     pub available: bool,
-}
-
-impl Default for DeviceMemoryStats {
-    fn default() -> Self {
-        Self {
-            bytes_requested: 0,
-            bytes_granted: 0,
-            alloc_count: 0,
-            dealloc_count: 0,
-            peak_in_scope: 0,
-            persistent_peak: 0,
-            fragmentation_pct: None,
-            scratch_bytes: None,
-            extensions: HashMap::new(),
-            available: false,
-        }
-    }
 }

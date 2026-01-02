@@ -49,7 +49,7 @@ where
         let in_strides = utils::row_major_strides(&self.input_shape);
         let out_strides = utils::row_major_strides(&self.output_shape);
 
-        for flat in 0..input_numel {
+        for (flat, &v) in x.iter().enumerate() {
             let out_flat = utils::reduce_out_flat(
                 flat,
                 &self.input_shape,
@@ -58,7 +58,6 @@ where
                 self.axes.as_deref(),
                 self.keepdims,
             );
-            let v = x[flat];
             if v == zero {
                 zero_count[out_flat] += 1;
             } else {
@@ -67,7 +66,7 @@ where
         }
 
         let mut grad_x = vec![zero; input_numel];
-        for flat in 0..input_numel {
+        for (flat, grad) in grad_x.iter_mut().enumerate() {
             let out_flat = utils::reduce_out_flat(
                 flat,
                 &self.input_shape,
@@ -79,11 +78,11 @@ where
             let g = gout[out_flat];
             match zero_count[out_flat] {
                 0 => {
-                    grad_x[flat] = g * prod_nonzero[out_flat] / x[flat];
+                    *grad = g * prod_nonzero[out_flat] / x[flat];
                 }
                 1 => {
                     if x[flat] == zero {
-                        grad_x[flat] = g * prod_nonzero[out_flat];
+                        *grad = g * prod_nonzero[out_flat];
                     }
                 }
                 _ => {}

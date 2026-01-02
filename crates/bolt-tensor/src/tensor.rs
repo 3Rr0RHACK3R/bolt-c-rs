@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 use bolt_core::{
     allocator::StorageAllocator,
@@ -16,6 +16,7 @@ use bolt_core::{
 };
 
 use crate::{autograd, utils::tensor_creation};
+use crate::autograd::{AutogradMeta, GradFn};
 
 pub trait ToBackend<B: Backend> {
     type Output;
@@ -48,23 +49,7 @@ where
     backend: Arc<B>,
     storage: B::Storage<D>,
     layout: Layout,
-    autograd: AutogradMeta,
-    _marker: PhantomData<D>,
-}
-
-#[derive(Clone, Debug)]
-struct AutogradMeta {
-    origin: autograd::TensorId,
-    requires_grad: bool,
-}
-
-impl AutogradMeta {
-    fn new() -> Self {
-        Self {
-            origin: autograd::next_tensor_id(),
-            requires_grad: false,
-        }
-    }
+    autograd: AutogradMeta<B, D>,
 }
 
 impl<B, D> Tensor<B, D>
@@ -123,6 +108,10 @@ where
 
     pub(crate) fn tensor_id(&self) -> autograd::TensorId {
         self.autograd.origin
+    }
+
+    pub(crate) fn grad_fn(&self) -> Option<Arc<GradFn<B, D>>> {
+        self.autograd.grad_fn.clone()
     }
 
     pub fn from_slice(backend: &Arc<B>, data: &[D], shape: &[usize]) -> Result<Self> {
@@ -1001,7 +990,6 @@ where
             storage: self.storage.clone(),
             layout,
             autograd: AutogradMeta::new(),
-            _marker: PhantomData,
         }
     }
 
@@ -1011,7 +999,6 @@ where
             storage,
             layout,
             autograd: AutogradMeta::new(),
-            _marker: PhantomData,
         }
     }
 
@@ -1025,7 +1012,6 @@ where
             storage,
             layout,
             autograd: AutogradMeta::new(),
-            _marker: PhantomData,
         }
     }
 
@@ -1039,24 +1025,16 @@ where
         B: 'static,
         D: NativeType + 'static,
     {
-        let requires_grad = D::SUPPORTS_GRAD
-            && autograd::grad_enabled()
-            && (self.autograd.requires_grad || other.autograd.requires_grad);
-        out.autograd.requires_grad = requires_grad;
-
-        if !requires_grad {
-            return;
-        }
-
-        autograd::record_node::<B, D>(
+        let grad_fn = autograd::create_binary_grad_fn(
             out.autograd.origin,
-            vec![
-                (self.autograd.origin, self.autograd.requires_grad),
-                (other.autograd.origin, other.autograd.requires_grad),
-            ],
+            self,
+            other,
             op,
             saved_tensors,
         );
+        
+        out.autograd.requires_grad = grad_fn.is_some();
+        out.autograd.grad_fn = grad_fn;
     }
 
     fn record_unary_node(
@@ -1068,20 +1046,15 @@ where
         B: 'static,
         D: NativeType + 'static,
     {
-        let requires_grad =
-            D::SUPPORTS_GRAD && autograd::grad_enabled() && self.autograd.requires_grad;
-        out.autograd.requires_grad = requires_grad;
-
-        if !requires_grad {
-            return;
-        }
-
-        autograd::record_node::<B, D>(
+        let grad_fn = autograd::create_unary_grad_fn(
             out.autograd.origin,
-            vec![(self.autograd.origin, self.autograd.requires_grad)],
+            self,
             op,
             saved_tensors,
         );
+        
+        out.autograd.requires_grad = grad_fn.is_some();
+        out.autograd.grad_fn = grad_fn;
     }
 
     fn record_reshape(&self, out: &mut Self) -> Result<()>
@@ -1201,36 +1174,21 @@ where
     where
         B: CopyOp<D> + 'static,
     {
-        let requires_grad =
-            D::SUPPORTS_GRAD && autograd::grad_enabled() && self.autograd.requires_grad;
-        out.autograd.requires_grad = requires_grad;
-
-        if !requires_grad {
-            return Ok(());
-        }
-
         let axes = autograd::canonical_axes(axes, self.rank())?;
         let op = Box::new(autograd::SumBackward::new(
             self.shape().to_vec(),
             axes,
             keepdims,
         ));
-        autograd::record_node::<B, D>(
-            out.autograd.origin,
-            vec![(self.autograd.origin, self.autograd.requires_grad)],
-            op,
-            vec![],
-        );
-
+        self.record_unary_node(out, op, vec![]);
         Ok(())
     }
 
     fn ensure_nondifferentiable_op(&self, name: &str) -> Result<()> {
         if autograd::grad_enabled() && self.requires_grad_enabled() {
-            return Err(Error::OpError(
-                format!("{name} is not differentiable; call detach() or use autograd::no_grad()")
-                    .into(),
-            ));
+            return Err(Error::OpError(format!(
+                "{name} is not differentiable; call detach() or use autograd::no_grad()"
+            )));
         }
         Ok(())
     }

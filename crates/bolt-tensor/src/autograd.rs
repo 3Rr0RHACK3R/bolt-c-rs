@@ -1,7 +1,7 @@
-use std::any::{Any, TypeId};
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use bolt_core::Backend;
 use bolt_core::backend::{AddOp, FillOp};
@@ -34,7 +34,6 @@ pub(crate) fn next_tensor_id() -> TensorId {
 
 thread_local! {
     static GRAD_ENABLED: Cell<bool> = const { Cell::new(true) };
-    static RUNTIME: RefCell<Option<Runtime>> = const { RefCell::new(None) };
 }
 
 pub fn grad_enabled() -> bool {
@@ -78,123 +77,31 @@ where
     }
 }
 
-struct Input {
-    id: TensorId,
-    requires_grad: bool,
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BackwardOptions {
+    pub retain_graph: bool,
 }
 
-struct BackwardEntry<B, D>
+pub(crate) struct InputEdge<B, D>
 where
     B: Backend,
     D: NativeType,
 {
-    op: Box<dyn BackwardOp<B, D>>,
-    saved_tensors: Vec<Tensor<B, D>>,
+    pub id: TensorId,
+    pub requires_grad: bool,
+    pub grad_fn: Option<Arc<GradFn<B, D>>>,
 }
 
-struct Node<B, D>
+pub(crate) struct GradFn<B, D>
 where
     B: Backend,
     D: NativeType,
 {
-    output: TensorId,
-    inputs: Vec<Input>,
-    backward: BackwardEntry<B, D>,
-}
-
-struct TapeArena<B, D>
-where
-    B: Backend,
-    D: NativeType,
-{
-    nodes: Vec<Node<B, D>>,
-}
-
-impl<B, D> TapeArena<B, D>
-where
-    B: Backend,
-    D: NativeType,
-{
-    fn new() -> Self {
-        Self { nodes: Vec::new() }
-    }
-
-    fn record(&mut self, output: TensorId, inputs: Vec<Input>, backward: BackwardEntry<B, D>) {
-        self.nodes.push(Node {
-            output,
-            inputs,
-            backward,
-        });
-    }
-
-    fn take_nodes(&mut self) -> Vec<Node<B, D>> {
-        std::mem::take(&mut self.nodes)
-    }
-}
-
-struct Runtime {
-    tapes: HashMap<(TypeId, TypeId), Box<dyn Any>>,
-}
-
-impl Runtime {
-    fn new() -> Self {
-        Self {
-            tapes: HashMap::new(),
-        }
-    }
-
-    fn tape_mut<B, D>(&mut self) -> &mut TapeArena<B, D>
-    where
-        B: Backend + 'static,
-        D: NativeType + 'static,
-    {
-        let key = (TypeId::of::<B>(), TypeId::of::<D>());
-        self.tapes
-            .entry(key)
-            .or_insert_with(|| Box::new(TapeArena::<B, D>::new()));
-        self.tapes
-            .get_mut(&key)
-            .and_then(|t| t.downcast_mut::<TapeArena<B, D>>())
-            .expect("autograd tape type mismatch")
-    }
-}
-
-fn with_tape_mut<B, D, R>(f: impl FnOnce(&mut TapeArena<B, D>) -> R) -> R
-where
-    B: Backend + 'static,
-    D: NativeType + 'static,
-{
-    RUNTIME.with(|rt| {
-        let mut rt = rt.borrow_mut();
-        let runtime = rt.get_or_insert_with(Runtime::new);
-        let tape = runtime.tape_mut::<B, D>();
-        f(tape)
-    })
-}
-
-pub(crate) fn record_node<B, D>(
-    output: TensorId,
-    inputs: Vec<(TensorId, bool)>,
-    op: Box<dyn BackwardOp<B, D>>,
-    saved_tensors: Vec<Tensor<B, D>>,
-) where
-    B: Backend + 'static,
-    D: NativeType + 'static,
-{
-    let inputs: Vec<Input> = inputs
-        .into_iter()
-        .map(|(id, requires_grad)| Input { id, requires_grad })
-        .collect();
-    let backward = BackwardEntry { op, saved_tensors };
-    with_tape_mut::<B, D, _>(|tape| tape.record(output, inputs, backward));
-}
-
-fn take_tape_nodes<B, D>() -> Vec<Node<B, D>>
-where
-    B: Backend + 'static,
-    D: NativeType + 'static,
-{
-    with_tape_mut::<B, D, _>(TapeArena::take_nodes)
+    pub output: TensorId,
+    pub inputs: Vec<InputEdge<B, D>>,
+    pub op: Box<dyn BackwardOp<B, D>>,
+    // CRITICAL: saved tensors must be detached to avoid Arc cycles
+    pub saved_tensors: Vec<Tensor<B, D>>,
 }
 
 pub(crate) struct BackwardContext<'a, B, D>
@@ -214,7 +121,7 @@ where
         Self { saved }
     }
 
-    fn saved(&self, idx: usize) -> &Tensor<B, D> {
+    pub fn saved(&self, idx: usize) -> &Tensor<B, D> {
         &self.saved[idx]
     }
 }
@@ -232,7 +139,79 @@ where
     fn name(&self) -> &'static str;
 }
 
+#[derive(Clone)]
+pub(crate) struct AutogradMeta<B, D>
+where
+    B: Backend,
+    D: NativeType,
+{
+    pub origin: TensorId,
+    pub requires_grad: bool,
+    pub grad_fn: Option<Arc<GradFn<B, D>>>,
+}
+
+impl<B, D> AutogradMeta<B, D>
+where
+    B: Backend,
+    D: NativeType,
+{
+    pub fn new() -> Self {
+        Self {
+            origin: next_tensor_id(),
+            requires_grad: false,
+            grad_fn: None,
+        }
+    }
+}
+
+impl<B, D> Default for AutogradMeta<B, D>
+where
+    B: Backend,
+    D: NativeType,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn collect_nodes<B, D>(root: &Arc<GradFn<B, D>>) -> Vec<Arc<GradFn<B, D>>>
+where
+    B: Backend,
+    D: NativeType,
+{
+    let mut visited: HashSet<TensorId> = HashSet::new();
+    let mut order: Vec<Arc<GradFn<B, D>>> = Vec::new();
+    let mut stack: Vec<(Arc<GradFn<B, D>>, bool)> = vec![(Arc::clone(root), false)];
+
+    while let Some((node, children_processed)) = stack.pop() {
+        if children_processed {
+            order.push(node);
+        } else if !visited.contains(&node.output) {
+            visited.insert(node.output);
+            stack.push((Arc::clone(&node), true));
+
+            for input in node.inputs.iter().rev() {
+                if let Some(parent) = &input.grad_fn
+                    && !visited.contains(&parent.output)
+                {
+                    stack.push((Arc::clone(parent), false));
+                }
+            }
+        }
+    }
+
+    order
+}
+
 pub fn backward<B, D>(loss: &Tensor<B, D>) -> Result<Grads<B, D>>
+where
+    B: Backend + AddOp<D> + FillOp<D> + 'static,
+    D: Float + 'static,
+{
+    backward_with_options(loss, BackwardOptions::default())
+}
+
+pub fn backward_with_options<B, D>(loss: &Tensor<B, D>, _options: BackwardOptions) -> Result<Grads<B, D>>
 where
     B: Backend + AddOp<D> + FillOp<D> + 'static,
     D: Float + 'static,
@@ -245,7 +224,26 @@ where
 
     let _ng = no_grad();
 
-    let nodes = take_tape_nodes::<B, D>();
+    let Some(root_grad_fn) = loss.grad_fn() else {
+        let seed = if loss.numel() == 1 {
+            let backend = loss.backend();
+            Tensor::full(&backend, &[], D::one())?
+        } else {
+            Tensor::ones_like(loss)?
+        };
+        let mut leaf = HashMap::new();
+        leaf.insert(loss.tensor_id(), seed);
+        return Ok(Grads { leaf });
+    };
+
+    let nodes = collect_nodes(&root_grad_fn);
+    
+    if nodes.is_empty() {
+        return Err(Error::OpError(
+            "cannot compute backward: computational graph is empty".into(),
+        ));
+    }
+
     let seed = if loss.numel() == 1 {
         let backend = loss.backend();
         Tensor::full(&backend, &[], D::one())?
@@ -253,27 +251,13 @@ where
         Tensor::ones_like(loss)?
     };
 
-    let loss_id = loss.tensor_id();
-    let loss_tracked = nodes.iter().any(|n| n.output == loss_id);
-    if !loss_tracked {
-        let mut leaf = HashMap::new();
-        leaf.insert(loss_id, seed);
-        return Ok(Grads { leaf });
-    }
-
-    if nodes.is_empty() {
-        return Err(Error::OpError(
-            "cannot compute backward: loss is tracked but tape is empty".into(),
-        ));
-    }
-
     let mut grads: HashMap<TensorId, Tensor<B, D>> = HashMap::new();
-    grads.insert(loss_id, seed);
+    grads.insert(loss.tensor_id(), seed);
 
     let produced: HashSet<TensorId> = nodes.iter().map(|n| n.output).collect();
     let mut leaf_required: HashSet<TensorId> = HashSet::new();
-    for n in &nodes {
-        for inp in &n.inputs {
+    for node in &nodes {
+        for inp in &node.inputs {
             if inp.requires_grad && !produced.contains(&inp.id) {
                 leaf_required.insert(inp.id);
             }
@@ -285,19 +269,19 @@ where
             continue;
         };
 
-        let ctx = BackwardContext::new(&node.backward.saved_tensors);
-        let input_grads = node.backward.op.backward(&grad_output, &ctx)?;
+        let ctx = BackwardContext::new(&node.saved_tensors);
+        let input_grads = node.op.backward(&grad_output, &ctx)?;
 
         if input_grads.len() != node.inputs.len() {
             return Err(Error::OpError(format!(
                 "backward op {} returned {} grads for {} inputs",
-                node.backward.op.name(),
+                node.op.name(),
                 input_grads.len(),
                 node.inputs.len()
             )));
         }
 
-        for (inp, gopt) in node.inputs.into_iter().zip(input_grads.into_iter()) {
+        for (inp, gopt) in node.inputs.iter().zip(input_grads.into_iter()) {
             if !inp.requires_grad {
                 continue;
             }
@@ -341,4 +325,72 @@ where
         }
     }
     Ok(())
+}
+
+pub(crate) fn create_unary_grad_fn<B, D>(
+    output_id: TensorId,
+    input: &Tensor<B, D>,
+    op: Box<dyn BackwardOp<B, D>>,
+    saved_tensors: Vec<Tensor<B, D>>,
+) -> Option<Arc<GradFn<B, D>>>
+where
+    B: Backend + 'static,
+    D: NativeType + 'static,
+{
+    if !D::SUPPORTS_GRAD || !grad_enabled() || !input.requires_grad_enabled() {
+        return None;
+    }
+
+    let saved_tensors: Vec<_> = saved_tensors.into_iter().map(|t| t.detach()).collect();
+
+    Some(Arc::new(GradFn {
+        output: output_id,
+        inputs: vec![InputEdge {
+            id: input.tensor_id(),
+            requires_grad: input.requires_grad_enabled(),
+            grad_fn: input.grad_fn(),
+        }],
+        op,
+        saved_tensors,
+    }))
+}
+
+pub(crate) fn create_binary_grad_fn<B, D>(
+    output_id: TensorId,
+    lhs: &Tensor<B, D>,
+    rhs: &Tensor<B, D>,
+    op: Box<dyn BackwardOp<B, D>>,
+    saved_tensors: Vec<Tensor<B, D>>,
+) -> Option<Arc<GradFn<B, D>>>
+where
+    B: Backend + 'static,
+    D: NativeType + 'static,
+{
+    if !D::SUPPORTS_GRAD || !grad_enabled() {
+        return None;
+    }
+    
+    if !lhs.requires_grad_enabled() && !rhs.requires_grad_enabled() {
+        return None;
+    }
+
+    let saved_tensors: Vec<_> = saved_tensors.into_iter().map(|t| t.detach()).collect();
+
+    Some(Arc::new(GradFn {
+        output: output_id,
+        inputs: vec![
+            InputEdge {
+                id: lhs.tensor_id(),
+                requires_grad: lhs.requires_grad_enabled(),
+                grad_fn: lhs.grad_fn(),
+            },
+            InputEdge {
+                id: rhs.tensor_id(),
+                requires_grad: rhs.requires_grad_enabled(),
+                grad_fn: rhs.grad_fn(),
+            },
+        ],
+        op,
+        saved_tensors,
+    }))
 }
