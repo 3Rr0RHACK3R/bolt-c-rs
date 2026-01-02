@@ -978,13 +978,14 @@ where
     }
 
     fn ensure_same_backend(&self, other: &Self) -> Result<()> {
-        if self.backend.device_kind() != other.backend.device_kind() {
-            return Err(Error::Device("tensors belong to different devices".into()));
-        }
-        if !Arc::ptr_eq(&self.backend, &other.backend) {
-            return Err(Error::Device(
-                "tensors belong to different backend instances".into(),
-            ));
+        let self_device_id = self.backend.device_id();
+        let other_device_id = other.backend.device_id();
+
+        if self_device_id != other_device_id {
+            return Err(Error::Device(format!(
+                "tensors are on different devices: {:?} vs {:?}",
+                self_device_id, other_device_id
+            )));
         }
         Ok(())
     }

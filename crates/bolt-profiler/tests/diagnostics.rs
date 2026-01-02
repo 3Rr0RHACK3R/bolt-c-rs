@@ -40,8 +40,8 @@ impl AllocatorDiagnostics for NoDiagAllocator {}
 struct TestDevice;
 
 impl BackendDevice for TestDevice {
-    fn kind(&self) -> DeviceKind {
-        DeviceKind::Cpu
+    fn device_id(&self) -> DeviceId {
+        DeviceId::cpu()
     }
 }
 

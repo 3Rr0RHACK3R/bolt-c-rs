@@ -1,6 +1,6 @@
 use crate::{
     allocator::StorageAllocator,
-    device::{BackendDevice, DeviceKind},
+    device::{BackendDevice, DeviceId, DeviceKind},
     dtype::{Float, NativeType},
     error::Result,
     layout::Layout,
@@ -19,6 +19,9 @@ pub trait Backend: Clone + Send + Sync + 'static {
     type Allocator<D: NativeType>: StorageAllocator<D, Storage = Self::Storage<D>>;
 
     fn device(&self) -> &Self::Device;
+    fn device_id(&self) -> DeviceId {
+        self.device().device_id()
+    }
     fn allocator<D: NativeType>(&self) -> Self::Allocator<D>;
     fn device_kind(&self) -> DeviceKind {
         self.device().kind()

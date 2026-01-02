@@ -10,12 +10,12 @@ use bolt_core::{
     BaseBackend, TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, CopyOp, CosOp, DivOp,
-        ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
-        ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
-        UnsqueezeOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp, CopyOp,
+        CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp,
+        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp,
+        TanhOp, TransposeOp, UnsqueezeOp,
     },
-    device::{BackendDevice, DeviceKind},
+    device::{BackendDevice, DeviceId},
     dtype::{CastFrom, NativeType},
     error::{Error, Result},
     layout::Layout,
@@ -77,8 +77,8 @@ impl Default for CpuBackend {
 pub struct CpuDevice;
 
 impl BackendDevice for CpuDevice {
-    fn kind(&self) -> DeviceKind {
-        DeviceKind::Cpu
+    fn device_id(&self) -> DeviceId {
+        DeviceId::cpu()
     }
 }
 
