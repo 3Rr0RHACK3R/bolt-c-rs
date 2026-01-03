@@ -1,7 +1,4 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use bolt_rng::{RngStreams, mix64};
+use bolt_rng::RngStreams;
 
 use crate::{Error, Result};
 
@@ -11,24 +8,9 @@ pub struct ForwardCtx {
     rngs: Option<RngStreams>,
 }
 
-static CTX_ENTROPY_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-fn entropy_seed() -> u64 {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0);
-    let ctr = CTX_ENTROPY_COUNTER.fetch_add(1, Ordering::Relaxed);
-    mix64(nanos ^ ctr)
-}
-
 impl ForwardCtx {
     fn new(train: bool, rngs: Option<RngStreams>) -> Self {
         Self { train, rngs }
-    }
-
-    pub fn train() -> Self {
-        Self::new(true, Some(RngStreams::from_seed(entropy_seed())))
     }
 
     pub fn train_with_rngs(rngs: RngStreams) -> Self {

@@ -170,6 +170,10 @@ impl ModelRng {
         }
     }
 
+    pub fn from_entropy() -> Self {
+        Self::from_seed(entropy_seed())
+    }
+
     pub fn init_rng(&mut self) -> RngStream {
         self.init.split()
     }
@@ -179,9 +183,30 @@ impl ModelRng {
         RngStreams::from_seed(forward_key)
     }
 
+    pub fn forward_rngs_for_step(&self, step: u64) -> RngStreams {
+        let forward_key = self.forward.fold_in(step).next_u64();
+        RngStreams::from_seed(forward_key)
+    }
+
     pub fn data_rng_for_epoch(&self, epoch: u64) -> RngStream {
         self.data.fold_in(epoch)
     }
+}
+
+/// Generates an entropy-based seed using system time and an atomic counter.
+/// This is explicitly nondeterministic and should only be used when reproducibility is not required.
+pub fn entropy_seed() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static ENTROPY_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+    let ctr = ENTROPY_COUNTER.fetch_add(1, Ordering::Relaxed);
+    mix64(nanos ^ ctr)
 }
 
 pub fn mix64(x: u64) -> u64 {

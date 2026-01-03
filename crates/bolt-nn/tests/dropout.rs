@@ -56,7 +56,7 @@ fn dropout_train_ctx_has_default_rngs() {
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
 
     let dropout = Dropout::new(0.5).unwrap();
-    let mut ctx = ForwardCtx::train();
+    let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(42));
     dropout.forward(x, &mut ctx).unwrap();
 }
 

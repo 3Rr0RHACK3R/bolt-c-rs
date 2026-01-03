@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let batch = batch_res?;
             store.zero_grad();
 
-            let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs());
+            let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs_for_step(step as u64));
             let logits = model.forward(batch.images, &mut ctx)?;
             let loss = cross_entropy_from_logits_sparse(
                 &logits,

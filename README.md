@@ -60,16 +60,17 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::{ForwardCtx, Module, Store, layers::Linear};
 use bolt_optim::{Sgd, SgdCfg};
+use bolt_rng::ModelRng;
 use bolt_tensor::Tensor;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
-    // The Store manages parameters, gradients, and device placement
-    let store = Store::new(backend.clone(), 1337);
+    
+    let mut model_rng = ModelRng::from_seed(1337);
+    let store = Store::new_with_rng(backend.clone(), model_rng.init_rng());
 
-    // Initialize a linear layer: y = wx + b
     let layer = Linear::init(&store.sub("linear"), 1, 1, true)?;
-    store.seal(); // Ready for training
+    store.seal();
 
     let params = store.trainable();
     let mut opt = Sgd::new(SgdCfg { 
@@ -78,22 +79,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default() 
     })?;
 
-    // Training data
     let x = Tensor::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[4, 1])?;
     let y = Tensor::from_slice(&backend, &[3.0, 5.0, 7.0, 9.0], &[4, 1])?;
 
     for step in 0..100 {
         store.zero_grad();
 
-        // Forward pass
-        let mut ctx = ForwardCtx::train();
+        let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs_for_step(step));
         let output = layer.forward(&x, &mut ctx)?;
         
-        // Compute loss (MSE)
         let diff = output.sub(&y)?;
         let loss = diff.mul(&diff)?.mean(None, false)?;
 
-        // Backward pass & optimizer step
         store.backward(&loss)?;
         opt.step(&params)?;
 

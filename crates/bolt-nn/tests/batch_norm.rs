@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{BatchNorm, Linear, Seq};
 use bolt_nn::{ForwardCtx, Module, Store};
+use bolt_rng::ModelRng;
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -31,7 +32,7 @@ fn batch_norm_train_forward_runs() {
     )
     .unwrap();
 
-    let mut ctx = ForwardCtx::train();
+    let mut ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y = bn.forward(x.clone(), &mut ctx).unwrap();
 
     assert_eq!(y.shape(), x.shape());
@@ -50,7 +51,7 @@ fn batch_norm_eval_forward_runs() {
     )
     .unwrap();
 
-    let mut train_ctx = ForwardCtx::train();
+    let mut train_ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let _ = bn.forward(x_train, &mut train_ctx).unwrap();
 
     let x_eval = Tensor::<B, D>::from_slice(&backend, &[3.0, 13.0], &[1, 2]).unwrap();
@@ -75,7 +76,7 @@ fn batch_norm_output_normalized() {
     )
     .unwrap();
 
-    let mut ctx = ForwardCtx::train();
+    let mut ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y = bn.forward(x, &mut ctx).unwrap();
 
     let y_vals = y.to_vec().unwrap();
@@ -119,7 +120,7 @@ fn batch_norm_shape_validation() {
 
     let x_wrong = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0], &[1, 3]).unwrap();
 
-    let mut ctx = ForwardCtx::train();
+    let mut ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let result = bn.forward(x_wrong, &mut ctx);
 
     assert!(result.is_err());
@@ -140,7 +141,7 @@ fn batch_norm_4d_input() {
     )
     .unwrap();
 
-    let mut ctx = ForwardCtx::train();
+    let mut ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y = bn.forward(x.clone(), &mut ctx).unwrap();
 
     assert_eq!(y.shape(), x.shape());
@@ -190,10 +191,10 @@ fn batch_norm_multiple_train_passes() {
 
     let x2 = Tensor::<B, D>::from_slice(&backend, &[5.0, 6.0, 7.0, 8.0], &[2, 2]).unwrap();
 
-    let mut ctx1 = ForwardCtx::train();
+    let mut ctx1 = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y1 = bn.forward(x1, &mut ctx1).unwrap();
 
-    let mut ctx2 = ForwardCtx::train();
+    let mut ctx2 = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y2 = bn.forward(x2, &mut ctx2).unwrap();
 
     assert_eq!(y1.shape().as_slice(), &[2, 2]);
@@ -209,7 +210,7 @@ fn batch_norm_train_then_eval_deterministic() {
     let x_train =
         Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2]).unwrap();
 
-    let mut train_ctx = ForwardCtx::train();
+    let mut train_ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let _ = bn.forward(x_train, &mut train_ctx).unwrap();
 
     let x_eval = Tensor::<B, D>::from_slice(&backend, &[2.5, 3.5], &[1, 2]).unwrap();
@@ -246,7 +247,7 @@ fn batch_norm_normalized_before_linear() {
     )
     .unwrap();
 
-    let mut ctx = ForwardCtx::train();
+    let mut ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y_normalized = bn.forward(x.clone(), &mut ctx).unwrap();
 
     let y_vals = y_normalized.to_vec().unwrap();
@@ -284,7 +285,7 @@ fn batch_norm_normalized_before_linear() {
 
     let model: Seq<B, D> = Seq::new().push(bn_for_seq).push(linear);
 
-    let mut ctx2 = ForwardCtx::train();
+    let mut ctx2 = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let y_final = model.forward(x, &mut ctx2).unwrap();
 
     assert_eq!(y_final.shape().as_slice(), &[batch_size, 2]);
