@@ -32,6 +32,8 @@ pub struct RecordEntry {
     pub location: RecordLocation,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checksum: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub param_id: Option<u64>,
 }
 
 impl RecordEntry {

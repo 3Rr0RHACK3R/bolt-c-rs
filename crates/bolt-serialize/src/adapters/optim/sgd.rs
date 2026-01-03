@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use bolt_core::backend::CopyOp;
-use bolt_core::{BaseBackend, Float};
+use bolt_core::{BaseBackend, Float, ParamId};
 use bolt_nn::Store;
 use bolt_optim::Sgd;
 use bolt_tensor::Tensor;
@@ -34,17 +34,23 @@ where
         &'a self,
         store: &'a Store<B, D>,
     ) -> Box<dyn Iterator<Item = Result<Record<'static>>> + 'a> {
-        let group_by_key: BTreeMap<String, u32> = store
+        let id_to_name = store.id_to_name();
+        let id_to_group: BTreeMap<ParamId, u32> = store
             .named_trainable()
             .into_iter()
-            .map(|(k, p)| (k, p.group()))
+            .map(|(_, p)| (p.id(), p.group()))
             .collect();
 
-        Box::new(self.velocity_state().iter().map(move |(key, t)| {
-            let name = format!("optim.{key}.vel");
-            let mut record = t.to_record(&name, Role::Optimizer)?;
-            record.meta.group = *group_by_key.get(key).unwrap_or(&0);
-            Ok(record)
+        Box::new(self.velocity_state().iter().filter_map(move |(id, t)| {
+            let param_name = id_to_name.get(id)?;
+            let name = format!("optim.{param_name}.vel");
+            let mut record = match t.to_record(&name, Role::Optimizer) {
+                Ok(r) => r,
+                Err(e) => return Some(Err(e)),
+            };
+            record.meta.group = id_to_group.get(id).copied().unwrap_or(0);
+            record.meta.param_id = Some(*id);
+            Some(Ok(record))
         }))
     }
 
@@ -52,14 +58,15 @@ where
         let backend = store.backend();
         self.velocity_state_mut().clear();
 
+        let _name_to_id = store.name_to_id();
         let has_any_velocity = has_any_velocity_record(ckpt);
-        let mut present: Vec<String> = Vec::new();
+        let mut present: Vec<(String, ParamId)> = Vec::new();
         let mut missing: Vec<String> = Vec::new();
 
-        for (key, _p) in store.named_trainable() {
+        for (key, p) in store.named_trainable() {
             let name = format!("optim.{key}.vel");
             if ckpt.contains(&name) {
-                present.push(key);
+                present.push((key, p.id()));
             } else {
                 missing.push(key);
             }
@@ -74,10 +81,10 @@ where
             });
         }
 
-        for key in present {
+        for (key, id) in present {
             let name = format!("optim.{key}.vel");
             let t: Tensor<B, D> = Tensor::<B, D>::restore_from_checkpoint(ckpt, &name, &backend)?;
-            self.velocity_state_mut().insert(key, t);
+            self.velocity_state_mut().insert(id, t);
         }
 
         Ok(())

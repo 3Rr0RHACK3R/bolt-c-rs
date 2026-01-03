@@ -290,3 +290,88 @@ fn alternating_optimization_with_freeze_unfreeze_isolated_grads_per_phase() {
         assert!(model_d.weight.grad().is_none());
     }
 }
+
+#[test]
+fn shared_parameter_has_single_id() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+
+    let shared = store
+        .param("shared", &[2, 2], bolt_nn::Init::Zeros)
+        .unwrap();
+
+    let p1 = shared.clone();
+    let p2 = shared.clone();
+
+    assert_eq!(p1.id(), p2.id());
+    assert_eq!(p1.key(), p2.key());
+}
+
+#[test]
+fn param_lookup_by_id_and_name() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+
+    let p = store.param("weight", &[2, 2], bolt_nn::Init::Zeros).unwrap();
+    let id = p.id();
+
+    let by_id = store.param_by_id(id).unwrap();
+    let by_name = store.param_by_name("weight").unwrap();
+
+    assert_eq!(by_id.id(), id);
+    assert_eq!(by_name.id(), id);
+    assert_eq!(by_id.key(), "weight");
+}
+
+#[test]
+fn buffer_lookup_by_id_and_name() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+
+    let b = store.buffer("buf", &[2, 2], bolt_nn::Init::Zeros).unwrap();
+    let id = b.id();
+
+    let by_id = store.buffer_by_id(id).unwrap();
+    let by_name = store.buffer_by_name("buf").unwrap();
+
+    assert_eq!(by_id.id(), id);
+    assert_eq!(by_name.id(), id);
+    assert_eq!(by_id.key(), "buf");
+}
+
+#[test]
+fn name_to_id_and_id_to_name_mappings() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+
+    let _p1 = store.param("p1", &[2], bolt_nn::Init::Zeros).unwrap();
+    let _p2 = store.param("p2", &[2], bolt_nn::Init::Zeros).unwrap();
+    let _b1 = store.buffer("b1", &[2], bolt_nn::Init::Zeros).unwrap();
+
+    let name_to_id = store.name_to_id();
+    let id_to_name = store.id_to_name();
+
+    assert_eq!(name_to_id.len(), 3);
+    assert!(name_to_id.contains_key("p1"));
+    assert!(name_to_id.contains_key("p2"));
+    assert!(name_to_id.contains_key("b1"));
+
+    assert_eq!(id_to_name.len(), 3);
+    for (id, name) in &id_to_name {
+        assert_eq!(name_to_id[name], *id);
+    }
+}
+
+#[test]
+fn each_param_gets_unique_id() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend.clone(), 1337);
+
+    let p1 = store.param("p1", &[2], bolt_nn::Init::Zeros).unwrap();
+    let p2 = store.param("p2", &[2], bolt_nn::Init::Zeros).unwrap();
+    let b1 = store.buffer("b1", &[2], bolt_nn::Init::Zeros).unwrap();
+
+    assert_ne!(p1.id(), p2.id());
+    assert_ne!(p1.id(), b1.id());
+    assert_ne!(p2.id(), b1.id());
+}

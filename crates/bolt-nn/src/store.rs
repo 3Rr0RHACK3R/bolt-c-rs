@@ -1,9 +1,12 @@
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry as BTreeEntry;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use bolt_core::BaseBackend;
 use bolt_core::Float;
+use bolt_core::ParamId;
+use bolt_core::ParamIdGen;
 use bolt_core::backend::{AddOp, FillOp};
 use bolt_core::shape::Shape;
 use bolt_rng::RngStream;
@@ -23,6 +26,7 @@ where
     B: BaseBackend,
     D: Float,
 {
+    pub(crate) id: ParamId,
     pub(crate) key: String,
     pub(crate) group: AtomicU32,
     pub(crate) shape: Shape,
@@ -48,6 +52,11 @@ where
     B: BaseBackend,
     D: Float,
 {
+    /// Returns the stable parameter ID.
+    pub fn id(&self) -> ParamId {
+        self.0.id
+    }
+
     pub fn key(&self) -> &str {
         &self.0.key
     }
@@ -119,6 +128,11 @@ where
     B: BaseBackend,
     D: Float,
 {
+    /// Returns the stable buffer ID.
+    pub fn id(&self) -> ParamId {
+        self.0.id
+    }
+
     pub fn key(&self) -> &str {
         &self.0.key
     }
@@ -159,8 +173,10 @@ where
     D: Float,
 {
     backend: Arc<B>,
-    params: RwLock<BTreeMap<String, Arc<Entry<B, D>>>>,
-    buffers: RwLock<BTreeMap<String, Arc<Entry<B, D>>>>,
+    id_gen: ParamIdGen,
+    params: RwLock<BTreeMap<ParamId, Arc<Entry<B, D>>>>,
+    buffers: RwLock<BTreeMap<ParamId, Arc<Entry<B, D>>>>,
+    name_to_id: RwLock<BTreeMap<String, ParamId>>,
     sealed: AtomicBool,
     rng: Mutex<RngStream>,
 }
@@ -185,8 +201,10 @@ where
         Self {
             inner: Arc::new(Inner {
                 backend,
+                id_gen: ParamIdGen::new(),
                 params: RwLock::new(BTreeMap::new()),
                 buffers: RwLock::new(BTreeMap::new()),
+                name_to_id: RwLock::new(BTreeMap::new()),
                 sealed: AtomicBool::new(false),
                 rng: Mutex::new(rng),
             }),
@@ -247,15 +265,15 @@ where
 
     pub fn named_trainable(&self) -> Vec<(String, Param<B, D>)> {
         let map = self.inner.params.read().unwrap();
-        map.iter()
-            .map(|(k, v)| (k.clone(), Param(v.clone())))
+        map.values()
+            .map(|e| (e.key.clone(), Param(e.clone())))
             .collect()
     }
 
     pub fn named_buffers(&self) -> Vec<(String, Buffer<B, D>)> {
         let map = self.inner.buffers.read().unwrap();
-        map.iter()
-            .map(|(k, v)| (k.clone(), Buffer(v.clone())))
+        map.values()
+            .map(|e| (e.key.clone(), Buffer(e.clone())))
             .collect()
     }
 
@@ -265,6 +283,46 @@ where
             .filter(|e| e.group.load(Ordering::Relaxed) == group_id)
             .cloned()
             .map(Param)
+            .collect()
+    }
+
+    /// Get parameter by ID.
+    pub fn param_by_id(&self, id: ParamId) -> Option<Param<B, D>> {
+        self.inner.params.read().unwrap().get(&id).cloned().map(Param)
+    }
+
+    /// Get buffer by ID.
+    pub fn buffer_by_id(&self, id: ParamId) -> Option<Buffer<B, D>> {
+        self.inner.buffers.read().unwrap().get(&id).cloned().map(Buffer)
+    }
+
+    /// Get parameter by name.
+    pub fn param_by_name(&self, name: &str) -> Option<Param<B, D>> {
+        let name_idx = self.inner.name_to_id.read().unwrap();
+        let id = name_idx.get(name)?;
+        self.param_by_id(*id)
+    }
+
+    /// Get buffer by name.
+    pub fn buffer_by_name(&self, name: &str) -> Option<Buffer<B, D>> {
+        let name_idx = self.inner.name_to_id.read().unwrap();
+        let id = name_idx.get(name)?;
+        self.buffer_by_id(*id)
+    }
+
+    /// Returns name-to-ID mapping (for serialization restore).
+    pub fn name_to_id(&self) -> BTreeMap<String, ParamId> {
+        self.inner.name_to_id.read().unwrap().clone()
+    }
+
+    /// Returns ID-to-name mapping (for serialization save).
+    pub fn id_to_name(&self) -> BTreeMap<ParamId, String> {
+        let params = self.inner.params.read().unwrap();
+        let buffers = self.inner.buffers.read().unwrap();
+        params
+            .values()
+            .chain(buffers.values())
+            .map(|e| (e.id, e.key.clone()))
             .collect()
     }
 
@@ -322,6 +380,8 @@ where
             format!("{}.{}", self.prefix, name)
         };
 
+        let id = self.inner.id_gen.next();
+
         let mut rng = self.inner.rng.lock().unwrap();
         let data = init::fill(shape, initv, &mut rng)?;
 
@@ -330,6 +390,7 @@ where
         let tensor = tensor.with_requires_grad(requires_grad);
 
         let entry = Arc::new(Entry {
+            id,
             key: key.clone(),
             group: AtomicU32::new(self.group),
             shape: Shape::from_slice(shape)?,
@@ -340,18 +401,32 @@ where
 
         match kind {
             Kind::Param => {
-                let mut map = self.inner.params.write().unwrap();
-                if map.contains_key(&key) {
-                    return Err(Error::State(format!("duplicate param key: {key}")));
+                let mut name_idx = self.inner.name_to_id.write().unwrap();
+                let mut params = self.inner.params.write().unwrap();
+
+                match name_idx.entry(key) {
+                    BTreeEntry::Occupied(_) => {
+                        return Err(Error::State(format!("duplicate key: {}", name)));
+                    }
+                    BTreeEntry::Vacant(v) => {
+                        params.insert(id, entry.clone());
+                        v.insert(id);
+                    }
                 }
-                map.insert(key, entry.clone());
             }
             Kind::Buffer => {
-                let mut map = self.inner.buffers.write().unwrap();
-                if map.contains_key(&key) {
-                    return Err(Error::State(format!("duplicate buffer key: {key}")));
+                let mut name_idx = self.inner.name_to_id.write().unwrap();
+                let mut buffers = self.inner.buffers.write().unwrap();
+
+                match name_idx.entry(key) {
+                    BTreeEntry::Occupied(_) => {
+                        return Err(Error::State(format!("duplicate key: {}", name)));
+                    }
+                    BTreeEntry::Vacant(v) => {
+                        buffers.insert(id, entry.clone());
+                        v.insert(id);
+                    }
                 }
-                map.insert(key, entry.clone());
             }
         }
 
@@ -359,8 +434,8 @@ where
     }
 
     pub fn expected_keys(&self) -> Vec<String> {
-        let mut out: Vec<String> = self.inner.params.read().unwrap().keys().cloned().collect();
-        out.extend(self.inner.buffers.read().unwrap().keys().cloned());
+        let mut out: Vec<String> = self.inner.params.read().unwrap().values().map(|e| e.key.clone()).collect();
+        out.extend(self.inner.buffers.read().unwrap().values().map(|e| e.key.clone()));
         out.sort();
         out
     }

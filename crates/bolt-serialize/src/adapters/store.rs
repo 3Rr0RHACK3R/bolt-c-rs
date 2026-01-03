@@ -27,12 +27,14 @@ where
         let params = self.named_trainable().into_iter().map(|(name, p)| {
             let mut record = p.tensor().to_record(&name, Role::Param)?;
             record.meta.group = p.group();
+            record.meta.param_id = Some(p.id());
             Ok(record)
         });
 
         let buffers = self.named_buffers().into_iter().map(|(name, b)| {
             let mut record = b.tensor().to_record(&name, Role::Buffer)?;
             record.meta.group = b.group();
+            record.meta.param_id = Some(b.id());
             Ok(record)
         });
 

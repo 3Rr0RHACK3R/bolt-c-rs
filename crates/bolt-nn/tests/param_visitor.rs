@@ -20,11 +20,12 @@ fn store_named_trainable_is_deterministic_and_keyed() {
         .into_iter()
         .map(|(k, _)| k)
         .collect();
+    // Order is determined by ParamId (insertion order): weight created before bias
     assert_eq!(
         keys,
         vec![
-            "a.bias".to_string(),
             "a.weight".to_string(),
+            "a.bias".to_string(),
             "b.weight".to_string(),
         ]
     );

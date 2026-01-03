@@ -8,6 +8,7 @@ pub mod dtype;
 pub mod error;
 pub mod index;
 pub mod layout;
+pub mod param_id;
 pub mod shape;
 pub mod storage;
 
@@ -19,4 +20,5 @@ pub use dtype::{CastFrom, DType, Float, NativeType};
 pub use error::{Error, Result};
 pub use index::TensorIndex;
 pub use layout::{Layout, LayoutKind, TensorIndexer};
+pub use param_id::{ParamId, ParamIdGen};
 pub use storage::TensorView;

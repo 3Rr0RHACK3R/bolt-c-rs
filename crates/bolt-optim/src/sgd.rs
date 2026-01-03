@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp};
-use bolt_core::{BaseBackend, Error, Float, Result};
+use bolt_core::{BaseBackend, Error, Float, ParamId, Result};
 use bolt_nn::Param;
 use bolt_tensor::{Tensor, no_grad};
 
@@ -34,7 +34,7 @@ where
 {
     base: SgdCfg,
     group: BTreeMap<u32, SgdGroupCfg>,
-    vel: BTreeMap<String, Tensor<B, D>>,
+    vel: BTreeMap<ParamId, Tensor<B, D>>,
     _marker: std::marker::PhantomData<B>,
 }
 
@@ -79,8 +79,8 @@ where
         let mut seen = HashSet::new();
 
         for p in params {
-            let key = p.key().to_string();
-            if !seen.insert(key.clone()) {
+            let id = p.id();
+            if !seen.insert(id) {
                 continue;
             }
             if !p.requires_grad() {
@@ -105,7 +105,7 @@ where
 
             let v = self
                 .vel
-                .entry(key.clone())
+                .entry(id)
                 .or_insert_with(|| Tensor::zeros_like(&w).unwrap());
             if v.shape() != w.shape() {
                 *v = Tensor::zeros_like(&w)?;
@@ -134,11 +134,11 @@ where
         (lr, wd)
     }
 
-    pub fn velocity_state(&self) -> &BTreeMap<String, Tensor<B, D>> {
+    pub fn velocity_state(&self) -> &BTreeMap<ParamId, Tensor<B, D>> {
         &self.vel
     }
 
-    pub fn velocity_state_mut(&mut self) -> &mut BTreeMap<String, Tensor<B, D>> {
+    pub fn velocity_state_mut(&mut self) -> &mut BTreeMap<ParamId, Tensor<B, D>> {
         &mut self.vel
     }
 }

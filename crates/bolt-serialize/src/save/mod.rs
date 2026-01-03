@@ -157,6 +157,7 @@ fn write_checkpoint_to_dir(
                         key: record.meta.name.clone(),
                     },
                     checksum: record_checksum,
+                    param_id: record.meta.param_id.map(|id| id.as_u64()),
                 },
             );
         }

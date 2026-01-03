@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::path::Path;
 
-use bolt_core::{DType, shape::Shape};
+use bolt_core::{DType, ParamId, shape::Shape};
 use safetensors::tensor::TensorView as SafeTensorView;
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +31,7 @@ pub struct RecordMeta {
     pub shape: Shape,
     pub role: Role,
     pub group: u32,
+    pub param_id: Option<ParamId>,
 }
 
 impl RecordMeta {
@@ -41,7 +42,13 @@ impl RecordMeta {
             shape,
             role: Role::User,
             group: 0,
+            param_id: None,
         }
+    }
+
+    pub fn with_param_id(mut self, id: ParamId) -> Self {
+        self.param_id = Some(id);
+        self
     }
 
     pub fn with_role(mut self, role: Role) -> Self {

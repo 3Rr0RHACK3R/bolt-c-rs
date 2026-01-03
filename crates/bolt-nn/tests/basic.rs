@@ -44,15 +44,17 @@ fn store_registers_linear_params_with_expected_keys() {
         .into_iter()
         .map(|(k, _)| k)
         .collect();
+    // Order is determined by ParamId (insertion order)
     assert_eq!(
         keys,
-        vec!["linear.bias".to_string(), "linear.weight".to_string()]
+        vec!["linear.weight".to_string(), "linear.bias".to_string()]
     );
 
     let params = store.trainable();
     assert_eq!(params.len(), 2);
-    assert_eq!(params[0].shape().as_slice(), &[3]);
-    assert_eq!(params[1].shape().as_slice(), &[3, 2]);
+    // Order matches the keys order
+    assert_eq!(params[0].shape().as_slice(), &[3, 2]);
+    assert_eq!(params[1].shape().as_slice(), &[3]);
 }
 
 #[test]

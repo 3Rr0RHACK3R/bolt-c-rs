@@ -53,6 +53,7 @@ pub fn build_record_index(
                     shape: entry.shape.clone(),
                     role: entry.role.clone(),
                     group: entry.group,
+                    param_id: entry.param_id.map(bolt_core::ParamId::from_raw),
                 },
                 shard_idx,
                 key: entry.location.key.clone(),
