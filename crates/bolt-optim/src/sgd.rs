@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
+use std::collections::btree_map::Entry;
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp};
 use bolt_core::{BaseBackend, Error, Float, ParamId, Result};
@@ -103,10 +104,12 @@ where
             let w = p.tensor();
             let backend = w.backend();
 
-            let v = self
-                .vel
-                .entry(id)
-                .or_insert_with(|| Tensor::zeros_like(&w).unwrap());
+            let v = match self.vel.entry(id) {
+                Entry::Occupied(e) => e.into_mut(),
+                Entry::Vacant(e) => {
+                    e.insert(Tensor::zeros_like(&w)?)
+                }
+            };
             if v.shape() != w.shape() {
                 *v = Tensor::zeros_like(&w)?;
             }
