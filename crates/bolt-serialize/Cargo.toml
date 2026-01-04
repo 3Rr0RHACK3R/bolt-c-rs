@@ -9,6 +9,7 @@ license.workspace = true
 bolt-core = { path = "../bolt-core" }
 bolt-nn = { path = "../bolt-nn" }
 bolt-optim = { path = "../bolt-optim" }
+bolt-rng = { path = "../bolt-rng" }
 bolt-tensor = { path = "../bolt-tensor" }
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }

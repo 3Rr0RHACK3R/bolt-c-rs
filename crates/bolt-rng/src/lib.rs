@@ -93,6 +93,13 @@ pub struct RngStreamsState {
     pub noise: RngStreamState,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModelRngState {
+    pub init: RngStreamState,
+    pub forward: RngStreamState,
+    pub data: RngStreamState,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct RngStreams {
     pub dropout: RngStream,
@@ -190,6 +197,20 @@ impl ModelRng {
 
     pub fn data_rng_for_epoch(&self, epoch: u64) -> RngStream {
         self.data.fold_in(epoch)
+    }
+
+    pub fn state(&self) -> ModelRngState {
+        ModelRngState {
+            init: self.init.state(),
+            forward: self.forward.state(),
+            data: self.data.state(),
+        }
+    }
+
+    pub fn set_state(&mut self, state: ModelRngState) {
+        self.init.set_state(state.init);
+        self.forward.set_state(state.forward);
+        self.data.set_state(state.data);
     }
 }
 

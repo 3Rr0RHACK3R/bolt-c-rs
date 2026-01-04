@@ -10,7 +10,9 @@ use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
 use bolt_rng::ModelRng;
 
-use bolt_serialize::{CheckpointMeta, SaveOpts, StoreCheckpointAdapter, save_checkpoint};
+use bolt_serialize::{
+    CheckpointMeta, RngCheckpointAdapter, SaveOpts, StoreCheckpointAdapter, save_checkpoint,
+};
 
 use mnist_common::{B, D, MnistMLP, evaluate, train_loader};
 
@@ -111,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| PathBuf::from("data/mnist_ckpt"));
 
     save_checkpoint(
-        store.to_records(),
+        store.to_records().chain(model_rng.to_records()),
         &ckpt_dir,
         &CheckpointMeta::default(),
         &SaveOpts {
@@ -119,7 +121,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         },
     )?;
-    println!("Saved checkpoint to {}", ckpt_dir.display());
+    println!(
+        "Saved checkpoint (model + RNG state) to {}",
+        ckpt_dir.display()
+    );
 
     println!(
         "Recorded final test accuracy: {:.2}% ({}/{})",

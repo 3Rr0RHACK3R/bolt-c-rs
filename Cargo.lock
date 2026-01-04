@@ -215,6 +215,7 @@ dependencies = [
  "bolt-cpu",
  "bolt-nn",
  "bolt-optim",
+ "bolt-rng",
  "bolt-tensor",
  "bytemuck",
  "glob",

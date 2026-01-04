@@ -15,5 +15,6 @@ pub use record::{Record, RecordMeta, RecordView, Role};
 pub use save::{plan_shards, save_checkpoint, ShardEntry, ShardPlan};
 
 pub use adapters::optim::OptimizerCheckpointAdapter;
+pub use adapters::rng::RngCheckpointAdapter;
 pub use adapters::store::StoreCheckpointAdapter;
 pub use adapters::tensor::{TensorFromCheckpoint, TensorToRecord};
