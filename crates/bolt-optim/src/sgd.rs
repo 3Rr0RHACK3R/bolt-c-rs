@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashSet};
 use std::collections::btree_map::Entry;
+use std::sync::Arc;
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp};
-use bolt_core::{BaseBackend, Error, Float, ParamId, Result};
+use bolt_core::{BaseBackend, Error, Float, Result};
 use bolt_nn::Param;
 use bolt_tensor::{Tensor, no_grad};
 
@@ -33,10 +34,10 @@ where
     B: BaseBackend,
     D: Float,
 {
+    backend: Arc<B>,
     base: SgdCfg,
     group: BTreeMap<u32, SgdGroupCfg>,
-    vel: BTreeMap<ParamId, Tensor<B, D>>,
-    _marker: std::marker::PhantomData<B>,
+    vel: BTreeMap<String, Tensor<B, D>>,
 }
 
 impl<B, D> Sgd<B, D>
@@ -44,14 +45,18 @@ where
     B: BaseBackend,
     D: Float,
 {
-    pub fn new(cfg: SgdCfg) -> Result<Self> {
+    pub fn new(backend: Arc<B>, cfg: SgdCfg) -> Result<Self> {
         validate_cfg(cfg)?;
         Ok(Self {
+            backend,
             base: cfg,
             group: BTreeMap::new(),
             vel: BTreeMap::new(),
-            _marker: std::marker::PhantomData,
         })
+    }
+
+    pub fn backend(&self) -> Arc<B> {
+        self.backend.clone()
     }
 
     pub fn set_group(&mut self, group_id: u32, cfg: SgdGroupCfg) -> Result<()> {
@@ -71,17 +76,14 @@ where
             + SumOp<D>
             + NegOp<D>
             + 'static,
-        D: std::ops::Neg<Output = D>
-            + std::ops::Sub<Output = D>
-            + std::ops::Mul<Output = D>
-            + 'static,
+        D: Float + 'static,
     {
         let _ng = no_grad();
         let mut seen = HashSet::new();
 
         for p in params {
-            let id = p.id();
-            if !seen.insert(id) {
+            let key = p.key().to_string();
+            if !seen.insert(key.clone()) {
                 continue;
             }
             if !p.requires_grad() {
@@ -102,9 +104,9 @@ where
             let (lr_val, wd_val) = self.cfg_for(p.group());
 
             let w = p.tensor();
-            let backend = w.backend();
+            let backend = self.backend.clone();
 
-            let v = match self.vel.entry(id) {
+            let v = match self.vel.entry(key) {
                 Entry::Occupied(e) => e.into_mut(),
                 Entry::Vacant(e) => {
                     e.insert(Tensor::zeros_like(&w)?)
@@ -137,11 +139,11 @@ where
         (lr, wd)
     }
 
-    pub fn velocity_state(&self) -> &BTreeMap<ParamId, Tensor<B, D>> {
+    pub fn velocity_state(&self) -> &BTreeMap<String, Tensor<B, D>> {
         &self.vel
     }
 
-    pub fn velocity_state_mut(&mut self) -> &mut BTreeMap<ParamId, Tensor<B, D>> {
+    pub fn velocity_state_mut(&mut self) -> &mut BTreeMap<String, Tensor<B, D>> {
         &mut self.vel
     }
 }
