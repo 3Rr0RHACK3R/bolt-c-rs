@@ -91,7 +91,11 @@ pub fn train_loader(
     Ok(stream)
 }
 
-pub fn test_loader(root: &Path, backend: Arc<B>, batch_size: usize) -> Result<Stream<Batch>, BoxErr> {
+pub fn test_loader(
+    root: &Path,
+    backend: Arc<B>,
+    batch_size: usize,
+) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::test(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
         .try_map(|mut s| {

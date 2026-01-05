@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let backend = Arc::new(B::new());
     let mut model_rng = ModelRng::from_seed(seed);
-    
+
     let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
     let model = MnistMLP::init(&store, 512, 256)?;
 

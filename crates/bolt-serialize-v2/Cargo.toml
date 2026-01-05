@@ -1,0 +1,28 @@
+[package]
+name = "bolt-serialize-v2"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+bolt-core = { path = "../bolt-core" }
+bolt-nn = { path = "../bolt-nn" }
+bolt-optim = { path = "../bolt-optim" }
+bolt-rng = { path = "../bolt-rng" }
+bolt-tensor = { path = "../bolt-tensor" }
+thiserror.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json = "1"
+safetensors = "0.7"
+blake3 = "1"
+memmap2 = "0.9"
+uuid = { version = "1", features = ["v4"] }
+bytemuck.workspace = true
+glob = "0.3"
+time = { version = "0.3.44", features = ["formatting", "macros"] }
+
+[dev-dependencies]
+bolt-cpu = { path = "../bolt-cpu" }
+libc = "0.2"
+tempfile = "3"

@@ -312,7 +312,9 @@ fn param_lookup_by_id_and_name() {
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 1337);
 
-    let p = store.param("weight", &[2, 2], bolt_nn::Init::Zeros).unwrap();
+    let p = store
+        .param("weight", &[2, 2], bolt_nn::Init::Zeros)
+        .unwrap();
     let id = p.id();
 
     let by_id = store.param_by_id(id).unwrap();

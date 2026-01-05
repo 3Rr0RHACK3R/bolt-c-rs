@@ -147,17 +147,17 @@ fn store_new_with_rng_works() {
 #[test]
 fn store_new_with_rng_deterministic() {
     let backend = Arc::new(CpuBackend::new());
-    
+
     // Create two stores with same RNG stream
     let mut model_rng1 = ModelRng::from_seed(123);
     let mut model_rng2 = ModelRng::from_seed(123);
-    
+
     let store1 = Store::<B, D>::new_with_rng(backend.clone(), model_rng1.init_rng());
     let store2 = Store::<B, D>::new_with_rng(backend.clone(), model_rng2.init_rng());
-    
+
     let layer1 = Linear::init(&store1.sub("linear"), 2, 1, true).unwrap();
     let layer2 = Linear::init(&store2.sub("linear"), 2, 1, true).unwrap();
-    
+
     // Same RNG should produce same initial weights
     assert_eq!(
         layer1.weight.tensor().to_vec().unwrap(),

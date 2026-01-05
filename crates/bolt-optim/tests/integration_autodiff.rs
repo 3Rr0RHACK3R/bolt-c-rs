@@ -26,11 +26,14 @@ fn missing_gradient_does_not_update_parameter() {
     ));
     q.set_grad(None);
 
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 1.0,
-        momentum: 0.0,
-        weight_decay: 0.0,
-    })
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 1.0,
+            momentum: 0.0,
+            weight_decay: 0.0,
+        },
+    )
     .unwrap();
 
     opt.step(&store.trainable()).unwrap();
@@ -54,11 +57,14 @@ fn weight_decay_applies_l2_penalty() {
         Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap(),
     ));
 
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 1.0,
-        momentum: 0.0,
-        weight_decay: 0.5,
-    })
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 1.0,
+            momentum: 0.0,
+            weight_decay: 0.5,
+        },
+    )
     .unwrap();
 
     opt.step(&store.trainable()).unwrap();

@@ -40,7 +40,10 @@ fn rng_state_roundtrip_via_checkpoint() -> Result<(), Box<dyn std::error::Error>
 
     let state_after = rng_dst.state();
 
-    assert_eq!(state_before, state_after, "RNG state should round-trip exactly");
+    assert_eq!(
+        state_before, state_after,
+        "RNG state should round-trip exactly"
+    );
 
     Ok(())
 }
@@ -120,7 +123,10 @@ fn rng_restore_fails_on_missing_key() -> Result<(), Box<dyn std::error::Error>> 
         tensors.remove("rng.forward.key");
     }
 
-    fs::write(&manifest_path, serde_json::to_string_pretty(&manifest)? + "\n")?;
+    fs::write(
+        &manifest_path,
+        serde_json::to_string_pretty(&manifest)? + "\n",
+    )?;
 
     let ckpt = load_checkpoint(&out_dir, &LoadOpts::default())?;
     let mut rng_dst = ModelRng::from_seed(9999);
@@ -129,10 +135,7 @@ fn rng_restore_fails_on_missing_key() -> Result<(), Box<dyn std::error::Error>> 
         .expect_err("expected restore to fail due to missing rng.forward.key");
 
     let msg = err.to_string();
-    assert!(
-        msg.contains("rng.forward.key"),
-        "unexpected error: {msg}"
-    );
+    assert!(msg.contains("rng.forward.key"), "unexpected error: {msg}");
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::fs;
+use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::Store;
@@ -124,7 +124,10 @@ fn sgd_restore_errors_on_partial_velocity_state() -> Result<(), Box<dyn std::err
         .and_then(|t| t.as_object_mut())
         .expect("manifest.tensors must be an object")
         .remove("optim.w2.vel");
-    fs::write(&manifest_path, serde_json::to_string_pretty(&manifest)? + "\n")?;
+    fs::write(
+        &manifest_path,
+        serde_json::to_string_pretty(&manifest)? + "\n",
+    )?;
 
     let ckpt = load_checkpoint(&out_dir, &LoadOpts::default())?;
 

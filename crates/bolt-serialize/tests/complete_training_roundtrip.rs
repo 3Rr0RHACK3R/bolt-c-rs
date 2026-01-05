@@ -18,7 +18,7 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
 
     let mut rng_src = ModelRng::from_seed(42);
     let store_src = Store::<CpuBackend, f32>::new_with_rng(backend.clone(), rng_src.init_rng());
-    
+
     let p = store_src.param("w", &[2], bolt_nn::Init::Zeros)?;
     p.set_tensor(Tensor::from_slice(&backend, &[10.0f32, 20.0], &[2])?)?;
     store_src.seal();

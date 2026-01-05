@@ -262,7 +262,10 @@ fn atomic_save_cleanup_on_failure() {
     );
 
     assert!(result.is_err());
-    assert!(!out_dir.exists(), "Output directory should not exist after failed save");
+    assert!(
+        !out_dir.exists(),
+        "Output directory should not exist after failed save"
+    );
 
     let entries: Vec<_> = fs::read_dir(tmp.path()).unwrap().collect();
     assert!(

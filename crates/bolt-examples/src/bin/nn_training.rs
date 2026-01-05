@@ -12,7 +12,7 @@ type D = f32;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
-    
+
     let mut model_rng = ModelRng::from_seed(1337);
     let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
 

@@ -15,8 +15,8 @@ use bolt_core::{
     shape::Shape,
 };
 
-use crate::{autograd, utils::tensor_creation};
 use crate::autograd::{AutogradMeta, GradFn};
+use crate::{autograd, utils::tensor_creation};
 
 pub trait ToBackend<B: Backend> {
     type Output;
@@ -35,7 +35,7 @@ where
         // Read tensor data to host memory (needs a better approach maybe?)
         let data = self.to_vec()?;
         let shape = self.shape().as_slice().to_vec();
-        
+
         Tensor::<B2, D>::from_vec(backend, data, &shape)
     }
 }
@@ -1025,14 +1025,9 @@ where
         B: 'static,
         D: NativeType + 'static,
     {
-        let grad_fn = autograd::create_binary_grad_fn(
-            out.autograd.origin,
-            self,
-            other,
-            op,
-            saved_tensors,
-        );
-        
+        let grad_fn =
+            autograd::create_binary_grad_fn(out.autograd.origin, self, other, op, saved_tensors);
+
         out.autograd.requires_grad = grad_fn.is_some();
         out.autograd.grad_fn = grad_fn;
     }
@@ -1046,13 +1041,8 @@ where
         B: 'static,
         D: NativeType + 'static,
     {
-        let grad_fn = autograd::create_unary_grad_fn(
-            out.autograd.origin,
-            self,
-            op,
-            saved_tensors,
-        );
-        
+        let grad_fn = autograd::create_unary_grad_fn(out.autograd.origin, self, op, saved_tensors);
+
         out.autograd.requires_grad = grad_fn.is_some();
         out.autograd.grad_fn = grad_fn;
     }

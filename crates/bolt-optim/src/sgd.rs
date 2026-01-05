@@ -1,5 +1,5 @@
-use std::collections::{BTreeMap, HashSet};
 use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 use bolt_core::backend::{AddOp, CopyOp, FillOp, MulOp, NegOp, ReshapeOp, SubOp, SumOp};
@@ -108,9 +108,7 @@ where
 
             let v = match self.vel.entry(key) {
                 Entry::Occupied(e) => e.into_mut(),
-                Entry::Vacant(e) => {
-                    e.insert(Tensor::zeros_like(&w)?)
-                }
+                Entry::Vacant(e) => e.insert(Tensor::zeros_like(&w)?),
             };
             if v.shape() != w.shape() {
                 *v = Tensor::zeros_like(&w)?;

@@ -20,11 +20,14 @@ fn step_dedupes_duplicate_params_by_name() {
         Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap(),
     ));
 
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 1.0,
-        momentum: 0.0,
-        weight_decay: 0.0,
-    })
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 1.0,
+            momentum: 0.0,
+            weight_decay: 0.0,
+        },
+    )
     .unwrap();
 
     opt.step(&[p.clone(), p.clone()]).unwrap();
@@ -51,11 +54,14 @@ fn velocity_state_keyed_by_param_name() {
         Tensor::<B, D>::from_slice(&backend, &[1.0], &[1]).unwrap(),
     ));
 
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 1.0,
-        momentum: 0.9,
-        weight_decay: 0.0,
-    })
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 1.0,
+            momentum: 0.9,
+            weight_decay: 0.0,
+        },
+    )
     .unwrap();
 
     opt.step(&store.trainable()).unwrap();

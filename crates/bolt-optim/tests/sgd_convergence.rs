@@ -20,11 +20,14 @@ fn sgd_converges_on_linear_regression() {
     let w = store.param("w", &[], Init::Zeros).unwrap();
     let b = store.param("b", &[], Init::Zeros).unwrap();
 
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 0.1,
-        momentum: 0.9,
-        weight_decay: 0.0,
-    })
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 0.1,
+            momentum: 0.9,
+            weight_decay: 0.0,
+        },
+    )
     .unwrap();
 
     let params = store.trainable();

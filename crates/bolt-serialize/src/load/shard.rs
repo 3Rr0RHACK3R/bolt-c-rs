@@ -5,8 +5,8 @@ use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use memmap2::Mmap;
-use safetensors::tensor::Dtype as SafeDtype;
 use safetensors::SafeTensors;
+use safetensors::tensor::Dtype as SafeDtype;
 
 use bolt_core::DType;
 

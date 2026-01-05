@@ -1,7 +1,7 @@
 use bolt_core::{DType, shape::Shape};
 use bolt_serialize::{
-    CheckpointMeta, LoadOpts, Record, RecordMeta, Result, Role, SaveOpts,
-    load_checkpoint, save_checkpoint,
+    CheckpointMeta, LoadOpts, Record, RecordMeta, Result, Role, SaveOpts, load_checkpoint,
+    save_checkpoint,
 };
 use tempfile::TempDir;
 
@@ -21,7 +21,12 @@ fn make_record(name: &str, role: Role, byte_len: usize) -> Record<'static> {
     )
 }
 
-fn make_record_with_pattern(name: &str, role: Role, byte_len: usize, pattern: u8) -> Record<'static> {
+fn make_record_with_pattern(
+    name: &str,
+    role: Role,
+    byte_len: usize,
+    pattern: u8,
+) -> Record<'static> {
     debug_assert!(
         byte_len % 4 == 0,
         "byte_len must be divisible by 4 for F32 dtype"
@@ -123,10 +128,10 @@ fn checkpoint_with_checksums() -> Result<()> {
     )?;
 
     let ckpt = load_checkpoint(&out_dir, &LoadOpts::default())?;
-    
+
     let view_a = ckpt.get("tensor_a")?;
     assert_eq!(view_a.data.len(), 100);
-    
+
     let view_b = ckpt.get("tensor_b")?;
     assert_eq!(view_b.data.len(), 200);
 
@@ -200,15 +205,15 @@ fn checkpoint_with_pattern_data() -> Result<()> {
     )?;
 
     let ckpt = load_checkpoint(&out_dir, &LoadOpts::default())?;
-    
+
     let view_a = ckpt.get("data_a")?;
     assert_eq!(view_a.data.len(), 400);
     assert!(view_a.data.iter().all(|&b| b == 0xAA));
-    
+
     let view_b = ckpt.get("data_b")?;
     assert_eq!(view_b.data.len(), 800);
     assert!(view_b.data.iter().all(|&b| b == 0xBB));
-    
+
     let view_c = ckpt.get("data_c")?;
     assert_eq!(view_c.data.len(), 200);
     assert!(view_c.data.iter().all(|&b| b == 0xCC));

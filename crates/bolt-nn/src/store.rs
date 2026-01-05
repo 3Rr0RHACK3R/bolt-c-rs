@@ -288,12 +288,24 @@ where
 
     /// Get parameter by ID.
     pub fn param_by_id(&self, id: ParamId) -> Option<Param<B, D>> {
-        self.inner.params.read().unwrap().get(&id).cloned().map(Param)
+        self.inner
+            .params
+            .read()
+            .unwrap()
+            .get(&id)
+            .cloned()
+            .map(Param)
     }
 
     /// Get buffer by ID.
     pub fn buffer_by_id(&self, id: ParamId) -> Option<Buffer<B, D>> {
-        self.inner.buffers.read().unwrap().get(&id).cloned().map(Buffer)
+        self.inner
+            .buffers
+            .read()
+            .unwrap()
+            .get(&id)
+            .cloned()
+            .map(Buffer)
     }
 
     /// Get parameter by name.
@@ -434,8 +446,22 @@ where
     }
 
     pub fn expected_keys(&self) -> Vec<String> {
-        let mut out: Vec<String> = self.inner.params.read().unwrap().values().map(|e| e.key.clone()).collect();
-        out.extend(self.inner.buffers.read().unwrap().values().map(|e| e.key.clone()));
+        let mut out: Vec<String> = self
+            .inner
+            .params
+            .read()
+            .unwrap()
+            .values()
+            .map(|e| e.key.clone())
+            .collect();
+        out.extend(
+            self.inner
+                .buffers
+                .read()
+                .unwrap()
+                .values()
+                .map(|e| e.key.clone()),
+        );
         out.sort();
         out
     }

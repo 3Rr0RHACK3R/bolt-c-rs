@@ -1,5 +1,5 @@
-use crate::format::SHARDS_DIR;
 use crate::Record;
+use crate::format::SHARDS_DIR;
 
 #[derive(Clone, Debug)]
 pub struct ShardPlan {

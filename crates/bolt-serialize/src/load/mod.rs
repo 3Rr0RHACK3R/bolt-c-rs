@@ -13,9 +13,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::format::{
-    CheckpointManifest, CHECKPOINT_MANIFEST_NAME, CHECKPOINT_SCHEMA_VERSION,
-};
+use crate::format::{CHECKPOINT_MANIFEST_NAME, CHECKPOINT_SCHEMA_VERSION, CheckpointManifest};
 use crate::options::LoadOpts;
 use crate::{Error, Result};
 
@@ -111,11 +109,7 @@ fn read_and_parse_manifest<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<
     })
 }
 
-fn validate_schema_version(
-    manifest_version: &str,
-    expected: &str,
-    file: PathBuf,
-) -> Result<()> {
+fn validate_schema_version(manifest_version: &str, expected: &str, file: PathBuf) -> Result<()> {
     if manifest_version != expected {
         return Err(Error::SchemaVersionMismatch {
             file,

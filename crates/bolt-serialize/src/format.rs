@@ -5,9 +5,9 @@ use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::Path;
 
-use bolt_core::shape::Shape;
 use bolt_core::DType;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use bolt_core::shape::Shape;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{Error, Result, Role};
 
@@ -27,7 +27,10 @@ pub struct RecordEntry {
     pub role: Role,
     pub group: u32,
     pub dtype: String,
-    #[serde(serialize_with = "serialize_shape", deserialize_with = "deserialize_shape")]
+    #[serde(
+        serialize_with = "serialize_shape",
+        deserialize_with = "deserialize_shape"
+    )]
     pub shape: Shape,
     pub location: RecordLocation,
     #[serde(skip_serializing_if = "Option::is_none")]

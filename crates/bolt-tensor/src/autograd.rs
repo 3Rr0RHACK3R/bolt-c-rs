@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use bolt_core::Backend;
 use bolt_core::backend::{AddOp, FillOp};
@@ -211,7 +211,10 @@ where
     backward_with_options(loss, BackwardOptions::default())
 }
 
-pub fn backward_with_options<B, D>(loss: &Tensor<B, D>, _options: BackwardOptions) -> Result<Grads<B, D>>
+pub fn backward_with_options<B, D>(
+    loss: &Tensor<B, D>,
+    _options: BackwardOptions,
+) -> Result<Grads<B, D>>
 where
     B: Backend + AddOp<D> + FillOp<D> + 'static,
     D: Float + 'static,
@@ -237,7 +240,7 @@ where
     };
 
     let nodes = collect_nodes(&root_grad_fn);
-    
+
     if nodes.is_empty() {
         return Err(Error::OpError(
             "cannot compute backward: computational graph is empty".into(),
@@ -369,7 +372,7 @@ where
     if !D::SUPPORTS_GRAD || !grad_enabled() {
         return None;
     }
-    
+
     if !lhs.requires_grad_enabled() && !rhs.requires_grad_enabled() {
         return None;
     }

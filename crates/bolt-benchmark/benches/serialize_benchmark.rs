@@ -1,8 +1,5 @@
 use bolt_core::{DType, shape::Shape};
-use bolt_serialize::{
-    CheckpointMeta, Record, RecordMeta, Role, SaveOpts,
-    save_checkpoint,
-};
+use bolt_serialize::{CheckpointMeta, Record, RecordMeta, Role, SaveOpts, save_checkpoint};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use tempfile::TempDir;
 
@@ -23,25 +20,26 @@ fn bench_save_checkpoint(c: &mut Criterion) {
 
     for &count in &tensor_counts {
         let id = BenchmarkId::new("records", format!("{count}_tensors"));
-        
+
         group.bench_function(id, |b| {
             let tmp = TempDir::new().unwrap();
             let mut counter = 0u64;
-            
+
             b.iter(|| {
                 let out_dir = tmp.path().join(format!("ckpt_{counter}"));
                 counter += 1;
-                
+
                 let records: Vec<_> = (0..count)
                     .map(|i| make_record(&format!("tensor_{i:03}"), tensor_size))
                     .collect();
-                
+
                 save_checkpoint(
                     records.into_iter().map(Ok),
                     &out_dir,
                     &CheckpointMeta::default(),
                     &SaveOpts::default(),
-                ).unwrap();
+                )
+                .unwrap();
             });
         });
     }

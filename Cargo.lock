@@ -231,6 +231,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "bolt-serialize-v2"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "bolt-core",
+ "bolt-cpu",
+ "bolt-nn",
+ "bolt-optim",
+ "bolt-rng",
+ "bolt-tensor",
+ "bytemuck",
+ "glob",
+ "libc",
+ "memmap2",
+ "safetensors",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "time",
+ "uuid",
+]
+
+[[package]]
 name = "bolt-tensor"
 version = "0.1.0"
 dependencies = [

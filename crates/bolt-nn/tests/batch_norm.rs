@@ -51,7 +51,8 @@ fn batch_norm_eval_forward_runs() {
     )
     .unwrap();
 
-    let mut train_ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
+    let mut train_ctx =
+        ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let _ = bn.forward(x_train, &mut train_ctx).unwrap();
 
     let x_eval = Tensor::<B, D>::from_slice(&backend, &[3.0, 13.0], &[1, 2]).unwrap();
@@ -210,7 +211,8 @@ fn batch_norm_train_then_eval_deterministic() {
     let x_train =
         Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2]).unwrap();
 
-    let mut train_ctx = ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
+    let mut train_ctx =
+        ForwardCtx::train_with_rngs(ModelRng::from_seed(0).forward_rngs_for_step(0));
     let _ = bn.forward(x_train, &mut train_ctx).unwrap();
 
     let x_eval = Tensor::<B, D>::from_slice(&backend, &[2.5, 3.5], &[1, 2]).unwrap();

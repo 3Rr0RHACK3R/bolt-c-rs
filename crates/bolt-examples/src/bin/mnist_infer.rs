@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use bolt_datasets::mnist;
 use bolt_rng::ModelRng;
-use bolt_serialize::{LoadOpts, RestoreOpts, RngCheckpointAdapter, StoreCheckpointAdapter, load_checkpoint};
+use bolt_serialize::{
+    LoadOpts, RestoreOpts, RngCheckpointAdapter, StoreCheckpointAdapter, load_checkpoint,
+};
 
 use mnist_common::{B, D, MnistMLP, evaluate};
 
@@ -47,7 +49,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eval.loss,
         eval.acc * 100.0
     );
-    println!("Recovered test accuracy: {:.2}% ({}/{})", eval.acc * 100.0, eval.correct, eval.total);
+    println!(
+        "Recovered test accuracy: {:.2}% ({}/{})",
+        eval.acc * 100.0,
+        eval.correct,
+        eval.total
+    );
 
     Ok(())
 }
