@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bolt_core::Error;
 use bolt_cpu::CpuBackend;
+use bolt_rng::RngKey;
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -173,8 +174,9 @@ fn logspace_rejects_invalid_bases() {
 #[test]
 fn uniform_random_f32() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, Some(42)).unwrap();
-    let t2 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, Some(42)).unwrap();
+    let key = RngKey::from_seed(42);
+    let t1 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, key).unwrap();
+    let t2 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, key).unwrap();
 
     assert_eq!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 
@@ -187,8 +189,9 @@ fn uniform_random_f32() {
 #[test]
 fn normal_random_f32() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, Some(123)).unwrap();
-    let t2 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, Some(123)).unwrap();
+    let key = RngKey::from_seed(123);
+    let t1 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, key).unwrap();
+    let t2 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, key).unwrap();
 
     assert_eq!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 
@@ -204,8 +207,8 @@ fn normal_random_f32() {
 #[test]
 fn uniform_different_seeds_yield_different_vectors() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, Some(42)).unwrap();
-    let t2 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, Some(43)).unwrap();
+    let t1 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, RngKey::from_seed(42)).unwrap();
+    let t2 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, RngKey::from_seed(43)).unwrap();
 
     assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
@@ -213,8 +216,8 @@ fn uniform_different_seeds_yield_different_vectors() {
 #[test]
 fn normal_different_seeds_yield_different_vectors() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, Some(123)).unwrap();
-    let t2 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, Some(456)).unwrap();
+    let t1 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, RngKey::from_seed(123)).unwrap();
+    let t2 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, RngKey::from_seed(456)).unwrap();
 
     assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
@@ -222,8 +225,8 @@ fn normal_different_seeds_yield_different_vectors() {
 #[test]
 fn uniform_no_seed_yields_different_vectors() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, None).unwrap();
-    let t2 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, None).unwrap();
+    let t1 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, RngKey::from_entropy()).unwrap();
+    let t2 = Tensor::<B, D>::uniform(&backend, &[100], 0.0, 1.0, RngKey::from_entropy()).unwrap();
 
     assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
@@ -231,8 +234,8 @@ fn uniform_no_seed_yields_different_vectors() {
 #[test]
 fn normal_no_seed_yields_different_vectors() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, None).unwrap();
-    let t2 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, None).unwrap();
+    let t1 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, RngKey::from_entropy()).unwrap();
+    let t2 = Tensor::<B, D>::normal(&backend, &[100], 0.0, 1.0, RngKey::from_entropy()).unwrap();
 
     assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
@@ -240,8 +243,9 @@ fn normal_no_seed_yields_different_vectors() {
 #[test]
 fn bernoulli_mask_deterministic_with_same_seed() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(42)).unwrap();
-    let t2 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(42)).unwrap();
+    let key = RngKey::from_seed(42);
+    let t1 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, key).unwrap();
+    let t2 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, key).unwrap();
 
     assert_eq!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
@@ -249,8 +253,8 @@ fn bernoulli_mask_deterministic_with_same_seed() {
 #[test]
 fn bernoulli_mask_different_seeds_produce_different_results() {
     let backend = Arc::new(B::new());
-    let t1 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(42)).unwrap();
-    let t2 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, Some(43)).unwrap();
+    let t1 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, RngKey::from_seed(42)).unwrap();
+    let t2 = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.5, RngKey::from_seed(43)).unwrap();
 
     assert_ne!(t1.to_vec().unwrap(), t2.to_vec().unwrap());
 }
@@ -258,7 +262,7 @@ fn bernoulli_mask_different_seeds_produce_different_results() {
 #[test]
 fn bernoulli_mask_values_are_binary() {
     let backend = Arc::new(B::new());
-    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[1000], 0.5, Some(42)).unwrap();
+    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[1000], 0.5, RngKey::from_seed(42)).unwrap();
     let data = tensor.to_vec().unwrap();
 
     for v in data {
@@ -273,7 +277,7 @@ fn bernoulli_mask_values_are_binary() {
 fn bernoulli_mask_statistical_properties() {
     let backend = Arc::new(B::new());
     let p_keep = 0.7;
-    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[10000], p_keep, Some(123)).unwrap();
+    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[10000], p_keep, RngKey::from_seed(123)).unwrap();
     let data = tensor.to_vec().unwrap();
 
     let ones_count = data.iter().filter(|&&v| v == 1.0).count();
@@ -288,21 +292,23 @@ fn bernoulli_mask_statistical_properties() {
 #[test]
 fn bernoulli_mask_edge_cases() {
     let backend = Arc::new(B::new());
+    let key = RngKey::from_seed(42);
 
-    let zeros = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.0, Some(42)).unwrap();
+    let zeros = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 0.0, key).unwrap();
     assert_eq!(zeros.to_vec().unwrap(), vec![0.0; 100]);
 
-    let ones = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 1.0, Some(42)).unwrap();
+    let ones = Tensor::<B, D>::bernoulli_mask(&backend, &[100], 1.0, key).unwrap();
     assert_eq!(ones.to_vec().unwrap(), vec![1.0; 100]);
 }
 
 #[test]
 fn bernoulli_mask_rejects_invalid_p_keep() {
     let backend = Arc::new(B::new());
+    let key = RngKey::from_seed(42);
 
-    let result_negative = Tensor::<B, D>::bernoulli_mask(&backend, &[10], -0.1, Some(42));
+    let result_negative = Tensor::<B, D>::bernoulli_mask(&backend, &[10], -0.1, key);
     assert!(matches!(result_negative, Err(Error::OpError { .. })));
 
-    let result_too_large = Tensor::<B, D>::bernoulli_mask(&backend, &[10], 1.1, Some(42));
+    let result_too_large = Tensor::<B, D>::bernoulli_mask(&backend, &[10], 1.1, key);
     assert!(matches!(result_too_large, Err(Error::OpError { .. })));
 }
