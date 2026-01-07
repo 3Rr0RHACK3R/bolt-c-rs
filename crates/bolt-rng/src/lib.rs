@@ -1,68 +1,146 @@
 #![deny(unused_must_use)]
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RngStreamState {
-    pub key: u64,
-    pub counter: u64,
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+/// A stateless, copyable RNG key for deterministic random number generation.
+///
+/// `RngKey` follows JAX-style design: keys are immutable and can be split/derived
+/// to create independent streams. All randomness comes from converting a key to
+/// `RngSeq` via `into_seq()`.
+///
+/// # Example
+/// ```
+/// use bolt_rng::RngKey;
+///
+/// let root = RngKey::from_seed(42);
+/// let init_key = root.derive("init");
+/// let param_key = init_key.derive_path(["params", "layer1", "w"]);
+/// let mut seq = param_key.into_seq();
+/// let value = seq.next_f32_01();
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RngKey {
+    key: u64,
 }
 
+impl RngKey {
+    /// Create a new RNG key from a seed.
+    pub fn from_seed(seed: u64) -> Self {
+        Self { key: mix64(seed) }
+    }
+
+    /// Create a new RNG key from entropy (nondeterministic).
+    ///
+    /// This is explicitly nondeterministic and should only be used when
+    /// reproducibility is not required.
+    pub fn from_entropy() -> Self {
+        Self::from_seed(entropy_seed())
+    }
+
+    /// Derive a new key by mixing in a string tag.
+    ///
+    /// This creates a deterministic child key based on the tag. Different tags
+    /// produce independent streams.
+    pub fn derive(self, tag: &str) -> Self {
+        let mut hasher = DefaultHasher::new();
+        tag.hash(&mut hasher);
+        let tag_hash = hasher.finish();
+        Self {
+            key: mix64(self.key ^ mix64(tag_hash)),
+        }
+    }
+
+    /// Derive a new key from a hierarchical path of tags.
+    ///
+    /// This is equivalent to calling `derive` multiple times, but more efficient.
+    /// Useful for module/layer paths like `["dropout", "Block1/Dropout"]`.
+    pub fn derive_path(self, tags: &[&str]) -> Self {
+        let mut key = self;
+        for tag in tags {
+            key = key.derive(tag);
+        }
+        key
+    }
+
+    /// Fold in a numeric value to create a new key.
+    ///
+    /// Useful for incorporating step numbers, epoch numbers, device IDs, etc.
+    pub fn fold_in(self, value: u64) -> Self {
+        Self {
+            key: mix64(self.key ^ mix64(value)),
+        }
+    }
+
+    /// Split this key into two independent keys.
+    pub fn split(self) -> (Self, Self) {
+        let mut seq = self.into_seq();
+        let k1 = Self::from_seed(seq.next_u64());
+        let k2 = Self::from_seed(seq.next_u64());
+        (k1, k2)
+    }
+
+    /// Split this key into `n` independent keys.
+    ///
+    /// Returns a vector of `n` keys that are all independent from each other
+    /// and from the original key.
+    pub fn split_n(self, n: usize) -> Vec<Self> {
+        let mut seq = self.into_seq();
+        (0..n)
+            .map(|_| Self::from_seed(seq.next_u64()))
+            .collect()
+    }
+
+    /// Convert this key into a sequence generator for sampling.
+    ///
+    /// The sequence is deterministic: the same key always produces the same sequence.
+    pub fn into_seq(self) -> RngSeq {
+        RngSeq {
+            key: self.key,
+            counter: 0,
+        }
+    }
+
+    /// Get the internal key value (for serialization/debugging).
+    pub fn key(&self) -> u64 {
+        self.key
+    }
+}
+
+/// A sequence generator for sampling random values from an RngKey.
+///
+/// `RngSeq` is created from `RngKey::into_seq()` and provides methods for
+/// generating random numbers. It maintains an internal counter that advances
+/// with each sample.
 #[derive(Clone, Copy, Debug)]
-pub struct RngStream {
+pub struct RngSeq {
     key: u64,
     counter: u64,
 }
 
-impl RngStream {
-    pub fn from_seed(seed: u64) -> Self {
-        Self {
-            key: mix64(seed),
-            counter: 0,
-        }
-    }
-
-    pub fn state(&self) -> RngStreamState {
-        RngStreamState {
-            key: self.key,
-            counter: self.counter,
-        }
-    }
-
-    pub fn set_state(&mut self, state: RngStreamState) {
-        self.key = state.key;
-        self.counter = state.counter;
-    }
-
-    pub fn fold_in(&self, value: u64) -> Self {
-        Self {
-            key: mix64(self.key ^ mix64(value)),
-            counter: 0,
-        }
-    }
-
-    pub fn split(&mut self) -> Self {
-        let child_key = self.next_u64();
-        Self {
-            key: child_key,
-            counter: 0,
-        }
-    }
-
+impl RngSeq {
+    /// Generate the next u64 value.
     pub fn next_u64(&mut self) -> u64 {
         let x = self.key.wrapping_add(self.counter);
         self.counter = self.counter.wrapping_add(1);
         mix64(x)
     }
 
+    /// Generate a random f64 in [0, 1).
     pub fn next_f64_01(&mut self) -> f64 {
         let u = self.next_u64() >> 11;
         (u as f64) / ((1u64 << 53) as f64)
     }
 
+    /// Generate a random f32 in [0, 1).
     pub fn next_f32_01(&mut self) -> f32 {
         let u = self.next_u64() >> 40;
         (u as f32) / ((1u32 << 24) as f32)
     }
 
+    /// Generate a random usize in the given range [start, end).
+    ///
+    /// Uses rejection sampling to ensure uniform distribution.
     pub fn gen_range(&mut self, range: std::ops::Range<usize>) -> usize {
         let start = range.start;
         let end = range.end;
@@ -86,136 +164,10 @@ impl RngStream {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RngStreamsState {
-    pub dropout: RngStreamState,
-    pub data: RngStreamState,
-    pub noise: RngStreamState,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ModelRngState {
-    pub init: RngStreamState,
-    pub forward: RngStreamState,
-    pub data: RngStreamState,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct RngStreams {
-    pub dropout: RngStream,
-    pub data: RngStream,
-    pub noise: RngStream,
-}
-
-impl RngStreams {
-    pub fn from_seed(seed: u64) -> Self {
-        let mut base = RngStream::from_seed(seed);
-        Self {
-            dropout: base.split(),
-            data: base.split(),
-            noise: base.split(),
-        }
-    }
-
-    pub fn state(&self) -> RngStreamsState {
-        RngStreamsState {
-            dropout: self.dropout.state(),
-            data: self.data.state(),
-            noise: self.noise.state(),
-        }
-    }
-
-    pub fn set_state(&mut self, state: RngStreamsState) {
-        self.dropout.set_state(state.dropout);
-        self.data.set_state(state.data);
-        self.noise.set_state(state.noise);
-    }
-
-    pub fn fold_in(&self, value: u64) -> Self {
-        Self {
-            dropout: self.dropout.fold_in(value),
-            data: self.data.fold_in(value),
-            noise: self.noise.fold_in(value),
-        }
-    }
-
-    pub fn split(&mut self) -> Self {
-        Self {
-            dropout: self.dropout.split(),
-            data: self.data.split(),
-            noise: self.noise.split(),
-        }
-    }
-
-    pub fn split2(&mut self) -> (Self, Self) {
-        (self.split(), self.split())
-    }
-}
-
-/// Manages all model-related RNGs from a single seed.
-///
-/// ModelRng centralizes RNG management for the entire model lifecycle:
-/// - Parameter initialization (via `init_rng()`)
-/// - Forward passes during training (via `forward_rngs()`)
-/// - Data loading/shuffling (via `data_rng_for_epoch()`)
-///
-/// All RNGs derive deterministically from a single seed, ensuring reproducibility.
-#[derive(Clone, Debug)]
-pub struct ModelRng {
-    init: RngStream,
-    forward: RngStream,
-    data: RngStream,
-}
-
-impl ModelRng {
-    pub fn from_seed(seed: u64) -> Self {
-        let mut base = RngStream::from_seed(seed);
-        Self {
-            init: base.split(),
-            forward: base.split(),
-            data: base.split(),
-        }
-    }
-
-    pub fn from_entropy() -> Self {
-        Self::from_seed(entropy_seed())
-    }
-
-    pub fn init_rng(&mut self) -> RngStream {
-        self.init.split()
-    }
-
-    pub fn forward_rngs(&mut self) -> RngStreams {
-        let forward_key = self.forward.next_u64();
-        RngStreams::from_seed(forward_key)
-    }
-
-    pub fn forward_rngs_for_step(&self, step: u64) -> RngStreams {
-        let forward_key = self.forward.fold_in(step).next_u64();
-        RngStreams::from_seed(forward_key)
-    }
-
-    pub fn data_rng_for_epoch(&self, epoch: u64) -> RngStream {
-        self.data.fold_in(epoch)
-    }
-
-    pub fn state(&self) -> ModelRngState {
-        ModelRngState {
-            init: self.init.state(),
-            forward: self.forward.state(),
-            data: self.data.state(),
-        }
-    }
-
-    pub fn set_state(&mut self, state: ModelRngState) {
-        self.init.set_state(state.init);
-        self.forward.set_state(state.forward);
-        self.data.set_state(state.data);
-    }
-}
-
 /// Generates an entropy-based seed using system time and an atomic counter.
-/// This is explicitly nondeterministic and should only be used when reproducibility is not required.
+///
+/// This is explicitly nondeterministic and should only be used when
+/// reproducibility is not required.
 pub fn entropy_seed() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -230,6 +182,7 @@ pub fn entropy_seed() -> u64 {
     mix64(nanos ^ ctr)
 }
 
+/// Mix a 64-bit value using splitmix-like hashing.
 pub fn mix64(x: u64) -> u64 {
     let mut z = x.wrapping_add(0x9E3779B97F4A7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::Dropout;
 use bolt_nn::{ForwardCtx, Module};
-use bolt_rng::RngStreams;
+use bolt_rng::RngKey;
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -27,10 +27,12 @@ fn dropout_same_seed_same_output() {
 
     let dropout = Dropout::new(0.5).unwrap();
 
-    let mut ctx1 = ForwardCtx::train_with_rngs(RngStreams::from_seed(123));
+    let key1 = RngKey::from_seed(123);
+    let mut ctx1 = ForwardCtx::train_with_key(key1);
     let y1 = dropout.forward(x.clone(), &mut ctx1).unwrap();
 
-    let mut ctx2 = ForwardCtx::train_with_rngs(RngStreams::from_seed(123));
+    let key2 = RngKey::from_seed(123);
+    let mut ctx2 = ForwardCtx::train_with_key(key2);
     let y2 = dropout.forward(x, &mut ctx2).unwrap();
 
     assert_eq!(y1.to_vec().unwrap(), y2.to_vec().unwrap());
@@ -42,7 +44,8 @@ fn dropout_advances_rng_between_calls() {
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
 
     let dropout = Dropout::new(0.5).unwrap();
-    let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(999));
+    let key = RngKey::from_seed(999);
+    let mut ctx = ForwardCtx::train_with_key(key);
 
     let y1 = dropout.forward(x.clone(), &mut ctx).unwrap();
     let y2 = dropout.forward(x, &mut ctx).unwrap();
@@ -56,7 +59,8 @@ fn dropout_train_ctx_has_default_rngs() {
     let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
 
     let dropout = Dropout::new(0.5).unwrap();
-    let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(42));
+    let key = RngKey::from_seed(42);
+    let mut ctx = ForwardCtx::train_with_key(key);
     dropout.forward(x, &mut ctx).unwrap();
 }
 
@@ -77,7 +81,8 @@ fn dropout_rate_statistics() {
             .collect();
         let x = Tensor::<B, D>::from_slice(&backend, &x_data, &[tensor_size]).unwrap();
 
-        let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(i as u64));
+        let key = RngKey::from_seed(i as u64);
+        let mut ctx = ForwardCtx::train_with_key(key);
         let y = dropout.forward(x, &mut ctx).unwrap();
         let y_vec = y.to_vec().unwrap();
 
@@ -117,7 +122,8 @@ fn dropout_mean_preservation() {
         let input_mean = x.mean(None, false).unwrap();
         let input_mean_val: f64 = input_mean.item().unwrap().into();
 
-        let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(i as u64));
+        let key = RngKey::from_seed(i as u64);
+        let mut ctx = ForwardCtx::train_with_key(key);
         let y = dropout.forward(x, &mut ctx).unwrap();
 
         let output_mean = y.mean(None, false).unwrap();
@@ -146,7 +152,8 @@ fn dropout_edge_cases() {
     let x = Tensor::<B, D>::from_slice(&backend, &x_data, &[5]).unwrap();
 
     let dropout_p0 = Dropout::new(0.0).unwrap();
-    let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(42));
+    let key0 = RngKey::from_seed(42);
+    let mut ctx = ForwardCtx::train_with_key(key0);
     let y_p0 = dropout_p0.forward(x.clone(), &mut ctx).unwrap();
     assert_eq!(
         y_p0.to_vec().unwrap(),
@@ -155,7 +162,8 @@ fn dropout_edge_cases() {
     );
 
     let dropout_p1 = Dropout::new(1.0).unwrap();
-    let mut ctx = ForwardCtx::train_with_rngs(RngStreams::from_seed(42));
+    let key1 = RngKey::from_seed(42);
+    let mut ctx = ForwardCtx::train_with_key(key1);
     let y_p1 = dropout_p1.forward(x, &mut ctx).unwrap();
     let y_p1_vec = y_p1.to_vec().unwrap();
     for val in y_p1_vec {

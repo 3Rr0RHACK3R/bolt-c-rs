@@ -368,7 +368,7 @@ pub trait RandomOp<D: NativeType>: Backend {
         shape: &[usize],
         low: D,
         high: D,
-        seed: Option<u64>,
+        key: bolt_rng::RngKey,
     ) -> Result<TensorParts<Self::Storage<D>>>;
 
     fn normal(
@@ -376,7 +376,7 @@ pub trait RandomOp<D: NativeType>: Backend {
         shape: &[usize],
         mean: D,
         std: D,
-        seed: Option<u64>,
+        key: bolt_rng::RngKey,
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
 
@@ -385,6 +385,6 @@ pub trait BernoulliMaskOp<D: Float>: Backend {
         &self,
         shape: &[usize],
         p_keep: D,
-        seed: Option<u64>,
+        key: bolt_rng::RngKey,
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }

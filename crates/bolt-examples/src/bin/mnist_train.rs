@@ -8,10 +8,10 @@ use bolt_datasets::mnist;
 use bolt_losses::{Reduction, accuracy_top1, cross_entropy_from_logits_sparse};
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
-use bolt_rng::ModelRng;
+use bolt_rng::RngKey;
 
-use bolt_serialize::{
-    CheckpointMeta, RngCheckpointAdapter, SaveOpts, StoreCheckpointAdapter, save_checkpoint,
+use bolt_serialize_v2::{
+    CheckpointMeta, SaveOpts, save_checkpoint,
 };
 
 use mnist_common::{B, D, MnistMLP, evaluate, train_loader};
@@ -24,9 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     mnist::ensure_downloaded(&data_root)?;
 
     let backend = Arc::new(B::new());
-    let mut model_rng = ModelRng::from_seed(seed);
+    let root_key = RngKey::from_seed(seed);
+    let init_key = root_key.derive("init");
 
-    let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
+    let store = Store::<B, D>::new_with_init_key(backend.clone(), init_key);
     let model = MnistMLP::init(&store, 512, 256)?;
 
     store.group_params_by_name(|name| name.contains("bias"), 1);
@@ -56,14 +57,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(15);
 
     for epoch in 0..epochs {
-        let data_rng = model_rng.data_rng_for_epoch(epoch as u64);
-        let loader = train_loader(&data_root, backend.clone(), batch_size, data_rng)?;
+        let epoch_key = root_key.derive("epoch").fold_in(epoch as u64);
+        let loader = train_loader(&data_root, backend.clone(), batch_size, epoch_key)?;
 
         for (step, batch_res) in loader.iter().enumerate() {
             let batch = batch_res?;
             store.zero_grad();
 
-            let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs_for_step(step as u64));
+            let step_key = root_key.derive("step").fold_in(step as u64);
+            let mut ctx = ForwardCtx::train_with_key(step_key);
             let logits = model.forward(batch.images, &mut ctx)?;
             let loss = cross_entropy_from_logits_sparse(
                 &logits,
@@ -112,8 +114,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(Into::into)
         .unwrap_or_else(|_| PathBuf::from("data/mnist_ckpt"));
 
+    // For now, we just save the model (not saving RNG here, but we can do it too)
     save_checkpoint(
-        store.to_records().chain(model_rng.to_records()),
+        store.to_records(),
         &ckpt_dir,
         &CheckpointMeta::default(),
         &SaveOpts {
@@ -122,7 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
     println!(
-        "Saved checkpoint (model + RNG state) to {}",
+        "Saved checkpoint (model) to {}",
         ckpt_dir.display()
     );
 

@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use bolt_core::Float;
-use bolt_rng::RngStream;
+use bolt_rng::RngKey;
 
 use crate::{Error, Result};
 
@@ -17,18 +17,18 @@ pub enum Init<D: Float> {
     XavierNormal,
 }
 
-fn uniform_f64(rng: &mut RngStream, low: f64, high: f64) -> f64 {
-    low + (high - low) * rng.next_f64_01()
+fn uniform_f64(seq: &mut bolt_rng::RngSeq, low: f64, high: f64) -> f64 {
+    low + (high - low) * seq.next_f64_01()
 }
 
-fn normal_f64(rng: &mut RngStream, mean: f64, std: f64) -> f64 {
-    let u1 = rng.next_f64_01().max(1e-12);
-    let u2 = rng.next_f64_01();
+fn normal_f64(seq: &mut bolt_rng::RngSeq, mean: f64, std: f64) -> f64 {
+    let u1 = seq.next_f64_01().max(1e-12);
+    let u2 = seq.next_f64_01();
     let z0 = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos();
     mean + std * z0
 }
 
-pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Result<Vec<D>> {
+pub fn fill<D: Float>(shape: &[usize], init: Init<D>, key: RngKey) -> Result<Vec<D>> {
     let numel: usize = shape.iter().product();
     let mut out = vec![D::zero(); numel];
 
@@ -42,15 +42,17 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
         Init::Uniform { low, high } => {
             let low = low.to_f64();
             let high = high.to_f64();
+            let mut seq = key.into_seq();
             for x in &mut out {
-                *x = D::from_f64(uniform_f64(rng, low, high));
+                *x = D::from_f64(uniform_f64(&mut seq, low, high));
             }
         }
         Init::Normal { mean, std } => {
             let mean = mean.to_f64();
             let std = std.to_f64();
+            let mut seq = key.into_seq();
             for x in &mut out {
-                *x = D::from_f64(normal_f64(rng, mean, std));
+                *x = D::from_f64(normal_f64(&mut seq, mean, std));
             }
         }
         Init::KaimingUniform { a } => {
@@ -64,8 +66,9 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
             let gain = (2.0 / (1.0 + a * a)).sqrt();
             let std = gain / fan_in.sqrt();
             let bound = (3.0f64).sqrt() * std;
+            let mut seq = key.into_seq();
             for x in &mut out {
-                *x = D::from_f64(uniform_f64(rng, -bound, bound));
+                *x = D::from_f64(uniform_f64(&mut seq, -bound, bound));
             }
         }
         Init::KaimingNormal { a } => {
@@ -78,8 +81,9 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
             let a = a.to_f64();
             let gain = (2.0 / (1.0 + a * a)).sqrt();
             let std = gain / fan_in.sqrt();
+            let mut seq = key.into_seq();
             for x in &mut out {
-                *x = D::from_f64(normal_f64(rng, 0.0, std));
+                *x = D::from_f64(normal_f64(&mut seq, 0.0, std));
             }
         }
         Init::XavierUniform => {
@@ -91,8 +95,9 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
             let fan_in = shape[1] as f64;
             let fan_out = shape[0] as f64;
             let bound = (6.0 / (fan_in + fan_out)).sqrt();
+            let mut seq = key.into_seq();
             for x in &mut out {
-                *x = D::from_f64(uniform_f64(rng, -bound, bound));
+                *x = D::from_f64(uniform_f64(&mut seq, -bound, bound));
             }
         }
         Init::XavierNormal => {
@@ -104,8 +109,9 @@ pub fn fill<D: Float>(shape: &[usize], init: Init<D>, rng: &mut RngStream) -> Re
             let fan_in = shape[1] as f64;
             let fan_out = shape[0] as f64;
             let std = (2.0 / (fan_in + fan_out)).sqrt();
+            let mut seq = key.into_seq();
             for x in &mut out {
-                *x = D::from_f64(normal_f64(rng, 0.0, std));
+                *x = D::from_f64(normal_f64(&mut seq, 0.0, std));
             }
         }
     }

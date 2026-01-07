@@ -9,7 +9,7 @@ use bolt_core::ParamId;
 use bolt_core::ParamIdGen;
 use bolt_core::backend::{AddOp, FillOp};
 use bolt_core::shape::Shape;
-use bolt_rng::RngStream;
+use bolt_rng::RngKey;
 use bolt_tensor::Tensor;
 
 use crate::init;
@@ -178,7 +178,7 @@ where
     buffers: RwLock<BTreeMap<ParamId, Arc<Entry<B, D>>>>,
     name_to_id: RwLock<BTreeMap<String, ParamId>>,
     sealed: AtomicBool,
-    rng: Mutex<RngStream>,
+    init_key: RngKey,
 }
 
 #[derive(Clone)]
@@ -197,7 +197,7 @@ where
     B: BaseBackend,
     D: Float,
 {
-    pub fn new_with_rng(backend: Arc<B>, rng: RngStream) -> Self {
+    pub fn new_with_init_key(backend: Arc<B>, init_key: RngKey) -> Self {
         Self {
             inner: Arc::new(Inner {
                 backend,
@@ -206,7 +206,7 @@ where
                 buffers: RwLock::new(BTreeMap::new()),
                 name_to_id: RwLock::new(BTreeMap::new()),
                 sealed: AtomicBool::new(false),
-                rng: Mutex::new(rng),
+                init_key,
             }),
             prefix: String::new(),
             group: 0,
@@ -214,7 +214,7 @@ where
     }
 
     pub fn new(backend: Arc<B>, seed: u64) -> Self {
-        Self::new_with_rng(backend, RngStream::from_seed(seed))
+        Self::new_with_init_key(backend, RngKey::from_seed(seed).derive("init"))
     }
 
     pub fn backend(&self) -> Arc<B> {
@@ -394,8 +394,9 @@ where
 
         let id = self.inner.id_gen.next();
 
-        let mut rng = self.inner.rng.lock().unwrap();
-        let data = init::fill(shape, initv, &mut rng)?;
+        // Derive a key for this specific parameter/buffer path for order-independent initialization
+        let param_key = self.inner.init_key.derive_path(&[&key]);
+        let data = init::fill(shape, initv, param_key)?;
 
         let tensor = Tensor::<B, D>::from_vec(&self.inner.backend, data, shape)?;
         let requires_grad = kind == Kind::Param;

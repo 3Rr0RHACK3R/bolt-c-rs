@@ -101,6 +101,7 @@ name = "bolt-core"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "bolt-rng",
  "bytemuck",
  "serde",
  "thiserror",
@@ -260,6 +261,7 @@ version = "0.1.0"
 dependencies = [
  "bolt-core",
  "bolt-cpu",
+ "bolt-rng",
  "bytemuck",
 ]
 

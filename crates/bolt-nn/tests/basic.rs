@@ -3,7 +3,6 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::layers::{Flatten, Linear, Relu, Sigmoid};
 use bolt_nn::{ForwardCtx, Init, Module, Store};
-use bolt_rng::ModelRng;
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -112,13 +111,12 @@ fn sigmoid_forward_produces_values_in_zero_one_range() {
 
 #[test]
 fn kaiming_normal_initialization() {
-    use bolt_rng::RngStream;
 
     let _backend = Arc::new(CpuBackend::new());
-    let mut rng = RngStream::from_seed(42);
     let shape = &[64, 32];
 
-    let weights = bolt_nn::fill::<f32>(shape, Init::KaimingNormal { a: 0.0 }, &mut rng).unwrap();
+    let key = bolt_rng::RngKey::from_seed(42);
+    let weights = bolt_nn::fill::<f32>(shape, Init::KaimingNormal { a: 0.0 }, key).unwrap();
 
     assert_eq!(weights.len(), 64 * 32);
 
@@ -134,8 +132,8 @@ fn kaiming_normal_initialization() {
 #[test]
 fn store_new_with_rng_works() {
     let backend = Arc::new(CpuBackend::new());
-    let mut model_rng = ModelRng::from_seed(42);
-    let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
+    let init_key = bolt_rng::RngKey::from_seed(42).derive("init");
+    let store = Store::<B, D>::new_with_init_key(backend.clone(), init_key);
     let layer = Linear::init(&store.sub("linear"), 4, 2, true).unwrap();
 
     let input = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[1, 4]).unwrap();
@@ -148,12 +146,12 @@ fn store_new_with_rng_works() {
 fn store_new_with_rng_deterministic() {
     let backend = Arc::new(CpuBackend::new());
 
-    // Create two stores with same RNG stream
-    let mut model_rng1 = ModelRng::from_seed(123);
-    let mut model_rng2 = ModelRng::from_seed(123);
+    // Create two stores with same init key
+    let init_key1 = bolt_rng::RngKey::from_seed(123).derive("init");
+    let init_key2 = bolt_rng::RngKey::from_seed(123).derive("init");
 
-    let store1 = Store::<B, D>::new_with_rng(backend.clone(), model_rng1.init_rng());
-    let store2 = Store::<B, D>::new_with_rng(backend.clone(), model_rng2.init_rng());
+    let store1 = Store::<B, D>::new_with_init_key(backend.clone(), init_key1);
+    let store2 = Store::<B, D>::new_with_init_key(backend.clone(), init_key2);
 
     let layer1 = Linear::init(&store1.sub("linear"), 2, 1, true).unwrap();
     let layer2 = Linear::init(&store2.sub("linear"), 2, 1, true).unwrap();

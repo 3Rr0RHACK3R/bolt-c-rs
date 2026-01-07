@@ -1,5 +1,5 @@
 use crate::{DataError, Result};
-use bolt_rng::RngStream;
+use bolt_rng::RngKey;
 
 pub trait Source<E>: Send {
     fn next(&mut self) -> Result<Option<E>>;
@@ -115,17 +115,17 @@ pub struct ShuffleSource<E> {
     inner: Box<dyn Source<E>>,
     buffer: Vec<E>,
     buffer_size: usize,
-    rng: RngStream,
+    seq: bolt_rng::RngSeq,
     upstream_finished: bool,
 }
 
 impl<E> ShuffleSource<E> {
-    pub fn new(inner: Box<dyn Source<E>>, buffer_size: usize, rng: RngStream) -> Self {
+    pub fn new(inner: Box<dyn Source<E>>, buffer_size: usize, key: RngKey) -> Self {
         Self {
             inner,
             buffer: Vec::with_capacity(buffer_size),
             buffer_size,
-            rng,
+            seq: key.into_seq(),
             upstream_finished: false,
         }
     }
@@ -165,7 +165,7 @@ where
         let idx = if len == 1 {
             0
         } else {
-            self.rng.gen_range(0..len)
+            self.seq.gen_range(0..len)
         };
 
         let e = self.buffer.swap_remove(idx);

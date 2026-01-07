@@ -69,7 +69,7 @@ pub fn train_loader(
     root: &Path,
     backend: Arc<B>,
     batch_size: usize,
-    rng: bolt_rng::RngStream,
+    key: bolt_rng::RngKey,
 ) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::train(root)?
         .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
@@ -81,7 +81,7 @@ pub fn train_loader(
             s.image = tensor::normalize(&MEAN, &STD, ImageLayout::NCHW, s.image)?;
             Ok::<_, bolt_data::DataError>(s)
         })
-        .shuffle(10_000, rng)
+        .shuffle(10_000, key)
         .batch(batch_size)
         .try_map_with(backend, |b, xs| {
             let images = Tensor::stack(b, xs.iter().map(|s| &s.image))?;

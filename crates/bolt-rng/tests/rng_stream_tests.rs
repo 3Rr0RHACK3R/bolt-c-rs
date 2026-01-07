@@ -1,181 +1,223 @@
-use bolt_rng::{ModelRng, RngStream, RngStreams};
+use bolt_rng::RngKey;
 
 #[test]
-fn rng_stream_same_seed_same_sequence() {
-    let mut a = RngStream::from_seed(42);
-    let mut b = RngStream::from_seed(42);
+fn rng_key_same_seed_same_sequence() {
+    let mut seq1 = RngKey::from_seed(42).into_seq();
+    let mut seq2 = RngKey::from_seed(42).into_seq();
     for _ in 0..10_000 {
-        assert_eq!(a.next_u64(), b.next_u64());
+        assert_eq!(seq1.next_u64(), seq2.next_u64());
     }
 }
 
 #[test]
-fn rng_stream_split_produces_independent_child() {
-    let mut parent = RngStream::from_seed(123);
-    let mut child = parent.split();
-    assert_ne!(parent.next_u64(), child.next_u64());
+fn rng_key_split_produces_independent_keys() {
+    let parent = RngKey::from_seed(123);
+    let (k1, k2) = parent.split();
+    
+    let mut seq1 = k1.into_seq();
+    let mut seq2 = k2.into_seq();
+    assert_ne!(seq1.next_u64(), seq2.next_u64());
 }
 
 #[test]
-fn rng_stream_fold_in_is_stable() {
-    let base = RngStream::from_seed(7);
-    let mut a = base.fold_in(0);
-    let mut b = base.fold_in(0);
+fn rng_key_fold_in_is_stable() {
+    let base = RngKey::from_seed(7);
+    let mut seq1 = base.fold_in(0).into_seq();
+    let mut seq2 = base.fold_in(0).into_seq();
     for _ in 0..1024 {
-        assert_eq!(a.next_u64(), b.next_u64());
+        assert_eq!(seq1.next_u64(), seq2.next_u64());
     }
 }
 
 #[test]
-fn rng_streams_split2_is_stable() {
-    let mut s1 = RngStreams::from_seed(999);
-    let mut s2 = RngStreams::from_seed(999);
-    let (a1, b1) = s1.split2();
-    let (a2, b2) = s2.split2();
-
-    let mut a1 = a1;
-    let mut b1 = b1;
-    let mut a2 = a2;
-    let mut b2 = b2;
-
-    for _ in 0..2048 {
-        assert_eq!(a1.dropout.next_u64(), a2.dropout.next_u64());
-        assert_eq!(b1.dropout.next_u64(), b2.dropout.next_u64());
+fn rng_key_derive_is_stable() {
+    let base = RngKey::from_seed(999);
+    let mut seq1 = base.derive("test").into_seq();
+    let mut seq2 = base.derive("test").into_seq();
+    for _ in 0..1024 {
+        assert_eq!(seq1.next_u64(), seq2.next_u64());
     }
 }
 
 #[test]
-fn model_rng_same_seed_same_init_rng() {
-    let mut rng1 = ModelRng::from_seed(42);
-    let mut rng2 = ModelRng::from_seed(42);
-
-    let mut init1 = rng1.init_rng();
-    let mut init2 = rng2.init_rng();
-
-    // Same seed should produce same init RNG stream
-    for _ in 0..1000 {
-        assert_eq!(init1.next_u64(), init2.next_u64());
+fn rng_key_derive_path_is_stable() {
+    let base = RngKey::from_seed(555);
+    let mut seq1 = base.derive_path(&["a", "b", "c"]).into_seq();
+    let mut seq2 = base.derive_path(&["a", "b", "c"]).into_seq();
+    for _ in 0..1024 {
+        assert_eq!(seq1.next_u64(), seq2.next_u64());
     }
 }
 
 #[test]
-fn model_rng_same_seed_same_forward_rngs() {
-    let mut rng1 = ModelRng::from_seed(123);
-    let mut rng2 = ModelRng::from_seed(123);
-
-    let mut forward1 = rng1.forward_rngs();
-    let mut forward2 = rng2.forward_rngs();
-
-    // Same seed should produce same forward RNG streams
-    for _ in 0..1000 {
-        assert_eq!(forward1.dropout.next_u64(), forward2.dropout.next_u64());
-        assert_eq!(forward1.data.next_u64(), forward2.data.next_u64());
-        assert_eq!(forward1.noise.next_u64(), forward2.noise.next_u64());
-    }
-}
-
-#[test]
-fn model_rng_same_seed_same_data_rng_for_epoch() {
-    let rng1 = ModelRng::from_seed(456);
-    let rng2 = ModelRng::from_seed(456);
-
-    // Same seed and epoch should produce same data RNG
-    for epoch in 0..10 {
-        let mut data1 = rng1.data_rng_for_epoch(epoch);
-        let mut data2 = rng2.data_rng_for_epoch(epoch);
-
-        for _ in 0..1000 {
-            assert_eq!(data1.next_u64(), data2.next_u64());
+fn rng_key_split_n_produces_independent_keys() {
+    let parent = RngKey::from_seed(777);
+    let keys = parent.split_n(10);
+    
+    assert_eq!(keys.len(), 10);
+    let mut seqs: Vec<_> = keys.iter().map(|k| k.into_seq()).collect();
+    
+    // All sequences should be different
+    let first_values: Vec<u64> = seqs.iter_mut().map(|s| s.next_u64()).collect();
+    for i in 0..first_values.len() {
+        for j in (i + 1)..first_values.len() {
+            assert_ne!(first_values[i], first_values[j]);
         }
     }
 }
 
 #[test]
-fn model_rng_different_epochs_different_data_rngs() {
-    let rng = ModelRng::from_seed(789);
-
-    let mut epoch0 = rng.data_rng_for_epoch(0);
-    let mut epoch1 = rng.data_rng_for_epoch(1);
-    let mut epoch2 = rng.data_rng_for_epoch(2);
-
-    // Different epochs should produce different RNG streams
-    let val0 = epoch0.next_u64();
-    let val1 = epoch1.next_u64();
-    let val2 = epoch2.next_u64();
-
-    assert_ne!(val0, val1);
-    assert_ne!(val1, val2);
-    assert_ne!(val0, val2);
-}
-
-#[test]
-fn model_rng_forward_rngs_produces_independent_streams() {
-    let mut rng = ModelRng::from_seed(999);
-
-    let mut forward1 = rng.forward_rngs();
-    let mut forward2 = rng.forward_rngs();
-    let mut forward3 = rng.forward_rngs();
-
-    // Each forward_rngs() call should produce independent streams
-    let val1 = forward1.dropout.next_u64();
-    let val2 = forward2.dropout.next_u64();
-    let val3 = forward3.dropout.next_u64();
-
-    assert_ne!(val1, val2);
-    assert_ne!(val2, val3);
-    assert_ne!(val1, val3);
-}
-
-#[test]
-fn model_rng_streams_are_independent() {
-    let mut rng = ModelRng::from_seed(111);
-
-    // Get one value from each stream type
-    let init_val = rng.init_rng().next_u64();
-    let forward_val = rng.forward_rngs().dropout.next_u64();
-    let data_val = rng.data_rng_for_epoch(0).next_u64();
-
-    // All streams should be independent
-    assert_ne!(init_val, forward_val);
-    assert_ne!(forward_val, data_val);
-    assert_ne!(init_val, data_val);
-}
-
-#[test]
-fn model_rng_deterministic_across_recreations() {
-    let seed = 555;
-
-    // Create two ModelRngs from same seed
-    let mut rng1 = ModelRng::from_seed(seed);
-    let mut rng2 = ModelRng::from_seed(seed);
-
-    // Get init RNGs - should be identical
-    let mut init1 = rng1.init_rng();
-    let mut init2 = rng2.init_rng();
-    assert_eq!(init1.next_u64(), init2.next_u64());
-
-    // Get forward RNGs - should be identical
-    let mut forward1 = rng1.forward_rngs();
-    let mut forward2 = rng2.forward_rngs();
-    assert_eq!(forward1.dropout.next_u64(), forward2.dropout.next_u64());
-
-    // Get data RNGs for same epoch - should be identical
-    let mut data1 = rng1.data_rng_for_epoch(5);
-    let mut data2 = rng2.data_rng_for_epoch(5);
-    assert_eq!(data1.next_u64(), data2.next_u64());
-}
-
-#[test]
-fn model_rng_data_rng_epoch_folding_is_stable() {
-    let rng = ModelRng::from_seed(777);
-
-    // Same epoch should always produce same RNG stream
-    for epoch in 0..5 {
-        let mut data1 = rng.data_rng_for_epoch(epoch);
-        let mut data2 = rng.data_rng_for_epoch(epoch);
-
+fn rng_key_split_n_equals_repeated_split() {
+    let parent1 = RngKey::from_seed(888);
+    let parent2 = RngKey::from_seed(888);
+    
+    let keys_split_n = parent1.split_n(5);
+    let mut keys_repeated = Vec::new();
+    let mut current = parent2;
+    for _ in 0..5 {
+        let (k1, k2) = current.split();
+        keys_repeated.push(k1);
+        current = k2;
+    }
+    
+    assert_eq!(keys_split_n.len(), keys_repeated.len());
+    for (k1, k2) in keys_split_n.iter().zip(keys_repeated.iter()) {
+        let mut seq1 = k1.into_seq();
+        let mut seq2 = k2.into_seq();
         for _ in 0..100 {
-            assert_eq!(data1.next_u64(), data2.next_u64());
+            assert_eq!(seq1.next_u64(), seq2.next_u64());
         }
+    }
+}
+
+#[test]
+fn rng_key_different_derive_tags_produce_different_streams() {
+    let base = RngKey::from_seed(111);
+    let mut seq_a = base.derive("a").into_seq();
+    let mut seq_b = base.derive("b").into_seq();
+    
+    // Different tags should produce different sequences
+    assert_ne!(seq_a.next_u64(), seq_b.next_u64());
+}
+
+#[test]
+fn rng_key_order_independence() {
+    // Same seed + same path should produce same result regardless of creation order
+    let root1 = RngKey::from_seed(222);
+    let root2 = RngKey::from_seed(222);
+    
+    // Create keys in different orders
+    let key1a = root1.derive("init").derive_path(&["params", "layer1", "w"]);
+    let key1b = root1.derive("init").derive_path(&["params", "layer1", "b"]);
+    
+    let key2b = root2.derive("init").derive_path(&["params", "layer1", "b"]);
+    let key2a = root2.derive("init").derive_path(&["params", "layer1", "w"]);
+    
+    let mut seq1a = key1a.into_seq();
+    let mut seq1b = key1b.into_seq();
+    let mut seq2a = key2a.into_seq();
+    let mut seq2b = key2b.into_seq();
+    
+    // Same path should produce same sequence regardless of order
+    for _ in 0..100 {
+        assert_eq!(seq1a.next_u64(), seq2a.next_u64());
+        assert_eq!(seq1b.next_u64(), seq2b.next_u64());
+    }
+}
+
+#[test]
+fn rng_key_fold_in_different_values_produces_different_streams() {
+    let base = RngKey::from_seed(333);
+    let mut seq0 = base.fold_in(0).into_seq();
+    let mut seq1 = base.fold_in(1).into_seq();
+    let mut seq2 = base.fold_in(2).into_seq();
+    
+    let v0 = seq0.next_u64();
+    let v1 = seq1.next_u64();
+    let v2 = seq2.next_u64();
+    
+    assert_ne!(v0, v1);
+    assert_ne!(v1, v2);
+    assert_ne!(v0, v2);
+}
+
+#[test]
+fn rng_seq_distribution_uniform() {
+    let mut seq = RngKey::from_seed(444).into_seq();
+    let n = 10000;
+    let mut sum = 0.0;
+    
+    for _ in 0..n {
+        sum += seq.next_f64_01();
+    }
+    
+    let mean = sum / n as f64;
+    // Mean should be close to 0.5 for uniform [0, 1)
+    assert!((mean - 0.5).abs() < 0.02, "Mean should be close to 0.5, got {}", mean);
+}
+
+#[test]
+fn rng_seq_gen_range_uniform() {
+    let mut seq = RngKey::from_seed(555).into_seq();
+    let range = 10..20;
+    let n = 10000;
+    let mut counts = vec![0; 10];
+    
+    for _ in 0..n {
+        let val = seq.gen_range(range.clone());
+        assert!(val >= range.start && val < range.end);
+        counts[val - range.start] += 1;
+    }
+    
+    // Each value should appear roughly equally often
+    let expected = n / 10;
+    for count in counts {
+        assert!((count as i32 - expected as i32).abs() < expected as i32 / 5);
+    }
+}
+
+#[test]
+fn rng_key_concurrent_usage() {
+    // Simulate concurrent usage by splitting keys
+    let root = RngKey::from_seed(666);
+    let keys = root.split_n(4);
+    
+    let mut results: Vec<Vec<u64>> = keys.iter().map(|k| {
+        let mut seq = k.into_seq();
+        (0..100).map(|_| seq.next_u64()).collect()
+    }).collect();
+    
+    // All sequences should be different
+    for i in 0..results.len() {
+        for j in (i + 1)..results.len() {
+            assert_ne!(results[i], results[j]);
+        }
+    }
+}
+
+#[test]
+fn rng_key_deterministic_across_recreations() {
+    let seed = 777;
+    
+    // Create two keys from same seed
+    let root1 = RngKey::from_seed(seed);
+    let root2 = RngKey::from_seed(seed);
+    
+    // Derive same paths
+    let init1 = root1.derive("init");
+    let init2 = root2.derive("init");
+    
+    let step1 = root1.derive("step").fold_in(5);
+    let step2 = root2.derive("step").fold_in(5);
+    
+    let mut seq1a = init1.into_seq();
+    let mut seq2a = init2.into_seq();
+    let mut seq1b = step1.into_seq();
+    let mut seq2b = step2.into_seq();
+    
+    // Should produce identical sequences
+    for _ in 0..100 {
+        assert_eq!(seq1a.next_u64(), seq2a.next_u64());
+        assert_eq!(seq1b.next_u64(), seq2b.next_u64());
     }
 }

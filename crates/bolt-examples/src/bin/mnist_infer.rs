@@ -5,9 +5,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use bolt_datasets::mnist;
-use bolt_rng::ModelRng;
-use bolt_serialize::{
-    LoadOpts, RestoreOpts, RngCheckpointAdapter, StoreCheckpointAdapter, load_checkpoint,
+use bolt_serialize_v2::{
+    LoadOpts, RestoreOpts, load_checkpoint,
 };
 
 use mnist_common::{B, D, MnistMLP, evaluate};
@@ -37,11 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ckpt = load_checkpoint(&ckpt_dir, &LoadOpts::default())?;
     store.restore_from_checkpoint(&ckpt, &RestoreOpts::default())?;
 
-    let mut model_rng = ModelRng::from_seed(0);
-    if ckpt.contains("rng.init.key") {
-        model_rng.restore_from_checkpoint(&ckpt)?;
-        println!("Restored RNG state from checkpoint");
-    }
+    // Note: RNG state restoration would need to be added to bolt-serialize-v2
+    // For inference, RNG is not needed
 
     let eval = evaluate(&model, &data_root, backend, batch_size)?;
     println!(

@@ -11,5 +11,6 @@ bytemuck.workspace = true
 serde.workspace = true
 tinyvec = "1.10.0"
 bitflags = "2"
+bolt-rng = { path = "../bolt-rng" }
 
 

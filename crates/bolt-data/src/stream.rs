@@ -1,5 +1,5 @@
 use crate::{BatchSource, EnumerateSource, MapSource, Result, ShuffleSource, Source, TakeSource};
-use bolt_rng::RngStream;
+use bolt_rng::RngKey;
 
 pub struct Stream<E> {
     pub(crate) inner: Box<dyn Source<E>>, // visible within crate for adapters
@@ -27,11 +27,11 @@ impl<E> Stream<E> {
         })
     }
 
-    pub fn shuffle(self, buffer_size: usize, rng: RngStream) -> Stream<E>
+    pub fn shuffle(self, buffer_size: usize, key: RngKey) -> Stream<E>
     where
         E: Send + 'static,
     {
-        Stream::new(ShuffleSource::new(self.inner, buffer_size, rng))
+        Stream::new(ShuffleSource::new(self.inner, buffer_size, key))
     }
 
     pub fn batch(self, batch_size: usize) -> Stream<Vec<E>>
