@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let batch = batch_res?;
             store.zero_grad();
 
-            let step_key = root_key.derive("step").fold_in(step as u64);
+            let step_key = epoch_key.derive("step").fold_in(step as u64);
             let mut ctx = ForwardCtx::train_with_key(step_key);
             let logits = model.forward(batch.images, &mut ctx)?;
             let loss = cross_entropy_from_logits_sparse(

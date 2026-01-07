@@ -1,8 +1,5 @@
 #![deny(unused_must_use)]
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 /// A stateless, copyable RNG key for deterministic random number generation.
 ///
 /// `RngKey` follows JAX-style design: keys are immutable and can be split/derived
@@ -15,7 +12,7 @@ use std::hash::{Hash, Hasher};
 ///
 /// let root = RngKey::from_seed(42);
 /// let init_key = root.derive("init");
-/// let param_key = init_key.derive_path(["params", "layer1", "w"]);
+/// let param_key = init_key.derive_path(&["params", "layer1", "w"]);
 /// let mut seq = param_key.into_seq();
 /// let value = seq.next_f32_01();
 /// ```
@@ -43,9 +40,7 @@ impl RngKey {
     /// This creates a deterministic child key based on the tag. Different tags
     /// produce independent streams.
     pub fn derive(self, tag: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        tag.hash(&mut hasher);
-        let tag_hash = hasher.finish();
+        let tag_hash = fnv1a_64(tag.as_bytes());
         Self {
             key: mix64(self.key ^ mix64(tag_hash)),
         }
@@ -188,4 +183,20 @@ pub fn mix64(x: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
     z ^ (z >> 31)
+}
+
+/// FNV-1a 64-bit hash function.
+///
+/// A simple, stable hash function that produces consistent results across
+/// Rust versions. Used for deterministic key derivation from string tags.
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x00000100000001B3;
+
+    let mut hash = FNV_OFFSET_BASIS;
+    for &byte in bytes {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
 }
