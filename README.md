@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let b = Tensor::from_slice(&backend, &[4.0f32, 3.0, 2.0, 1.0], &[2, 2])?;
 
     let sum = a.add(&b)?;
-    println!("Sum: {:?}", sum.to_vec()?); // [[5, 5], [5, 5]]
+    println!("Sum: {:?}", sum.to_vec()?); // [5.0, 5.0, 5.0, 5.0]
 
     Ok(())
 }
@@ -60,14 +60,14 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::{ForwardCtx, Module, Store, layers::Linear};
 use bolt_optim::{Sgd, SgdCfg};
-use bolt_rng::ModelRng;
+use bolt_rng::RngKey;
 use bolt_tensor::Tensor;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
     
-    let mut model_rng = ModelRng::from_seed(1337);
-    let store = Store::new_with_rng(backend.clone(), model_rng.init_rng());
+    let root_key = RngKey::from_seed(1337);
+    let store = Store::new_with_init_key(backend.clone(), root_key.derive("init"));
 
     let layer = Linear::init(&store.sub("linear"), 1, 1, true)?;
     store.seal();
@@ -85,8 +85,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for step in 0..100 {
         store.zero_grad();
 
-        let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs_for_step(step));
-        let output = layer.forward(&x, &mut ctx)?;
+        let step_key = root_key.derive("forward").fold_in(step as u64);
+        let mut ctx = ForwardCtx::train_with_key(step_key);
+        let output = layer.forward(x.clone(), &mut ctx)?;
         
         let diff = output.sub(&y)?;
         let loss = diff.mul(&diff)?.mean(None, false)?;
@@ -112,7 +113,7 @@ Running the model is just a forward pass with an evaluation context.
 
 let mut ctx = ForwardCtx::eval();
 let test_x = Tensor::from_slice(&backend, &[5.0], &[1, 1])?;
-let pred = layer.forward(&test_x, &mut ctx)?;
+let pred = layer.forward(test_x, &mut ctx)?;
 
 println!("Prediction for x=5: {:.2}", pred.item()?); // Should be ~11.0
 ```
