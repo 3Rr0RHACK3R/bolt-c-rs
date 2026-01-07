@@ -22,6 +22,13 @@ pub struct RngKey {
 }
 
 impl RngKey {
+    /// Restore an RngKey from its raw internal state.
+    ///
+    /// Use this only for deserialization. For normal initialization, use `from_seed`.
+    pub fn from_raw(key: u64) -> Self {
+        Self { key }
+    }
+
     /// Create a new RNG key from a seed.
     pub fn from_seed(seed: u64) -> Self {
         Self { key: mix64(seed) }

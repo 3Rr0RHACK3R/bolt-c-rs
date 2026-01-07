@@ -12,7 +12,7 @@ impl SaveCheckpoint for RngKey {
 impl LoadCheckpoint for RngKey {
     fn load(&mut self, r: &mut CheckpointReader) -> Result<()> {
         let key_value = r.u64("key")?;
-        *self = RngKey::from_seed(key_value);
+        *self = RngKey::from_raw(key_value);
         Ok(())
     }
 }
