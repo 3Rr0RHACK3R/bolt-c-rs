@@ -6,6 +6,12 @@ use crate::{ForwardCtx, Module, Result};
 
 pub struct Relu;
 
+impl Default for Relu {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl Relu {
     pub fn new() -> Self {
         Self

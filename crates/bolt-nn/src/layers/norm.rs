@@ -173,32 +173,32 @@ where
             let centered = x.sub(&mean)?;
             let var = centered.mul(&centered)?.mean(Some(reduce_axes), true)?;
 
-            if ctx.is_train() {
-                if let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var) {
-                    let _guard = no_grad();
+            if ctx.is_train()
+                && let (Some(rm), Some(rv)) = (&self.running_mean, &self.running_var)
+            {
+                let _guard = no_grad();
 
-                    let batch_mean = mean.detach().reshape(&self.normalized_shape)?;
-                    let batch_var = var.detach().reshape(&self.normalized_shape)?;
+                let batch_mean = mean.detach().reshape(&self.normalized_shape)?;
+                let batch_var = var.detach().reshape(&self.normalized_shape)?;
 
-                    let old_mean = rm.tensor();
-                    let old_var = rv.tensor();
+                let old_mean = rm.tensor();
+                let old_var = rv.tensor();
 
-                    let m = D::from_f64(self.momentum);
-                    let one_minus_m = D::from_f64(1.0 - self.momentum);
+                let m = D::from_f64(self.momentum);
+                let one_minus_m = D::from_f64(1.0 - self.momentum);
 
-                    let m_tensor = Tensor::<B, D>::full_like(&batch_mean, m)?;
-                    let one_minus_m_tensor = Tensor::<B, D>::full_like(&batch_mean, one_minus_m)?;
+                let m_tensor = Tensor::<B, D>::full_like(&batch_mean, m)?;
+                let one_minus_m_tensor = Tensor::<B, D>::full_like(&batch_mean, one_minus_m)?;
 
-                    let new_mean = old_mean
-                        .mul(&one_minus_m_tensor)?
-                        .add(&batch_mean.mul(&m_tensor)?)?;
-                    let new_var = old_var
-                        .mul(&one_minus_m_tensor)?
-                        .add(&batch_var.mul(&m_tensor)?)?;
+                let new_mean = old_mean
+                    .mul(&one_minus_m_tensor)?
+                    .add(&batch_mean.mul(&m_tensor)?)?;
+                let new_var = old_var
+                    .mul(&one_minus_m_tensor)?
+                    .add(&batch_var.mul(&m_tensor)?)?;
 
-                    rm.set(new_mean)?;
-                    rv.set(new_var)?;
-                }
+                rm.set(new_mean)?;
+                rv.set(new_var)?;
             }
 
             (mean, var)

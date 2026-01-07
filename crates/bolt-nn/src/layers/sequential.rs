@@ -11,6 +11,16 @@ where
     layers: Vec<Box<dyn Module<B, D>>>,
 }
 
+impl<B, D> Default for Seq<B, D>
+where
+    B: BaseBackend,
+    D: Float,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B, D> Seq<B, D>
 where
     B: BaseBackend,

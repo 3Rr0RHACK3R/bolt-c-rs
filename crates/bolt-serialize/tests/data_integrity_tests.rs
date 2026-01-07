@@ -327,14 +327,14 @@ fn scalar_value_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
 
     // Write a scalar f32 value
-    writer.f32("my_scalar", 3.14159)?;
+    writer.f32("my_scalar", std::f32::consts::PI)?;
     writer.finish(&CheckpointMeta::default())?;
 
     // Read it back
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     let loaded = reader.f32("my_scalar")?;
 
-    assert!((loaded - 3.14159).abs() < 0.00001);
+    assert!((loaded - std::f32::consts::PI).abs() < 0.00001);
 
     Ok(())
 }

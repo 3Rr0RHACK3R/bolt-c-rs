@@ -178,7 +178,7 @@ fn scopes_record_parent_child_relationships() -> CoreResult<()> {
 
     let children: Vec<_> = stats.children_of(top_level[0].id).collect();
     assert!(
-        children.len() >= 1,
+        !children.is_empty(),
         "Scope should have child ops recorded within it"
     );
 

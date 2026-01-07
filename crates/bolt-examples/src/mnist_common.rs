@@ -72,7 +72,7 @@ pub fn train_loader(
     key: bolt_rng::RngKey,
 ) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::train(root)?
-        .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
+        .map_with(backend.clone(), mnist::to_tensor_label)
         .try_map(|mut s| {
             s.image = tensor::scale(1.0 / 255.0, s.image)?;
             Ok::<_, bolt_data::DataError>(s)
@@ -97,7 +97,7 @@ pub fn test_loader(
     batch_size: usize,
 ) -> Result<Stream<Batch>, BoxErr> {
     let stream = mnist::test(root)?
-        .map_with(backend.clone(), |b, ex| mnist::to_tensor_label(b, ex))
+        .map_with(backend.clone(), mnist::to_tensor_label)
         .try_map(|mut s| {
             s.image = tensor::scale(1.0 / 255.0, s.image)?;
             Ok::<_, bolt_data::DataError>(s)

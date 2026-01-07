@@ -188,7 +188,7 @@ fn manual_gradient_accumulation_across_batches_matches_expected_sum() {
     set_param(&layer.weight, &backend, &[1.0, 1.0], &[1, 2]);
 
     let inputs = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
-    let mut acc = vec![0.0f32; 2];
+    let mut acc = [0.0f32; 2];
 
     for x in inputs {
         store.zero_grad();

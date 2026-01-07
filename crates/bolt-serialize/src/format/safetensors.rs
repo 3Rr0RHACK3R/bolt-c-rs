@@ -69,16 +69,16 @@ impl SafeTensorsFormatWriter {
         let shard_filename = format!("shard-{:05}.safetensors", self.current_shard_id);
         let shard_path = self.shards_dir.join(&shard_filename);
         let mut file = File::create(&shard_path).map_err(|e| {
-            crate::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create shard file {:?}: {}", shard_path, e),
-            ))
+            crate::Error::Io(std::io::Error::other(format!(
+                "Failed to create shard file {:?}: {}",
+                shard_path, e
+            )))
         })?;
         file.write_all(&serialized).map_err(|e| {
-            crate::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to write shard file {:?}: {}", shard_path, e),
-            ))
+            crate::Error::Io(std::io::Error::other(format!(
+                "Failed to write shard file {:?}: {}",
+                shard_path, e
+            )))
         })?;
         file.flush()?;
 

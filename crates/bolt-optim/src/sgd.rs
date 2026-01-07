@@ -147,7 +147,7 @@ where
 }
 
 fn validate_cfg(cfg: SgdCfg) -> Result<()> {
-    if !(cfg.lr > 0.0) {
+    if cfg.lr <= 0.0 {
         return Err(Error::OpError(format!(
             "sgd: lr must be positive, got {}",
             cfg.lr
@@ -169,19 +169,19 @@ fn validate_cfg(cfg: SgdCfg) -> Result<()> {
 }
 
 fn validate_group_cfg(cfg: SgdGroupCfg) -> Result<()> {
-    if !(cfg.lr_mult > 0.0) {
+    if cfg.lr_mult <= 0.0 {
         return Err(Error::OpError(format!(
             "sgd: lr_mult must be positive, got {}",
             cfg.lr_mult
         )));
     }
-    if let Some(wd) = cfg.weight_decay {
-        if wd < 0.0 {
-            return Err(Error::OpError(format!(
-                "sgd: group weight_decay must be non-negative, got {}",
-                wd
-            )));
-        }
+    if let Some(wd) = cfg.weight_decay
+        && wd < 0.0
+    {
+        return Err(Error::OpError(format!(
+            "sgd: group weight_decay must be non-negative, got {}",
+            wd
+        )));
     }
     Ok(())
 }

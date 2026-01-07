@@ -117,7 +117,7 @@ where
     D: Float + PartialEq + PartialOrd,
 {
     let target_tensor: Tensor<B, D> =
-        Tensor::<B, D>::one_hot(targets, num_classes).map_err(|e| Error::Core(e))?;
+        Tensor::<B, D>::one_hot(targets, num_classes).map_err(Error::Core)?;
 
     cross_entropy_from_logits(logits, &target_tensor, reduction)
 }

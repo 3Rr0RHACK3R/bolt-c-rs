@@ -6,6 +6,12 @@ use crate::{ForwardCtx, Module, Result};
 
 pub struct Sigmoid;
 
+impl Default for Sigmoid {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl Sigmoid {
     pub fn new() -> Self {
         Self

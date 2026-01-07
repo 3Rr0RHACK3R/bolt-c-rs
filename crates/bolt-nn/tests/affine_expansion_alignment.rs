@@ -53,13 +53,12 @@ fn batch_norm_affine_broadcasts_along_channel_axis_4d() {
     // Verify per-channel ratio y/x equals gamma[c]
     let mut idx = 0;
     for _n in 0..2 {
-        for c in 0..3 {
+        for (c, &expected) in gamma_vals.iter().enumerate() {
             for _h in 0..2 {
                 for _w in 0..2 {
                     let xv = x_vals[idx];
                     let yv = y_vals[idx];
                     let ratio = yv / xv;
-                    let expected = gamma_vals[c];
                     assert!(
                         (ratio - expected).abs() < 1e-5,
                         "expected channel {} ratio {}, got {} at flat idx {}",
@@ -109,12 +108,11 @@ fn batch_norm_affine_broadcasts_along_channel_axis_3d() {
     // Verify per-channel ratio y/x equals gamma[c]
     let mut idx = 0;
     for _n in 0..2 {
-        for c in 0..2 {
+        for (c, &expected) in gamma_vals.iter().enumerate() {
             for _l in 0..3 {
                 let xv = x_vals[idx];
                 let yv = y_vals[idx];
                 let ratio = yv / xv;
-                let expected = gamma_vals[c];
                 assert!(
                     (ratio - expected).abs() < 1e-5,
                     "expected channel {} ratio {}, got {} at flat idx {}",

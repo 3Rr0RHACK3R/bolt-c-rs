@@ -6,23 +6,12 @@ use crate::format::FormatKind;
 use crate::record::RecordMeta;
 
 /// Metadata for a checkpoint (user-provided).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CheckpointMeta {
     pub step: Option<u64>,
     pub epoch: Option<u64>,
     pub loss: Option<f32>,
     pub custom: HashMap<String, serde_json::Value>,
-}
-
-impl Default for CheckpointMeta {
-    fn default() -> Self {
-        Self {
-            step: None,
-            epoch: None,
-            loss: None,
-            custom: HashMap::new(),
-        }
-    }
 }
 
 /// Internal manifest tracking all records in a checkpoint.

@@ -162,9 +162,9 @@ fn rng_seq_gen_range_uniform() {
     }
     
     // Each value should appear roughly equally often
-    let expected = n / 10;
+    let expected: i32 = n / 10;
     for count in counts {
-        assert!((count as i32 - expected as i32).abs() < expected as i32 / 5);
+        assert!((count - expected).abs() < expected / 5);
     }
 }
 

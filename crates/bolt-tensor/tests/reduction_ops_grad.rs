@@ -39,7 +39,7 @@ fn sum_multi_axis_backward_is_ones() -> Result<()> {
     let grads = y.backward()?;
     let dx = grads.wrt(&x).unwrap().to_vec()?;
 
-    assert_vec_approx_eq(&dx, &vec![1.0; 24], 1e-6);
+    assert_vec_approx_eq(&dx, &[1.0; 24], 1e-6);
     Ok(())
 }
 
@@ -53,7 +53,7 @@ fn mean_multi_axis_backward_scales_by_num_reduced() -> Result<()> {
     let grads = y.backward()?;
     let dx = grads.wrt(&x).unwrap().to_vec()?;
 
-    assert_vec_approx_eq(&dx, &vec![0.125; 24], 1e-6);
+    assert_vec_approx_eq(&dx, &[0.125; 24], 1e-6);
     Ok(())
 }
 

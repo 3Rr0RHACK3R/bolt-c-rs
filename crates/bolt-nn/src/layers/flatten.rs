@@ -6,6 +6,12 @@ use crate::{ForwardCtx, Module, Result};
 
 pub struct Flatten;
 
+impl Default for Flatten {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl Flatten {
     pub fn new() -> Self {
         Self
