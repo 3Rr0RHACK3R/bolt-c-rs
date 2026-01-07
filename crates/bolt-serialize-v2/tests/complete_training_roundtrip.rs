@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
 use bolt_optim::{Sgd, SgdCfg};
-use bolt_rng::ModelRng;
+use bolt_rng::RngKey;
 use bolt_serialize_v2::{CheckpointMeta, CheckpointOptions, LoadOpts, load_all, save_all};
 
 type B = CpuBackend;
@@ -18,8 +18,9 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
     let ckpt_dir = tmp.path().join("complete_training");
 
     // Create source training state
-    let mut rng_src = ModelRng::from_seed(42);
-    let store_src = Store::<B, D>::new_with_rng(backend.clone(), rng_src.init_rng());
+    let root_key_src = RngKey::from_seed(42);
+    let init_key_src = root_key_src.derive("init");
+    let store_src = Store::<B, D>::new_with_init_key(backend.clone(), init_key_src);
     let w = store_src.param("weight", &[2], Init::Zeros)?;
     w.set_tensor(bolt_tensor::Tensor::from_slice(
         &backend,
@@ -45,11 +46,9 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
     )?));
     optim_src.step(&store_src.trainable())?;
 
-    // Use RNG
-    let _ = rng_src.forward_rngs();
-    let _ = rng_src.data_rng_for_epoch(3);
-
-    let rng_state_before = rng_src.state();
+    // Use RNG (derive some keys)
+    let _step_key = root_key_src.derive("step").fold_in(10);
+    let _epoch_key = root_key_src.derive("epoch").fold_in(3);
     let weight_before = w.tensor().to_vec()?;
     let velocity_before: Vec<f32> = optim_src.velocity_state()["weight"].to_vec()?;
 
@@ -58,7 +57,7 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
         &[
             ("model", &store_src),
             ("optimizer", &optim_src),
-            ("rng", &rng_src),
+            ("rng", &root_key_src),
         ],
         &ckpt_dir,
         &CheckpointMeta {
@@ -71,8 +70,9 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
     )?;
 
     // Create destination training state
-    let mut rng_dst = ModelRng::from_seed(999); // Different seed
-    let mut store_dst = Store::<B, D>::new_with_rng(backend.clone(), rng_dst.init_rng());
+    let mut root_key_dst = RngKey::from_seed(999); // Different seed
+    let init_key_dst = root_key_dst.derive("init");
+    let mut store_dst = Store::<B, D>::new_with_init_key(backend.clone(), init_key_dst);
     let w2 = store_dst.param("weight", &[2], Init::Zeros)?;
     store_dst.seal();
 
@@ -98,7 +98,7 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
         &mut [
             ("model", &mut store_dst),
             ("optimizer", &mut optim_dst),
-            ("rng", &mut rng_dst),
+            ("rng", &mut root_key_dst),
         ],
         &ckpt_dir,
         &LoadOpts::default(),
@@ -108,7 +108,7 @@ fn complete_training_state_roundtrip() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(weight_before, w2.tensor().to_vec()?);
     let velocity_after: Vec<f32> = optim_dst.velocity_state()["weight"].to_vec()?;
     assert_eq!(velocity_before, velocity_after);
-    assert_eq!(rng_state_before, rng_dst.state());
+    assert_eq!(root_key_src.key(), root_key_dst.key());
 
     // Verify checkpoint metadata
     assert_eq!(info.meta.step, Some(100));

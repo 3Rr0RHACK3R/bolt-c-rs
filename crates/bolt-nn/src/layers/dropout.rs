@@ -42,20 +42,18 @@ where
             return Ok(Tensor::zeros_like(&x)?);
         }
 
-        let Some(rngs) = ctx.rngs_mut() else {
+        let Some(mask_key) = ctx.derive_stochastic_key("dropout") else {
             return Err(Error::State(
-                "Dropout requires RNG streams in training mode; use ForwardCtx::train_with_rngs"
-                    .into(),
+                "Dropout requires RNG key in training mode; use ForwardCtx::train_with_key".into(),
             ));
         };
 
         let keep_prob = 1.0 - self.p;
         let keep = D::from_f64(keep_prob);
-        let seed = rngs.dropout.next_u64();
 
         let backend = x.backend();
         let mask =
-            Tensor::<B, D>::bernoulli_mask(&backend, x.shape().as_slice(), keep, Some(seed))?;
+            Tensor::<B, D>::bernoulli_mask(&backend, x.shape().as_slice(), keep, mask_key)?;
 
         let y = x.mul(&mask)?;
         let keep_tensor = Tensor::<B, D>::full_like(&y, keep)?;

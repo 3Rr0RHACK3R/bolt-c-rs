@@ -4,7 +4,7 @@ use bolt_cpu::CpuBackend;
 use bolt_nn::layers::Linear;
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg};
-use bolt_rng::ModelRng;
+use bolt_rng::RngKey;
 use bolt_tensor::Tensor;
 
 type B = CpuBackend;
@@ -13,8 +13,9 @@ type D = f32;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
 
-    let mut model_rng = ModelRng::from_seed(1337);
-    let store = Store::<B, D>::new_with_rng(backend.clone(), model_rng.init_rng());
+    let root_key = RngKey::from_seed(1337);
+    let init_key = root_key.derive("init");
+    let store = Store::<B, D>::new_with_init_key(backend.clone(), init_key);
 
     let layer = Linear::init(&store.sub("linear"), 1, 1, true)?;
     store.seal();
@@ -32,7 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for step in 0..200 {
         store.zero_grad();
 
-        let mut ctx = ForwardCtx::train_with_rngs(model_rng.forward_rngs_for_step(step));
+        let step_key = root_key.derive("step").fold_in(step);
+        let mut ctx = ForwardCtx::train_with_key(step_key);
         let output = layer.forward(x_data.clone(), &mut ctx)?;
         let diff = output.sub(&y_data)?;
         let loss = diff.mul(&diff)?.mean(None, false)?;

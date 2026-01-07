@@ -1,71 +1,82 @@
-use bolt_rng::ModelRng;
+use bolt_rng::RngKey;
 use bolt_serialize_v2::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
 
-/// Test: RNG state roundtrip preserves randomness state.
-/// Expected: After loading, RNG produces the same sequence as before saving.
+/// Test: RNG key roundtrip preserves key value.
+/// Expected: After loading, RNG key produces the same sequence as before saving.
 #[test]
-fn rng_state_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+fn rng_key_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let tmp = tempfile::tempdir()?;
     let ckpt_dir = tmp.path().join("rng_roundtrip");
 
-    let mut rng_src = ModelRng::from_seed(42);
-    let state_before = rng_src.state();
-
-    // Use RNG to advance state
-    let _ = rng_src.forward_rngs();
-    let _ = rng_src.data_rng_for_epoch(5);
+    let key_src = RngKey::from_seed(42);
+    
+    // Generate some values before saving
+    let mut seq_before = key_src.into_seq();
+    let val1 = seq_before.next_u64();
+    let val2 = seq_before.next_u64();
 
     save(
-        &rng_src,
+        &key_src,
         &ckpt_dir,
         &CheckpointMeta::default(),
         &CheckpointOptions::default(),
     )?;
 
-    let mut rng_dst = ModelRng::from_seed(999); // Different seed initially
-    load(&mut rng_dst, &ckpt_dir, &LoadOpts::default())?;
+    let mut key_dst = RngKey::from_seed(999); // Different seed initially
+    assert_ne!(key_src.key(), key_dst.key());
+    
+    load(&mut key_dst, &ckpt_dir, &LoadOpts::default())?;
 
-    // State should match
-    assert_eq!(rng_src.state(), rng_dst.state());
+    // Keys should match after loading
+    assert_eq!(key_src.key(), key_dst.key());
 
-    // Both should produce same next values
-    let next_src = rng_src.forward_rngs();
-    let next_dst = rng_dst.forward_rngs();
-    assert_eq!(next_src.dropout.state(), next_dst.dropout.state());
-    assert_eq!(next_src.data.state(), next_dst.data.state());
-    assert_eq!(next_src.noise.state(), next_dst.noise.state());
+    // Both should produce same sequence
+    let mut seq_src = key_src.into_seq();
+    let mut seq_dst = key_dst.into_seq();
+    
+    // Should match the values generated before saving
+    assert_eq!(seq_src.next_u64(), val1);
+    assert_eq!(seq_dst.next_u64(), val1);
+    assert_eq!(seq_src.next_u64(), val2);
+    assert_eq!(seq_dst.next_u64(), val2);
 
     Ok(())
 }
 
-/// Test: RNG can be saved and loaded with different initial seeds.
-/// Expected: Loaded RNG state overrides initial seed, producing correct sequence.
+/// Test: RNG key can be saved and loaded with different initial seeds.
+/// Expected: Loaded key overrides initial seed, producing correct sequence.
 #[test]
-fn rng_load_overrides_initial_seed() -> Result<(), Box<dyn std::error::Error>> {
+fn rng_key_load_overrides_initial_seed() -> Result<(), Box<dyn std::error::Error>> {
     let tmp = tempfile::tempdir()?;
     let ckpt_dir = tmp.path().join("rng_seed_override");
 
-    let mut rng_src = ModelRng::from_seed(100);
-    let _ = rng_src.forward_rngs();
-    let state_saved = rng_src.state();
+    let key_src = RngKey::from_seed(100);
+    let key_before = key_src.key();
 
     save(
-        &rng_src,
+        &key_src,
         &ckpt_dir,
         &CheckpointMeta::default(),
         &CheckpointOptions::default(),
     )?;
 
-    // Create new RNG with different seed
-    let mut rng_dst = ModelRng::from_seed(200);
+    // Create new key with different seed
+    let mut key_dst = RngKey::from_seed(200);
 
-    // Before loading, states should be different
-    assert_ne!(rng_src.state(), rng_dst.state());
+    // Before loading, keys should be different
+    assert_ne!(key_before, key_dst.key());
 
-    load(&mut rng_dst, &ckpt_dir, &LoadOpts::default())?;
+    load(&mut key_dst, &ckpt_dir, &LoadOpts::default())?;
 
-    // After loading, states should match
-    assert_eq!(state_saved, rng_dst.state());
+    // After loading, keys should match
+    assert_eq!(key_before, key_dst.key());
+
+    // Both should produce same sequence
+    let mut seq_src = key_src.into_seq();
+    let mut seq_dst = key_dst.into_seq();
+    for _ in 0..100 {
+        assert_eq!(seq_src.next_u64(), seq_dst.next_u64());
+    }
 
     Ok(())
 }

@@ -214,12 +214,12 @@ where
         shape: &[usize],
         low: D,
         high: D,
-        seed: Option<u64>,
+        key: bolt_rng::RngKey,
     ) -> Result<Self>
     where
         B: RandomOp<D>,
     {
-        let parts = backend.uniform(shape, low, high, seed)?;
+        let parts = backend.uniform(shape, low, high, key)?;
         let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
@@ -229,13 +229,13 @@ where
         backend: &Arc<B>,
         shape: &[usize],
         p_keep: D,
-        seed: Option<u64>,
+        key: bolt_rng::RngKey,
     ) -> Result<Self>
     where
         B: BernoulliMaskOp<D>,
         D: Float,
     {
-        let parts = backend.bernoulli_mask(shape, p_keep, seed)?;
+        let parts = backend.bernoulli_mask(shape, p_keep, key)?;
         let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
@@ -246,12 +246,12 @@ where
         shape: &[usize],
         mean: D,
         std: D,
-        seed: Option<u64>,
+        key: bolt_rng::RngKey,
     ) -> Result<Self>
     where
         B: RandomOp<D>,
     {
-        let parts = backend.normal(shape, mean, std, seed)?;
+        let parts = backend.normal(shape, mean, std, key)?;
         let tensor = Self::from_parts(backend.clone(), parts.storage, parts.layout);
         tensor.validate_layout_for_storage(&tensor.storage, &tensor.layout)?;
         Ok(tensor)
