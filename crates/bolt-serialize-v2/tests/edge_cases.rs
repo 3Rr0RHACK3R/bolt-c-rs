@@ -34,7 +34,7 @@ fn load_with_shape_mismatch_fails() -> Result<(), Box<dyn std::error::Error>> {
 
     // Try to load into parameter with different shape [3]
     let mut store_dst = Store::<B, D>::new(backend.clone(), 2);
-    let w2 = store_dst.param("weight", &[3], Init::Zeros)?; // Different shape!
+    let _w2 = store_dst.param("weight", &[3], Init::Zeros)?; // Different shape!
     store_dst.seal();
 
     let result = load(&mut store_dst, &ckpt_dir, &LoadOpts::default());
@@ -79,7 +79,7 @@ fn load_with_dtype_mismatch_fails() -> Result<(), Box<dyn std::error::Error>> {
 
     // Try to load into f64 parameter (different dtype)
     let mut store_dst = Store::<B, f64>::new(backend.clone(), 2);
-    let w2 = store_dst.param("weight", &[2], Init::Zeros)?;
+    let _w2 = store_dst.param("weight", &[2], Init::Zeros)?;
     store_dst.seal();
 
     let result = load(&mut store_dst, &ckpt_dir, &LoadOpts::default());
@@ -206,6 +206,262 @@ fn checkpoint_metadata_preserved() -> Result<(), Box<dyn std::error::Error>> {
         info.meta.custom.get("version"),
         Some(&serde_json::json!(42))
     );
+
+    Ok(())
+}
+
+/// Test: Saving to same directory overwrites previous checkpoint.
+/// Expected: New checkpoint replaces old one completely.
+#[test]
+fn overwrite_behavior() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("overwrite_test");
+
+    // Save first checkpoint
+    let store_v1 = Store::<B, D>::new(backend.clone(), 1);
+    let w1 = store_v1.param("v1_weight", &[2], Init::Zeros)?;
+    w1.set_tensor(bolt_tensor::Tensor::from_slice(
+        &backend,
+        &[1.0, 2.0],
+        &[2],
+    )?)?;
+    store_v1.seal();
+
+    save(
+        &store_v1,
+        &ckpt_dir,
+        &CheckpointMeta {
+            epoch: Some(1),
+            ..Default::default()
+        },
+        &CheckpointOptions::default(),
+    )?;
+
+    // Save second checkpoint to same directory
+    let store_v2 = Store::<B, D>::new(backend.clone(), 2);
+    let w2 = store_v2.param("v2_weight", &[3], Init::Zeros)?;
+    w2.set_tensor(bolt_tensor::Tensor::from_slice(
+        &backend,
+        &[10.0, 20.0, 30.0],
+        &[3],
+    )?)?;
+    store_v2.seal();
+
+    save(
+        &store_v2,
+        &ckpt_dir,
+        &CheckpointMeta {
+            epoch: Some(2),
+            ..Default::default()
+        },
+        &CheckpointOptions::default(),
+    )?;
+
+    // Load and verify we get the new checkpoint
+    use bolt_serialize_v2::CheckpointReader;
+    let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+    let info = reader.info();
+
+    // Should have epoch 2 (from new checkpoint)
+    assert_eq!(info.meta.epoch, Some(2));
+
+    // Should have v2_weight, not v1_weight
+    assert!(reader.contains("v2_weight"));
+    assert!(!reader.contains("v1_weight"));
+
+    // Verify data is from new checkpoint
+    let mut store_dst = Store::<B, D>::new(backend.clone(), 3);
+    let w_dst = store_dst.param("v2_weight", &[3], Init::Zeros)?;
+    store_dst.seal();
+
+    load(&mut store_dst, &ckpt_dir, &LoadOpts::default())?;
+    assert_eq!(w_dst.tensor().to_vec()?, vec![10.0, 20.0, 30.0]);
+
+    Ok(())
+}
+
+/// Test: Reader.contains() returns correct results.
+/// Expected: Returns true for existing keys, false for non-existent keys.
+#[test]
+fn reader_contains_works_correctly() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("contains_test");
+
+    let store = Store::<B, D>::new(backend.clone(), 1);
+    let _w = store.param("existing_weight", &[2], Init::Zeros)?;
+    let _b = store.param("existing_bias", &[2], Init::Zeros)?;
+    store.seal();
+
+    save(
+        &store,
+        &ckpt_dir,
+        &CheckpointMeta::default(),
+        &CheckpointOptions::default(),
+    )?;
+
+    use bolt_serialize_v2::CheckpointReader;
+    let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+
+    // Existing keys
+    assert!(reader.contains("existing_weight"));
+    assert!(reader.contains("existing_bias"));
+
+    // Non-existent keys
+    assert!(!reader.contains("nonexistent"));
+    assert!(!reader.contains(""));
+    assert!(!reader.contains("existing"));  // Partial match should not work
+
+    Ok(())
+}
+
+/// Test: Reader.keys() lists all keys in checkpoint.
+/// Expected: Returns complete list of all saved keys.
+#[test]
+fn reader_keys_lists_all() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("keys_list");
+
+    let store = Store::<B, D>::new(backend.clone(), 1);
+    store.param("alpha", &[2], Init::Zeros)?;
+    store.param("beta", &[2], Init::Zeros)?;
+    store.param("gamma", &[2], Init::Zeros)?;
+    store.seal();
+
+    save(
+        &store,
+        &ckpt_dir,
+        &CheckpointMeta::default(),
+        &CheckpointOptions::default(),
+    )?;
+
+    use bolt_serialize_v2::CheckpointReader;
+    let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+    let mut keys = reader.keys();
+    keys.sort();
+
+    assert_eq!(keys, vec!["alpha", "beta", "gamma"]);
+
+    Ok(())
+}
+
+/// Test: Empty metadata fields are handled correctly.
+/// Expected: None values are preserved as None.
+#[test]
+fn empty_metadata_fields_preserved() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("empty_meta");
+
+    let store = Store::<B, D>::new(backend.clone(), 1);
+    let _w = store.param("weight", &[2], Init::Zeros)?;
+    store.seal();
+
+    // Save with completely default (empty) metadata
+    save(
+        &store,
+        &ckpt_dir,
+        &CheckpointMeta::default(),
+        &CheckpointOptions::default(),
+    )?;
+
+    use bolt_serialize_v2::CheckpointReader;
+    let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+    let info = reader.info();
+
+    assert_eq!(info.meta.step, None);
+    assert_eq!(info.meta.epoch, None);
+    assert_eq!(info.meta.loss, None);
+    assert!(info.meta.custom.is_empty());
+
+    Ok(())
+}
+
+/// Test: Loading into store with extra parameters keeps them unchanged.
+/// Expected: Parameters not in checkpoint retain their initial/current values.
+#[test]
+fn extra_params_in_store_unchanged() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("extra_params");
+
+    // Save checkpoint with only 'weight'
+    let store_src = Store::<B, D>::new(backend.clone(), 1);
+    let w = store_src.param("weight", &[2], Init::Zeros)?;
+    w.set_tensor(bolt_tensor::Tensor::from_slice(
+        &backend,
+        &[10.0, 20.0],
+        &[2],
+    )?)?;
+    store_src.seal();
+
+    save(
+        &store_src,
+        &ckpt_dir,
+        &CheckpointMeta::default(),
+        &CheckpointOptions::default(),
+    )?;
+
+    // Load into store with extra parameter 'bias'
+    let mut store_dst = Store::<B, D>::new(backend.clone(), 2);
+    let w_dst = store_dst.param("weight", &[2], Init::Zeros)?;
+    let b_dst = store_dst.param("bias", &[2], Init::Ones)?; // Initialized to ones
+    store_dst.seal();
+
+    load(&mut store_dst, &ckpt_dir, &LoadOpts::default())?;
+
+    // Weight should be loaded from checkpoint
+    assert_eq!(w_dst.tensor().to_vec()?, vec![10.0, 20.0]);
+    // Bias should retain initial value (ones)
+    assert_eq!(b_dst.tensor().to_vec()?, vec![1.0, 1.0]);
+
+    Ok(())
+}
+
+/// Test: Prefixed save/load with nested prefixes.
+/// Expected: Nested prefixes are correctly concatenated.
+#[test]
+fn nested_prefix_scopes() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("nested_prefixes");
+
+    // Create writer and use nested prefixes
+    use bolt_serialize_v2::CheckpointWriter;
+    let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
+
+    let t = bolt_tensor::Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[2])?;
+
+    writer.with_prefix("layer1", |w| {
+        w.with_prefix("attention", |w2| {
+            w2.tensor("query", &t)?;
+            w2.tensor("key", &t)?;
+            Ok(())
+        })
+    })?;
+
+    writer.with_prefix("layer2", |w| {
+        w.tensor("output", &t)?;
+        Ok(())
+    })?;
+
+    writer.finish(&CheckpointMeta::default())?;
+
+    // Read and verify nested keys
+    use bolt_serialize_v2::CheckpointReader;
+    let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+    let keys = reader.keys();
+
+    assert!(keys.contains(&"layer1.attention.query".to_string()));
+    assert!(keys.contains(&"layer1.attention.key".to_string()));
+    assert!(keys.contains(&"layer2.output".to_string()));
+
+    // Verify data can be read
+    let query: bolt_tensor::Tensor<B, D> =
+        reader.tensor("layer1.attention.query", &backend)?;
+    assert_eq!(query.to_vec()?, vec![1.0, 2.0]);
 
     Ok(())
 }

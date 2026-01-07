@@ -174,7 +174,7 @@ fn rng_key_concurrent_usage() {
     let root = RngKey::from_seed(666);
     let keys = root.split_n(4);
     
-    let mut results: Vec<Vec<u64>> = keys.iter().map(|k| {
+    let results: Vec<Vec<u64>> = keys.iter().map(|k| {
         let mut seq = k.into_seq();
         (0..100).map(|_| seq.next_u64()).collect()
     }).collect();

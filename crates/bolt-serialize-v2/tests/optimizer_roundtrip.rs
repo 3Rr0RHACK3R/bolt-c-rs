@@ -66,25 +66,7 @@ fn optimizer_with_velocity_state_roundtrip() -> Result<(), Box<dyn std::error::E
         },
     )?;
 
-    // Load checkpoint - but optimizer needs velocity state to infer backend
-    // So we need to take a step first or provide backend somehow
-    // Actually, the load will fail if there's no velocity state. Let's test that first.
-
-    // Actually, we need to have at least one parameter in velocity state to load
-    // Let's create a store with the same parameter name
-    let store2 = Store::<B, D>::new(backend.clone(), 200);
-    let w2 = store2.param("weight", &[2], Init::Zeros)?;
-    store2.seal();
-
-    // Take a step to create velocity state
-    w2.set_grad(Some(bolt_tensor::Tensor::from_slice(
-        &backend,
-        &[0.1, 0.1],
-        &[2],
-    )?));
-    optim2.step(&store2.trainable())?;
-
-    // Now load should work
+    // Load checkpoint - optimizer will populate velocity state from checkpoint
     load(&mut optim2, &ckpt_dir, &LoadOpts::default())?;
 
     // Verify velocity state matches
@@ -95,10 +77,10 @@ fn optimizer_with_velocity_state_roundtrip() -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-/// Test: Load optimizer checkpoint when optimizer has no velocity state yet.
-/// Expected: Error message explains that optimizer must be used before loading.
+/// Test: Load optimizer checkpoint into fresh optimizer (no velocity state).
+/// Expected: Load succeeds and velocity state is populated from checkpoint.
 #[test]
-fn optimizer_load_without_velocity_state_fails_gracefully() -> Result<(), Box<dyn std::error::Error>>
+fn optimizer_load_without_velocity_state_succeeds() -> Result<(), Box<dyn std::error::Error>>
 {
     let backend = Arc::new(CpuBackend::new());
     let tmp = tempfile::tempdir()?;
@@ -125,6 +107,9 @@ fn optimizer_load_without_velocity_state_fails_gracefully() -> Result<(), Box<dy
     )?));
     optim.step(&store.trainable())?;
 
+    // Capture velocity before save
+    let velocity_before: Vec<f32> = optim.velocity_state()["weight"].to_vec()?;
+
     save(
         &optim,
         &ckpt_dir,
@@ -132,7 +117,7 @@ fn optimizer_load_without_velocity_state_fails_gracefully() -> Result<(), Box<dy
         &CheckpointOptions::default(),
     )?;
 
-    // Try to load into fresh optimizer (no velocity state)
+    // Load into fresh optimizer (no velocity state)
     let mut optim2 = Sgd::<B, D>::new(
         backend.clone(),
         SgdCfg {
@@ -142,16 +127,12 @@ fn optimizer_load_without_velocity_state_fails_gracefully() -> Result<(), Box<dy
         },
     )?;
 
-    let result = load(&mut optim2, &ckpt_dir, &LoadOpts::default());
+    // Should succeed and populate velocity state
+    load(&mut optim2, &ckpt_dir, &LoadOpts::default())?;
 
-    // Should fail with helpful error message
-    assert!(result.is_err());
-    let err_msg = result.unwrap_err().to_string();
-    assert!(
-        err_msg.contains("no velocity state") || err_msg.contains("infer backend"),
-        "Error message should explain the issue: {}",
-        err_msg
-    );
+    assert!(optim2.velocity_state().contains_key("weight"));
+    let velocity_after: Vec<f32> = optim2.velocity_state()["weight"].to_vec()?;
+    assert_eq!(velocity_before, velocity_after);
 
     Ok(())
 }
