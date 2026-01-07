@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
-use bolt_serialize_v2::{
+use bolt_serialize::{
     CheckpointMeta, CheckpointOptions, CheckpointReader, FormatKind, LoadOpts, load, save,
 };
 

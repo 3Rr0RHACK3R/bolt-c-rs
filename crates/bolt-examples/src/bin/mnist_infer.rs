@@ -5,9 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use bolt_datasets::mnist;
-use bolt_serialize_v2::{
-    LoadOpts, RestoreOpts, load_checkpoint,
-};
+use bolt_serialize::{LoadOpts, load};
 
 use mnist_common::{B, D, MnistMLP, evaluate};
 
@@ -27,16 +25,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(128);
 
     let backend = Arc::new(B::new());
-    let store = bolt_nn::Store::<B, D>::new(backend.clone(), 1337);
+    let mut store = bolt_nn::Store::<B, D>::new(backend.clone(), 1337);
     let model = MnistMLP::init(&store, 512, 256)?;
 
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
 
-    let ckpt = load_checkpoint(&ckpt_dir, &LoadOpts::default())?;
-    store.restore_from_checkpoint(&ckpt, &RestoreOpts::default())?;
+    let _ckpt_info = load(&mut store, &ckpt_dir, &LoadOpts::default())?;
 
-    // Note: RNG state restoration would need to be added to bolt-serialize-v2
+    // Note: RNG state restoration would need to be added to bolt-serialize
     // For inference, RNG is not needed
 
     let eval = evaluate(&model, &data_root, backend, batch_size)?;

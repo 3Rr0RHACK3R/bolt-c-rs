@@ -12,6 +12,7 @@ use crate::options::{CheckpointOptions, LoadOpts};
 use crate::record::{Record, RecordMeta, RecordView};
 
 pub struct SafeTensorsFormatWriter {
+    #[allow(dead_code)]
     dir: std::path::PathBuf,
     current_shard_id: usize,
     current_shard_records: Vec<Record>,
@@ -220,6 +221,7 @@ impl SafeTensorsFormatReader {
         })
     }
 
+    #[allow(dead_code)]
     fn safe_dtype_to_dtype(safe_dtype: SafeDtype) -> Option<DType> {
         match safe_dtype {
             SafeDtype::U8 => Some(DType::U8),

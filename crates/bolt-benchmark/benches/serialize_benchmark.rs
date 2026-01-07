@@ -1,14 +1,13 @@
-use bolt_core::{DType, shape::Shape};
-use bolt_serialize::{CheckpointMeta, Record, RecordMeta, Role, SaveOpts, save_checkpoint};
+use std::sync::Arc;
+
+use bolt_cpu::CpuBackend;
+use bolt_nn::{Init, Store};
+use bolt_serialize::{CheckpointMeta, CheckpointOptions, save};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use tempfile::TempDir;
 
-fn make_record(name: &str, numel: usize) -> Record<'static> {
-    let meta = RecordMeta::new(name, DType::F32, Shape::from_slice(&[numel]).unwrap())
-        .with_role(Role::Param);
-    let nbytes = meta.nbytes().unwrap() as usize;
-    Record::new(meta, vec![0u8; nbytes])
-}
+type B = CpuBackend;
+type D = f32;
 
 fn bench_save_checkpoint(c: &mut Criterion) {
     let mut group = c.benchmark_group("checkpoint_save");
@@ -29,15 +28,19 @@ fn bench_save_checkpoint(c: &mut Criterion) {
                 let out_dir = tmp.path().join(format!("ckpt_{counter}"));
                 counter += 1;
 
-                let records: Vec<_> = (0..count)
-                    .map(|i| make_record(&format!("tensor_{i:03}"), tensor_size))
-                    .collect();
+                let backend = Arc::new(CpuBackend::new());
+                let store = Store::<B, D>::new(backend.clone(), counter);
+                
+                for i in 0..count {
+                    store.param(&format!("tensor_{i:03}"), &[tensor_size], Init::Zeros).unwrap();
+                }
+                store.seal();
 
-                save_checkpoint(
-                    records.into_iter().map(Ok),
+                save(
+                    &store,
                     &out_dir,
                     &CheckpointMeta::default(),
-                    &SaveOpts::default(),
+                    &CheckpointOptions::default(),
                 )
                 .unwrap();
             });

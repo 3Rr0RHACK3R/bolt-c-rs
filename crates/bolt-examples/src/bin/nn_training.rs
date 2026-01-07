@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     store.seal();
 
     let params = store.trainable();
-    let mut opt = Sgd::<B, D>::new(SgdCfg {
+    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
         lr: 0.1,
         momentum: 0.9,
         weight_decay: 0.0,

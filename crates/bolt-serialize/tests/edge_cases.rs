@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
-use bolt_serialize_v2::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
+use bolt_serialize::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
 
 type B = CpuBackend;
 type D = f32;
@@ -123,11 +123,11 @@ fn scoped_reader_filters_by_prefix() -> Result<(), Box<dyn std::error::Error>> {
     )?)?;
     store2.seal();
 
-    use bolt_serialize_v2::save_all;
+    use bolt_serialize::save_all;
     save_all(
         &[
-            ("model1", &store1 as &dyn bolt_serialize_v2::SaveCheckpoint),
-            ("model2", &store2 as &dyn bolt_serialize_v2::SaveCheckpoint),
+            ("model1", &store1 as &dyn bolt_serialize::SaveCheckpoint),
+            ("model2", &store2 as &dyn bolt_serialize::SaveCheckpoint),
         ],
         &ckpt_dir,
         &CheckpointMeta::default(),
@@ -135,7 +135,7 @@ fn scoped_reader_filters_by_prefix() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Load with prefix scopes
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let mut reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
 
     // Each prefix scope should only see its own keys
@@ -191,7 +191,7 @@ fn checkpoint_metadata_preserved() -> Result<(), Box<dyn std::error::Error>> {
         &CheckpointOptions::default(),
     )?;
 
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     let info = reader.info();
 
@@ -259,7 +259,7 @@ fn overwrite_behavior() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Load and verify we get the new checkpoint
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     let info = reader.info();
 
@@ -301,7 +301,7 @@ fn reader_contains_works_correctly() -> Result<(), Box<dyn std::error::Error>> {
         &CheckpointOptions::default(),
     )?;
 
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
 
     // Existing keys
@@ -337,7 +337,7 @@ fn reader_keys_lists_all() -> Result<(), Box<dyn std::error::Error>> {
         &CheckpointOptions::default(),
     )?;
 
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     let mut keys = reader.keys();
     keys.sort();
@@ -367,7 +367,7 @@ fn empty_metadata_fields_preserved() -> Result<(), Box<dyn std::error::Error>> {
         &CheckpointOptions::default(),
     )?;
 
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     let info = reader.info();
 
@@ -429,7 +429,7 @@ fn nested_prefix_scopes() -> Result<(), Box<dyn std::error::Error>> {
     let ckpt_dir = tmp.path().join("nested_prefixes");
 
     // Create writer and use nested prefixes
-    use bolt_serialize_v2::CheckpointWriter;
+    use bolt_serialize::CheckpointWriter;
     let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
 
     let t = bolt_tensor::Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[2])?;
@@ -450,7 +450,7 @@ fn nested_prefix_scopes() -> Result<(), Box<dyn std::error::Error>> {
     writer.finish(&CheckpointMeta::default())?;
 
     // Read and verify nested keys
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     let keys = reader.keys();
 

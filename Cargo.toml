@@ -11,7 +11,6 @@ members = [
     "crates/bolt-losses",
     "crates/bolt-rng",
     "crates/bolt-serialize",
-    "crates/bolt-serialize-v2",
     "crates/bolt-tensor",
     "crates/bolt-vision",
     "crates/bolt-benchmark",

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
-use bolt_serialize_v2::{
+use bolt_serialize::{
     CheckpointMeta, CheckpointOptions, CheckpointReader, CheckpointWriter, FormatKind, LoadOpts,
     load, save,
 };
@@ -321,7 +321,6 @@ fn multidimensional_shape_preserved() -> Result<(), Box<dyn std::error::Error>> 
 /// Note: Scalar tensors have empty shape but 1 element.
 #[test]
 fn scalar_value_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
-    let backend = Arc::new(CpuBackend::new());
     let tmp = tempfile::tempdir()?;
     let ckpt_dir = tmp.path().join("scalar_value");
 

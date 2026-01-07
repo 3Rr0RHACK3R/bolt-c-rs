@@ -12,6 +12,7 @@ use crate::record::{Record, RecordMeta, RecordView};
 const BINARY_MAGIC: u64 = 0x424F4C545F5632; // "BOLT_V2"
 
 pub struct BinaryFormatWriter {
+    #[allow(dead_code)]
     dir: std::path::PathBuf,
     current_shard_id: usize,
     current_shard_records: Vec<Record>,
@@ -43,6 +44,7 @@ impl BinaryFormatWriter {
         }
     }
 
+    #[allow(dead_code)]
     fn u8_to_dtype(byte: u8) -> Option<DType> {
         match byte {
             0 => Some(DType::U8),
@@ -182,6 +184,7 @@ impl BinaryFormatReader {
         })
     }
 
+    #[allow(dead_code)]
     fn u8_to_dtype(byte: u8) -> Option<DType> {
         match byte {
             0 => Some(DType::U8),

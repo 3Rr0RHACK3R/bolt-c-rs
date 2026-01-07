@@ -8,7 +8,6 @@ use bolt_core::dtype::DType;
 use bolt_core::dtype::Float;
 use bolt_core::shape::Shape;
 use bolt_tensor::Tensor;
-use bytemuck::cast_slice;
 use serde::Serialize;
 
 use crate::Result;

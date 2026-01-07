@@ -1,5 +1,5 @@
 use bolt_rng::RngKey;
-use bolt_serialize_v2::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
+use bolt_serialize::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
 
 /// Test: RNG key roundtrip preserves key value.
 /// Expected: After loading, RNG key produces the same sequence as before saving.

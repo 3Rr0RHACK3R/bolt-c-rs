@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
-use bolt_serialize_v2::{CheckpointMeta, CheckpointOptions, FormatKind, LoadOpts, save};
+use bolt_serialize::{CheckpointMeta, CheckpointOptions, FormatKind, LoadOpts, save};
 
 type B = CpuBackend;
 type D = f32;
@@ -35,7 +35,7 @@ fn safetensors_format_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Verify format was saved
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     assert_eq!(reader.info().format_kind, FormatKind::SafeTensors);
 
@@ -44,7 +44,7 @@ fn safetensors_format_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let w2 = store_dst.param("weight", &[2], Init::Zeros)?;
     store_dst.seal();
 
-    bolt_serialize_v2::load(&mut store_dst, &ckpt_dir, &LoadOpts::default())?;
+    bolt_serialize::load(&mut store_dst, &ckpt_dir, &LoadOpts::default())?;
 
     assert_eq!(w.tensor().to_vec()?, w2.tensor().to_vec()?);
 
@@ -79,7 +79,7 @@ fn binary_format_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Verify format was saved
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
     assert_eq!(reader.info().format_kind, FormatKind::Binary);
 
@@ -88,7 +88,7 @@ fn binary_format_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let w2 = store_dst.param("weight", &[2], Init::Zeros)?;
     store_dst.seal();
 
-    bolt_serialize_v2::load(&mut store_dst, &ckpt_dir, &LoadOpts::default())?;
+    bolt_serialize::load(&mut store_dst, &ckpt_dir, &LoadOpts::default())?;
 
     assert_eq!(w.tensor().to_vec()?, w2.tensor().to_vec()?);
 
@@ -124,7 +124,7 @@ fn format_auto_detection_on_load() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Load without specifying format - should auto-detect
-    use bolt_serialize_v2::CheckpointReader;
+    use bolt_serialize::CheckpointReader;
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
 
     // Should detect Binary format
@@ -135,7 +135,7 @@ fn format_auto_detection_on_load() -> Result<(), Box<dyn std::error::Error>> {
     let w2 = store2.param("weight", &[2], Init::Zeros)?;
     store2.seal();
 
-    bolt_serialize_v2::load(&mut store2, &ckpt_dir, &LoadOpts::default())?;
+    bolt_serialize::load(&mut store2, &ckpt_dir, &LoadOpts::default())?;
     assert_eq!(w.tensor().to_vec()?, w2.tensor().to_vec()?);
 
     Ok(())

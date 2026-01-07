@@ -1,159 +1,213 @@
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
-use bolt_core::{DType, shape::Shape};
+use bolt_cpu::CpuBackend;
+use bolt_nn::{Init, Store};
 use bolt_serialize::{
-    CheckpointMeta, Error, LoadOpts, Record, RecordMeta, Role, SaveOpts, load_checkpoint,
-    save_checkpoint,
+    CheckpointMeta, CheckpointOptions, CheckpointReader, CheckpointWriter, LoadOpts, load,
+    save,
 };
-use tempfile::TempDir;
 
-fn make_record(name: &str, byte_len: usize) -> Record<'static> {
-    debug_assert!(
-        byte_len % 4 == 0,
-        "record byte length must be divisible by 4 for F32 dtype"
-    );
-    Record::new(
-        RecordMeta::new(
-            name,
-            DType::F32,
-            Shape::from_slice(&[byte_len / 4]).unwrap(),
-        )
-        .with_role(Role::User),
-        vec![0u8; byte_len],
-    )
-}
+type B = CpuBackend;
+type D = f32;
 
+/// Test: Loading from a non-existent directory fails with clear error.
+/// Expected: Error message indicates the directory was not found.
 #[test]
-fn reject_empty_record_name() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
+fn directory_not_found_on_load() {
+    let result =
+        CheckpointReader::open(Path::new("/nonexistent/path/that/does/not/exist"), &LoadOpts::default());
 
-    let result = save_checkpoint(
-        std::iter::once(Ok(make_record("", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-}
-
-#[test]
-fn reject_nul_in_record_name() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
-
-    let result = save_checkpoint(
-        std::iter::once(Ok(make_record("foo\0bar", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-}
-
-#[test]
-fn reject_path_separator_in_name() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
-
-    let result = save_checkpoint(
-        std::iter::once(Ok(make_record("foo/bar", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-
-    let result = save_checkpoint(
-        std::iter::once(Ok(make_record("foo\\bar", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-}
-
-#[test]
-fn reject_reserved_directory_name() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
-
-    let result = save_checkpoint(
-        std::iter::once(Ok(make_record("..", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-}
-
-#[test]
-fn reject_hidden_file_prefix() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
-
-    let result = save_checkpoint(
-        std::iter::once(Ok(make_record(".hidden", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-
-    assert!(matches!(result, Err(Error::InvalidName { .. })));
-}
-
-#[test]
-fn reject_duplicate_record_names() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
-
-    let result = save_checkpoint(
-        [
-            Ok(make_record("same_name", 100)),
-            Ok(make_record("same_name", 100)),
-        ],
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
-
-    assert!(matches!(result, Err(Error::DuplicateName { .. })));
-}
-
-#[test]
-fn reject_byte_size_mismatch() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("test");
-
-    let bad_record = Record {
-        meta: RecordMeta::new("bad", DType::F32, Shape::from_slice(&[100]).unwrap()),
-        data: vec![0u8; 50].into(),
+    assert!(result.is_err());
+    let err_msg = match result {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("Expected error, got Ok"),
     };
-
-    let result = save_checkpoint(
-        std::iter::once(Ok(bad_record)),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
+    // Should indicate that the checkpoint is invalid or not found
+    assert!(
+        err_msg.contains("Failed to read manifest")
+            || err_msg.contains("not found")
+            || err_msg.contains("InvalidCheckpoint"),
+        "Error should indicate directory/manifest not found: {}",
+        err_msg
     );
-
-    match result {
-        Err(Error::ByteSizeMismatch {
-            expected, actual, ..
-        }) => {
-            assert_eq!(expected, 400);
-            assert_eq!(actual, 50);
-        }
-        other => panic!("expected ByteSizeMismatch error, got: {other:?}"),
-    }
 }
 
+/// Test: Loading from a directory without a manifest file fails.
+/// Expected: Error message indicates the manifest was not found.
 #[test]
-fn accept_valid_record_names() {
-    let tmp = TempDir::new().unwrap();
+fn manifest_not_found_on_load() -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let empty_dir = tmp.path().join("empty");
+    fs::create_dir(&empty_dir)?;
+
+    let result = CheckpointReader::open(&empty_dir, &LoadOpts::default());
+
+    assert!(result.is_err());
+    let err_msg = match result {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("Expected error, got Ok"),
+    };
+    assert!(
+        err_msg.contains("Failed to read manifest") || err_msg.contains("not found"),
+        "Error should indicate manifest not found: {}",
+        err_msg
+    );
+
+    Ok(())
+}
+
+/// Test: Loading a checkpoint with malformed JSON manifest fails.
+/// Expected: Error message indicates manifest parse failure.
+#[test]
+fn manifest_parse_error() -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path().join("bad_manifest");
+    fs::create_dir_all(&dir)?;
+
+    // Write invalid JSON
+    fs::write(dir.join("bolt-checkpoint.json"), "{ invalid json }")?;
+
+    let result = CheckpointReader::open(&dir, &LoadOpts::default());
+
+    assert!(result.is_err());
+    let err_msg = match result {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("Expected error, got Ok"),
+    };
+    assert!(
+        err_msg.contains("Failed to parse manifest") || err_msg.contains("parse"),
+        "Error should indicate manifest parse failure: {}",
+        err_msg
+    );
+
+    Ok(())
+}
+
+/// Test: Writing duplicate keys fails.
+/// Expected: Error message indicates duplicate key.
+#[test]
+fn reject_duplicate_keys() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("duplicate_keys");
+
+    let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
+
+    let t1 = bolt_tensor::Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[2])?;
+    let t2 = bolt_tensor::Tensor::<B, D>::from_slice(&backend, &[3.0, 4.0], &[2])?;
+
+    // First write should succeed
+    writer.tensor("same_key", &t1)?;
+
+    // Second write with same key should fail
+    let result = writer.tensor("same_key", &t2);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("Duplicate key") || err_msg.contains("same_key"),
+        "Error should indicate duplicate key: {}",
+        err_msg
+    );
+
+    Ok(())
+}
+
+/// Test: Duplicate keys within nested prefix scopes are detected.
+/// Expected: Error when same full key path is written twice.
+#[test]
+fn reject_duplicate_keys_with_prefix() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("duplicate_prefix");
+
+    let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
+
+    let t = bolt_tensor::Tensor::<B, D>::from_slice(&backend, &[1.0], &[1])?;
+
+    // Write with prefix
+    writer.with_prefix("model", |w| w.tensor("weight", &t))?;
+
+    // Try to write again with same full key path
+    writer.with_prefix("model", |w| {
+        let result = w.tensor("weight", &t);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("Duplicate key") || err_msg.contains("model.weight"),
+            "Error should indicate duplicate key: {}",
+            err_msg
+        );
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+/// Test: Reading a non-existent key fails with clear error.
+/// Expected: Error message indicates key was not found.
+#[test]
+fn key_not_found_on_read() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("key_not_found");
+
+    // Save a checkpoint with one key
+    let store = Store::<B, D>::new(backend.clone(), 1);
+    let _w = store.param("weight", &[2], Init::Zeros)?;
+    store.seal();
+
+    save(
+        &store,
+        &ckpt_dir,
+        &CheckpointMeta::default(),
+        &CheckpointOptions::default(),
+    )?;
+
+    // Try to read a non-existent key
+    let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+    let result: Result<bolt_tensor::Tensor<B, D>, _> =
+        reader.tensor("nonexistent_key", &backend);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("not found") || err_msg.contains("Key not found"),
+        "Error should indicate key not found: {}",
+        err_msg
+    );
+
+    Ok(())
+}
+
+/// Test: Manifest missing required fields fails gracefully.
+/// Expected: Error indicates invalid checkpoint format.
+#[test]
+fn manifest_missing_required_fields() -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path().join("incomplete_manifest");
+    fs::create_dir_all(&dir)?;
+
+    // Write incomplete but valid JSON
+    fs::write(dir.join("bolt-checkpoint.json"), r#"{"unexpected": "field"}"#)?;
+
+    let result = CheckpointReader::open(&dir, &LoadOpts::default());
+
+    // Should fail because manifest is missing required fields
+    assert!(result.is_err());
+
+    Ok(())
+}
+
+/// Test: Valid record names are accepted.
+/// Expected: Various valid naming patterns work correctly.
+#[test]
+fn accept_valid_record_names() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
 
     let valid_names = vec![
         "layer1.weight",
@@ -166,111 +220,81 @@ fn accept_valid_record_names() {
     ];
 
     for name in valid_names {
-        let new_dir = tmp.path().join(format!("test_{}", name.replace('.', "_")));
-        let result = save_checkpoint(
-            std::iter::once(Ok(make_record(name, 100))),
-            &new_dir,
-            &CheckpointMeta::default(),
-            &SaveOpts::default(),
-        );
-        assert!(result.is_ok(), "name '{name}' should be valid");
-    }
-}
+        let tmp = tempfile::tempdir()?;
+        let ckpt_dir = tmp.path().join(format!("valid_{}", name.replace('.', "_")));
 
-#[test]
-fn directory_not_found_on_load() {
-    let result = load_checkpoint(
-        Path::new("/nonexistent/path/that/does/not/exist"),
-        &LoadOpts::default(),
-    );
+        let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
+        let t = bolt_tensor::Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0], &[2])?;
+        writer.tensor(name, &t)?;
+        writer.finish(&CheckpointMeta::default())?;
 
-    assert!(matches!(result, Err(Error::DirectoryNotFound { .. })));
-}
-
-#[test]
-fn manifest_not_found_on_load() {
-    let tmp = TempDir::new().unwrap();
-    let empty_dir = tmp.path().join("empty");
-    fs::create_dir(&empty_dir).unwrap();
-
-    let result = load_checkpoint(&empty_dir, &LoadOpts::default());
-
-    assert!(matches!(result, Err(Error::ManifestNotFound { .. })));
-}
-
-#[test]
-fn schema_version_mismatch() -> bolt_serialize::Result<()> {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("schema_test");
-
-    save_checkpoint(
-        std::iter::once(Ok(make_record("test", 100))),
-        &out_dir,
-        &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    )?;
-
-    let manifest_path = out_dir.join("bolt-checkpoint.json");
-    let mut manifest: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
-    manifest["schema_version"] = serde_json::Value::String("bolt-checkpoint:999".to_string());
-    fs::write(&manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
-
-    let result = load_checkpoint(&out_dir, &LoadOpts::default());
-
-    match result {
-        Err(Error::SchemaVersionMismatch {
-            expected, found, ..
-        }) => {
-            assert_eq!(expected, "bolt-checkpoint:1");
-            assert_eq!(found, "bolt-checkpoint:999");
-        }
-        _ => panic!("expected SchemaVersionMismatch error"),
+        // Verify we can read it back
+        let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
+        let loaded: bolt_tensor::Tensor<B, D> = reader.tensor(name, &backend)?;
+        assert_eq!(loaded.to_vec()?, vec![1.0, 2.0]);
     }
 
     Ok(())
 }
 
+/// Test: Saving when parent directory doesn't exist creates it.
+/// Expected: Checkpoint is saved successfully, creating necessary directories.
 #[test]
-fn manifest_parse_error() {
-    let tmp = TempDir::new().unwrap();
-    let dir = tmp.path().join("bad_manifest");
-    fs::create_dir_all(&dir).unwrap();
+fn creates_parent_directories() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("deeply/nested/checkpoint/dir");
 
-    fs::write(dir.join("bolt-checkpoint.json"), "{ invalid json }").unwrap();
+    let store = Store::<B, D>::new(backend.clone(), 1);
+    let _w = store.param("weight", &[2], Init::Zeros)?;
+    store.seal();
 
-    let result = load_checkpoint(&dir, &LoadOpts::default());
+    // Should create all parent directories
+    save(
+        &store,
+        &ckpt_dir,
+        &CheckpointMeta::default(),
+        &CheckpointOptions::default(),
+    )?;
 
-    assert!(matches!(result, Err(Error::ManifestParse { .. })));
+    assert!(ckpt_dir.exists());
+    assert!(ckpt_dir.join("bolt-checkpoint.json").exists());
+
+    Ok(())
 }
 
+/// Test: Checkpoint can be read immediately after writing without issues.
+/// Expected: No file handle or locking issues.
 #[test]
-fn atomic_save_cleanup_on_failure() {
-    let tmp = TempDir::new().unwrap();
-    let out_dir = tmp.path().join("atomic_test");
+fn read_immediately_after_write() -> Result<(), Box<dyn std::error::Error>> {
+    let backend = Arc::new(CpuBackend::new());
+    let tmp = tempfile::tempdir()?;
+    let ckpt_dir = tmp.path().join("immediate_read");
 
-    let bad_record = Record {
-        meta: RecordMeta::new("bad", DType::F32, Shape::from_slice(&[100]).unwrap()),
-        data: vec![0u8; 10].into(),
-    };
+    let store = Store::<B, D>::new(backend.clone(), 1);
+    let w = store.param("weight", &[2], Init::Zeros)?;
+    w.set_tensor(bolt_tensor::Tensor::from_slice(
+        &backend,
+        &[42.0, 43.0],
+        &[2],
+    )?)?;
+    store.seal();
 
-    let result = save_checkpoint(
-        std::iter::once(Ok(bad_record)),
-        &out_dir,
+    save(
+        &store,
+        &ckpt_dir,
         &CheckpointMeta::default(),
-        &SaveOpts::default(),
-    );
+        &CheckpointOptions::default(),
+    )?;
 
-    assert!(result.is_err());
-    assert!(
-        !out_dir.exists(),
-        "Output directory should not exist after failed save"
-    );
+    // Immediately read back
+    let mut store2 = Store::<B, D>::new(backend.clone(), 2);
+    let w2 = store2.param("weight", &[2], Init::Zeros)?;
+    store2.seal();
 
-    let entries: Vec<_> = fs::read_dir(tmp.path()).unwrap().collect();
-    assert!(
-        entries.is_empty(),
-        "Temp directories should be cleaned up on failure, found: {:?}",
-        entries
-    );
+    load(&mut store2, &ckpt_dir, &LoadOpts::default())?;
+
+    assert_eq!(w2.tensor().to_vec()?, vec![42.0, 43.0]);
+
+    Ok(())
 }

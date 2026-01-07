@@ -10,8 +10,8 @@ use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
 use bolt_rng::RngKey;
 
-use bolt_serialize_v2::{
-    CheckpointMeta, SaveOpts, save_checkpoint,
+use bolt_serialize::{
+    CheckpointMeta, CheckpointOptions, save,
 };
 
 use mnist_common::{B, D, MnistMLP, evaluate, train_loader};
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
 
-    let mut opt = Sgd::<B, D>::new(SgdCfg {
+    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
         lr: 0.01,
         momentum: 0.9,
         weight_decay: 1e-4,
@@ -115,14 +115,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| PathBuf::from("data/mnist_ckpt"));
 
     // For now, we just save the model (not saving RNG here, but we can do it too)
-    save_checkpoint(
-        store.to_records(),
+    save(
+        &store,
         &ckpt_dir,
         &CheckpointMeta::default(),
-        &SaveOpts {
-            overwrite: true,
-            ..Default::default()
-        },
+        &CheckpointOptions::default(),
     )?;
     println!(
         "Saved checkpoint (model) to {}",

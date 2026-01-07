@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
-use bolt_serialize_v2::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
+use bolt_serialize::{CheckpointMeta, CheckpointOptions, LoadOpts, load, save};
 
 type B = CpuBackend;
 type D = f32;

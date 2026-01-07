@@ -6,7 +6,6 @@ use bolt_core::backend::CopyOp;
 use bolt_core::dtype::DType;
 use bolt_core::dtype::Float;
 use bolt_tensor::Tensor;
-use bytemuck::cast_slice;
 use serde::de::DeserializeOwned;
 
 use crate::Result;
