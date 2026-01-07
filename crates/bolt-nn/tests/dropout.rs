@@ -112,6 +112,7 @@ fn dropout_mean_preservation() {
     let backend = Arc::new(CpuBackend::new());
     let p = 0.5;
     let dropout = Dropout::new(p).unwrap();
+    let mut base_key = RngKey::from_seed(12345);
 
     let num_samples = 1000;
     let tensor_size = 100;
@@ -128,7 +129,11 @@ fn dropout_mean_preservation() {
         let input_mean = x.mean(None, false).unwrap();
         let input_mean_val: f64 = input_mean.item().unwrap().into();
 
-        let key = RngKey::from_seed(i as u64);
+        let key = {
+            let (k, next) = base_key.split();
+            base_key = next;
+            k
+        };
         let mut ctx = ForwardCtx::train_with_key(key);
         let y = dropout.forward(x, &mut ctx).unwrap();
 

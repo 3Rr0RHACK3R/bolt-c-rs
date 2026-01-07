@@ -36,7 +36,8 @@ fn multiple_dropout_layers_independent() {
 #[test]
 fn same_dropout_called_twice_independent() {
     let backend = Arc::new(CpuBackend::new());
-    let x = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+    let data: Vec<f32> = (1..=64).map(|i| i as f32).collect();
+    let x = Tensor::<B, D>::from_slice(&backend, &data, &[8, 8]).unwrap();
 
     let dropout = Dropout::new(0.5).unwrap();
     let key = RngKey::from_seed(456);
