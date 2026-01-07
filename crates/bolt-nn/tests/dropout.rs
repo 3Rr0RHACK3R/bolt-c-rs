@@ -67,6 +67,8 @@ fn dropout_train_ctx_has_default_rngs() {
 #[test]
 fn dropout_rate_statistics() {
     let backend = Arc::new(CpuBackend::new());
+    let mut base_key = RngKey::from_seed(12345);
+
     let p = 0.5;
     let dropout = Dropout::new(p).unwrap();
 
@@ -81,7 +83,11 @@ fn dropout_rate_statistics() {
             .collect();
         let x = Tensor::<B, D>::from_slice(&backend, &x_data, &[tensor_size]).unwrap();
 
-        let key = RngKey::from_seed(i as u64);
+        let key = {
+            let (k, next) = base_key.split();
+            base_key = next;
+            k
+        };
         let mut ctx = ForwardCtx::train_with_key(key);
         let y = dropout.forward(x, &mut ctx).unwrap();
         let y_vec = y.to_vec().unwrap();

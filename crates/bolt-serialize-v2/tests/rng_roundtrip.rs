@@ -33,12 +33,12 @@ fn rng_key_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     // Both should produce same sequence
     let mut seq_src = key_src.into_seq();
     let mut seq_dst = key_dst.into_seq();
-    assert_eq!(seq_src.next_u64(), seq_dst.next_u64());
-    assert_eq!(seq_src.next_u64(), seq_dst.next_u64());
     
     // Should match the values generated before saving
     assert_eq!(seq_src.next_u64(), val1);
     assert_eq!(seq_dst.next_u64(), val1);
+    assert_eq!(seq_src.next_u64(), val2);
+    assert_eq!(seq_dst.next_u64(), val2);
 
     Ok(())
 }

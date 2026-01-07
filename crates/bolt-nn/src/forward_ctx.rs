@@ -86,9 +86,6 @@ impl ForwardCtx {
             ));
         };
         let keys = key.split_n(3);
-        if keys.len() < 3 {
-            return Err(Error::State("Failed to split key".into()));
-        }
         self.rng_key = Some(keys[0]);
         Ok((Self::train_with_key(keys[1]), Self::train_with_key(keys[2])))
     }
