@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{Flatten, Linear, Relu, Sigmoid};
+use bolt_nn::layers::{Flatten, Linear, Relu, Sigmoid, Tanh};
 use bolt_nn::{ForwardCtx, Init, Module, Store};
 use bolt_tensor::Tensor;
 
@@ -110,6 +110,24 @@ fn sigmoid_forward_produces_values_in_zero_one_range() {
 }
 
 #[test]
+fn tanh_forward_produces_values_in_negative_one_one_range() {
+    let backend = Arc::new(CpuBackend::new());
+    let input = Tensor::<B, D>::from_slice(&backend, &[-10.0, 0.0, 10.0], &[3]).unwrap();
+
+    let layer = Tanh::new();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    let data = output.to_vec().unwrap();
+
+    for val in data.iter() {
+        assert!(*val >= -1.0 && *val <= 1.0);
+    }
+    assert!((data[0] - (-1.0)).abs() < 0.01); // tanh(-10) ≈ -1
+    assert!((data[1] - 0.0).abs() < 1e-6); // tanh(0) = 0
+    assert!((data[2] - 1.0).abs() < 0.01); // tanh(10) ≈ 1
+}
+
+#[test]
 fn kaiming_normal_initialization() {
 
     let _backend = Arc::new(CpuBackend::new());
@@ -161,4 +179,27 @@ fn store_new_with_rng_deterministic() {
         layer1.weight.tensor().to_vec().unwrap(),
         layer2.weight.tensor().to_vec().unwrap()
     );
+}
+
+#[test]
+fn param_count_counts_all_trainable_parameters() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend, 0);
+    
+    // Create a linear layer: weight [3, 2] = 6 params, bias [3] = 3 params
+    let _layer1 = Linear::init(&store.sub("linear1"), 2, 3, true).unwrap();
+    
+    // Create another linear layer: weight [4, 3] = 12 params, bias [4] = 4 params
+    let _layer2 = Linear::init(&store.sub("linear2"), 3, 4, true).unwrap();
+    
+    // Total: 6 + 3 + 12 + 4 = 25 params
+    assert_eq!(store.param_count(), 25);
+}
+
+#[test]
+fn param_count_handles_empty_store() {
+    let backend = Arc::new(CpuBackend::new());
+    let store = Store::<B, D>::new(backend, 0);
+    
+    assert_eq!(store.param_count(), 0);
 }

@@ -286,6 +286,18 @@ where
             .collect()
     }
 
+    /// Returns the total number of trainable parameters.
+    pub fn param_count(&self) -> usize {
+        self.trainable()
+            .iter()
+            .map(|p| {
+                p.shape()
+                    .numel_checked()
+                    .unwrap_or(0) as usize
+            })
+            .sum()
+    }
+
     /// Get parameter by ID.
     pub fn param_by_id(&self, id: ParamId) -> Option<Param<B, D>> {
         self.inner

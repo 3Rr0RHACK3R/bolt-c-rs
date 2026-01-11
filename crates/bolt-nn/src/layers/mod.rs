@@ -7,6 +7,7 @@ mod norm;
 mod relu;
 mod sequential;
 mod sigmoid;
+mod tanh;
 mod utils;
 
 pub use batch_norm::BatchNorm;
@@ -18,3 +19,4 @@ pub use norm::{Norm, NormConfig};
 pub use relu::Relu;
 pub use sequential::Seq;
 pub use sigmoid::Sigmoid;
+pub use tanh::Tanh;
