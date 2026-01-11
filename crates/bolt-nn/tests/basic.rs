@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::{Flatten, Linear, Relu, Sigmoid, Tanh};
+use bolt_nn::layers::{Flatten, Gelu, Linear, Relu, Sigmoid, Tanh};
 use bolt_nn::{ForwardCtx, Init, Module, Store};
 use bolt_tensor::Tensor;
 
@@ -202,4 +202,94 @@ fn param_count_handles_empty_store() {
     let store = Store::<B, D>::new(backend, 0);
     
     assert_eq!(store.param_count(), 0);
+}
+
+#[test]
+fn gelu_forward_produces_expected_outputs() {
+    let backend = Arc::new(CpuBackend::new());
+    // Test values at key points
+    let input = Tensor::<B, D>::from_slice(&backend, &[-2.0, -1.0, 0.0, 1.0, 2.0], &[5]).unwrap();
+
+    let layer = Gelu::new();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    let data = output.to_vec().unwrap();
+
+    // GELU(0) = 0
+    assert!((data[2] - 0.0).abs() < 1e-5, "GELU(0) should be ~0, got {}", data[2]);
+
+    // GELU(x) > 0 for x > 0
+    assert!(data[3] > 0.0, "GELU(1) should be positive, got {}", data[3]);
+    assert!(data[4] > 0.0, "GELU(2) should be positive, got {}", data[4]);
+
+    // GELU(x) < 0 for small negative x, but approaches 0 asymptotically
+    assert!(data[0] < 0.0 && data[0] > -0.1, "GELU(-2) should be small negative, got {}", data[0]);
+    assert!(data[1] < 0.0 && data[1] > -0.2, "GELU(-1) should be small negative, got {}", data[1]);
+
+    // GELU(1) ≈ 0.841 (from the formula)
+    assert!((data[3] - 0.841).abs() < 0.01, "GELU(1) should be ~0.841, got {}", data[3]);
+}
+
+#[test]
+fn gelu_forward_matches_known_values() {
+    let backend = Arc::new(CpuBackend::new());
+    
+    // Test that GELU approximately passes through these known points
+    // Reference values from PyTorch/TensorFlow
+    let test_cases: [(f32, f32); 5] = [
+        (0.0, 0.0),
+        (1.0, 0.8413),
+        (2.0, 1.9545),
+        (-1.0, -0.1587),
+        (-2.0, -0.0455),
+    ];
+    
+    for (x, expected) in test_cases {
+        let input = Tensor::<B, D>::from_slice(&backend, &[x], &[1]).unwrap();
+        let layer = Gelu::new();
+        let mut ctx = ForwardCtx::eval();
+        let output = layer.forward(input, &mut ctx).unwrap();
+        let result: f32 = output.item().unwrap();
+        
+        // Tanh approximation has some error vs exact GELU, allow ~1% tolerance
+        assert!(
+            (result - expected).abs() < 0.02,
+            "GELU({}) = {}, expected ~{}", x, result, expected
+        );
+    }
+}
+
+#[test]
+fn gelu_forward_preserves_shape() {
+    let backend = Arc::new(CpuBackend::new());
+    let data: Vec<f32> = (0..24).map(|i| i as f32 * 0.1 - 1.2).collect();
+    let input = Tensor::<B, D>::from_slice(&backend, &data, &[2, 3, 4]).unwrap();
+
+    let layer = Gelu::new();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    
+    assert_eq!(output.shape().as_slice(), &[2, 3, 4]);
+}
+
+#[test]
+fn gelu_is_monotonically_increasing_for_positive_inputs() {
+    let backend = Arc::new(CpuBackend::new());
+    // Generate positive values from 0 to 3
+    let input_data: Vec<f32> = (0..31).map(|i| i as f32 * 0.1).collect();
+    let input = Tensor::<B, D>::from_slice(&backend, &input_data, &[31]).unwrap();
+
+    let layer = Gelu::new();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    let data = output.to_vec().unwrap();
+
+    // Check monotonicity for positive inputs
+    for i in 1..data.len() {
+        assert!(
+            data[i] >= data[i - 1],
+            "GELU should be monotonically increasing for positive x: f({}) = {} < f({}) = {}",
+            input_data[i - 1], data[i - 1], input_data[i], data[i]
+        );
+    }
 }
