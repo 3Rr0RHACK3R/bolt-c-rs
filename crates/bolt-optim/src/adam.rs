@@ -7,7 +7,9 @@ use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
-use bolt_core::backend::{AddOp, CopyOp, DivOp, FillOp, MulOp, NegOp, PowOp, ReshapeOp, SqrtOp, SubOp, SumOp};
+use bolt_core::backend::{
+    AddOp, CopyOp, DivOp, FillOp, MulOp, NegOp, PowOp, ReshapeOp, SqrtOp, SubOp, SumOp,
+};
 use bolt_core::{BaseBackend, Error, Float, Result};
 use bolt_nn::Param;
 use bolt_tensor::{Tensor, no_grad};
@@ -54,7 +56,7 @@ impl Default for AdamGroupCfg {
     }
 }
 
-/// First moment (mean) buffer for a parameter.
+/// Moment state buffers (m and v) for a parameter.
 struct MomentState<B: BaseBackend, D: Float> {
     /// First moment estimate (exponential moving average of gradients)
     m: Tensor<B, D>,
@@ -158,7 +160,7 @@ where
 
         // Cache for per-group lr/wd tensors to avoid recreating for params in the same group
         let mut lr_cache: BTreeMap<u32, Tensor<B, D>> = BTreeMap::new();
-        let mut wd_cache: BTreeMap<u32, Option<Tensor<B, D>>> = BTreeMap::new();
+        let mut wd_cache: BTreeMap<u32, Tensor<B, D>> = BTreeMap::new();
 
         let mut seen = HashSet::new();
 
@@ -205,7 +207,9 @@ where
             // Get or create cached lr tensor for this group
             let lr_t = match lr_cache.entry(group_id) {
                 Entry::Occupied(e) => e.into_mut(),
-                Entry::Vacant(e) => e.insert(Tensor::from_slice(backend, &[D::from_f64(lr_val)], &[])?),
+                Entry::Vacant(e) => {
+                    e.insert(Tensor::from_slice(backend, &[D::from_f64(lr_val)], &[])?)
+                }
             };
 
             // m_t = β₁ * m_{t-1} + (1 - β₁) * g
@@ -229,16 +233,17 @@ where
             // Apply decoupled weight decay: w = w - lr * wd * w
             if wd_val > 0.0 {
                 // Get or create cached wd tensor for this group
-                let wd_factor = match wd_cache.entry(group_id) {
+                let wd_t = match wd_cache.entry(group_id) {
                     Entry::Occupied(e) => e.into_mut(),
-                    Entry::Vacant(e) => e.insert(Some(
-                        Tensor::from_slice(backend, &[D::from_f64(lr_val * wd_val)], &[])?
-                    )),
+                    Entry::Vacant(e) => e.insert(Tensor::from_slice(
+                        backend,
+                        &[D::from_f64(lr_val * wd_val)],
+                        &[],
+                    )?),
                 };
-                if let Some(wd_t) = wd_factor {
-                    let wd_term = w.mul(wd_t)?;
-                    w_new = w_new.sub(&wd_term)?;
-                }
+
+                let wd_term = w.mul(wd_t)?;
+                w_new = w_new.sub(&wd_term)?;
             }
 
             // Store updated moment buffers
@@ -275,7 +280,9 @@ where
     }
 
     /// Mutable access to second moment (v) state for loading checkpoints.
-    pub fn second_moment_state_mut(&mut self) -> impl Iterator<Item = (&String, &mut Tensor<B, D>)> {
+    pub fn second_moment_state_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (&String, &mut Tensor<B, D>)> {
         self.state.iter_mut().map(|(k, v)| (k, &mut v.v))
     }
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
-use bolt_nn::layers::Linear;
+use bolt_nn::layers::{Gelu, Linear};
 use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_tensor::{Tensor, no_grad};
 
@@ -376,4 +376,34 @@ fn each_param_gets_unique_id() {
     assert_ne!(p1.id(), p2.id());
     assert_ne!(p1.id(), b1.id());
     assert_ne!(p2.id(), b1.id());
+}
+
+#[test]
+fn gelu_handles_large_positive_values() {
+    let backend = Arc::new(CpuBackend::new());
+    let input = Tensor::<B, D>::from_slice(&backend, &[10.0, 100.0], &[2]).unwrap();
+
+    let layer = Gelu::new();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    let data = output.to_vec().unwrap();
+
+    // For large positive x, GELU(x) ≈ x
+    assert!((data[0] - 10.0).abs() < 0.01);
+    assert!((data[1] - 100.0).abs() < 0.1);
+}
+
+#[test]
+fn gelu_handles_large_negative_values() {
+    let backend = Arc::new(CpuBackend::new());
+    let input = Tensor::<B, D>::from_slice(&backend, &[-10.0, -100.0], &[2]).unwrap();
+
+    let layer = Gelu::new();
+    let mut ctx = ForwardCtx::eval();
+    let output = layer.forward(input, &mut ctx).unwrap();
+    let data = output.to_vec().unwrap();
+
+    // For large negative x, GELU(x) ≈ 0
+    assert!(data[0].abs() < 0.01);
+    assert!(data[1].abs() < 0.01);
 }

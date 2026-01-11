@@ -15,13 +15,8 @@ use crate::{ForwardCtx, Module, Result};
 ///
 /// Common in transformer architectures. The formula used is:
 /// `GELU(x) ≈ 0.5 * x * (1 + tanh(sqrt(2/π) * (x + 0.044715 * x^3)))`
+#[derive(Default)]
 pub struct Gelu;
-
-impl Default for Gelu {
-    fn default() -> Self {
-        Self
-    }
-}
 
 impl Gelu {
     pub fn new() -> Self {
