@@ -80,8 +80,7 @@ fn optimizer_with_velocity_state_roundtrip() -> Result<(), Box<dyn std::error::E
 /// Test: Load optimizer checkpoint into fresh optimizer (no velocity state).
 /// Expected: Load succeeds and velocity state is populated from checkpoint.
 #[test]
-fn optimizer_load_without_velocity_state_succeeds() -> Result<(), Box<dyn std::error::Error>>
-{
+fn optimizer_load_without_velocity_state_succeeds() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
     let tmp = tempfile::tempdir()?;
     let ckpt_dir = tmp.path().join("optimizer_no_vel");

@@ -290,11 +290,7 @@ where
     pub fn param_count(&self) -> usize {
         self.trainable()
             .iter()
-            .map(|p| {
-                p.shape()
-                    .numel_checked()
-                    .unwrap_or(0) as usize
-            })
+            .map(|p| p.shape().numel_checked().unwrap_or(0) as usize)
             .sum()
     }
 

@@ -30,9 +30,11 @@ fn bench_save_checkpoint(c: &mut Criterion) {
 
                 let backend = Arc::new(CpuBackend::new());
                 let store = Store::<B, D>::new(backend.clone(), counter);
-                
+
                 for i in 0..count {
-                    store.param(&format!("tensor_{i:03}"), &[tensor_size], Init::Zeros).unwrap();
+                    store
+                        .param(&format!("tensor_{i:03}"), &[tensor_size], Init::Zeros)
+                        .unwrap();
                 }
                 store.seal();
 

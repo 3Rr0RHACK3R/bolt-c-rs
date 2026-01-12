@@ -21,11 +21,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     store.seal();
 
     let params = store.trainable();
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 0.1,
-        momentum: 0.9,
-        weight_decay: 0.0,
-    })?;
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 0.1,
+            momentum: 0.9,
+            weight_decay: 0.0,
+        },
+    )?;
 
     let x_data = Tensor::<B, D>::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[4, 1])?;
     let y_data = Tensor::<B, D>::from_slice(&backend, &[3.0, 5.0, 7.0, 9.0], &[4, 1])?;

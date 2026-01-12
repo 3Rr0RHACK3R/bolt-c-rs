@@ -88,9 +88,7 @@ impl RngKey {
     /// and from the original key.
     pub fn split_n(self, n: usize) -> Vec<Self> {
         let mut seq = self.into_seq();
-        (0..n)
-            .map(|_| Self::from_seed(seq.next_u64()))
-            .collect()
+        (0..n).map(|_| Self::from_seed(seq.next_u64())).collect()
     }
 
     /// Convert this key into a sequence generator for sampling.

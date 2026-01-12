@@ -262,7 +262,8 @@ fn bernoulli_mask_different_seeds_produce_different_results() {
 #[test]
 fn bernoulli_mask_values_are_binary() {
     let backend = Arc::new(B::new());
-    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[1000], 0.5, RngKey::from_seed(42)).unwrap();
+    let tensor =
+        Tensor::<B, D>::bernoulli_mask(&backend, &[1000], 0.5, RngKey::from_seed(42)).unwrap();
     let data = tensor.to_vec().unwrap();
 
     for v in data {
@@ -277,7 +278,8 @@ fn bernoulli_mask_values_are_binary() {
 fn bernoulli_mask_statistical_properties() {
     let backend = Arc::new(B::new());
     let p_keep = 0.7;
-    let tensor = Tensor::<B, D>::bernoulli_mask(&backend, &[10000], p_keep, RngKey::from_seed(123)).unwrap();
+    let tensor =
+        Tensor::<B, D>::bernoulli_mask(&backend, &[10000], p_keep, RngKey::from_seed(123)).unwrap();
     let data = tensor.to_vec().unwrap();
 
     let ones_count = data.iter().filter(|&&v| v == 1.0).count();

@@ -23,11 +23,7 @@ fn many_records_creates_shards() -> Result<(), Box<dyn std::error::Error>> {
         let p = store.param(&format!("tensor_{:03}", i), &[250], Init::Zeros)?;
         // Each tensor is 250 * 4 = 1000 bytes
         let values: Vec<f32> = (0..250).map(|v| v as f32 + i as f32 * 1000.0).collect();
-        p.set_tensor(bolt_tensor::Tensor::from_slice(
-            &backend,
-            &values,
-            &[250],
-        )?)?;
+        p.set_tensor(bolt_tensor::Tensor::from_slice(&backend, &values, &[250])?)?;
     }
     store.seal();
 

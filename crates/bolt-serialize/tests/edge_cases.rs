@@ -311,7 +311,7 @@ fn reader_contains_works_correctly() -> Result<(), Box<dyn std::error::Error>> {
     // Non-existent keys
     assert!(!reader.contains("nonexistent"));
     assert!(!reader.contains(""));
-    assert!(!reader.contains("existing"));  // Partial match should not work
+    assert!(!reader.contains("existing")); // Partial match should not work
 
     Ok(())
 }
@@ -459,8 +459,7 @@ fn nested_prefix_scopes() -> Result<(), Box<dyn std::error::Error>> {
     assert!(keys.contains(&"layer2.output".to_string()));
 
     // Verify data can be read
-    let query: bolt_tensor::Tensor<B, D> =
-        reader.tensor("layer1.attention.query", &backend)?;
+    let query: bolt_tensor::Tensor<B, D> = reader.tensor("layer1.attention.query", &backend)?;
     assert_eq!(query.to_vec()?, vec![1.0, 2.0]);
 
     Ok(())

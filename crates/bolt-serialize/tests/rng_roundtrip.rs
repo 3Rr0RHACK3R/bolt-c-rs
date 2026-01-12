@@ -9,7 +9,7 @@ fn rng_key_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let ckpt_dir = tmp.path().join("rng_roundtrip");
 
     let key_src = RngKey::from_seed(42);
-    
+
     // Generate some values before saving
     let mut seq_before = key_src.into_seq();
     let val1 = seq_before.next_u64();
@@ -24,7 +24,7 @@ fn rng_key_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut key_dst = RngKey::from_seed(999); // Different seed initially
     assert_ne!(key_src.key(), key_dst.key());
-    
+
     load(&mut key_dst, &ckpt_dir, &LoadOpts::default())?;
 
     // Keys should match after loading
@@ -33,7 +33,7 @@ fn rng_key_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     // Both should produce same sequence
     let mut seq_src = key_src.into_seq();
     let mut seq_dst = key_dst.into_seq();
-    
+
     // Should match the values generated before saving
     assert_eq!(seq_src.next_u64(), val1);
     assert_eq!(seq_dst.next_u64(), val1);

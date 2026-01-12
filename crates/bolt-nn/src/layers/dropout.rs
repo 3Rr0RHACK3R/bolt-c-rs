@@ -52,8 +52,7 @@ where
         let keep = D::from_f64(keep_prob);
 
         let backend = x.backend();
-        let mask =
-            Tensor::<B, D>::bernoulli_mask(&backend, x.shape().as_slice(), keep, mask_key)?;
+        let mask = Tensor::<B, D>::bernoulli_mask(&backend, x.shape().as_slice(), keep, mask_key)?;
 
         let y = x.mul(&mask)?;
         let keep_tensor = Tensor::<B, D>::full_like(&y, keep)?;
