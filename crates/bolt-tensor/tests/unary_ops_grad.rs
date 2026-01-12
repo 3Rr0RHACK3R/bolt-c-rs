@@ -94,6 +94,40 @@ fn relu_grad_is_zero_for_negative() -> Result<()> {
 }
 
 #[test]
+fn leaky_relu_grad_matches_piecewise_slopes() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+
+    let x =
+        Tensor::<CpuBackend, f32>::from_slice(&backend, &[-1.0_f32, 2.0], &[2])?.requires_grad();
+    let y = x.leaky_relu(0.01)?;
+    let loss = y.sum(None, false)?;
+
+    let grads = loss.backward()?;
+    let gx = grads.wrt(&x).unwrap().to_vec()?;
+
+    // For x = -1.0 (negative): gradient = 0.01
+    // For x = 2.0 (positive): gradient = 1.0
+    assert_vec_approx_eq(&gx, &[0.01, 1.0], 1e-6);
+    Ok(())
+}
+
+#[test]
+fn leaky_relu_grad_at_zero_is_zero() -> Result<()> {
+    let backend = Arc::new(CpuBackend::new());
+
+    let x = Tensor::<CpuBackend, f32>::from_slice(&backend, &[0.0_f32], &[1])?.requires_grad();
+    let y = x.leaky_relu(0.01)?;
+    let loss = y.sum(None, false)?;
+
+    let grads = loss.backward()?;
+    let gx = grads.wrt(&x).unwrap().to_vec()?;
+
+    // At x = 0, gradient is 0 (matching ReLU convention using > not >=)
+    assert_vec_approx_eq(&gx, &[0.0], 1e-6);
+    Ok(())
+}
+
+#[test]
 fn sigmoid_grad() -> Result<()> {
     let backend = Arc::new(CpuBackend::new());
 

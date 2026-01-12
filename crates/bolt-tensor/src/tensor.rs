@@ -751,6 +751,43 @@ where
         Ok(out)
     }
 
+    /// LeakyReLU activation function.
+    ///
+    /// Applies: leaky_relu(x) = max(0, x) + negative_slope * min(0, x)
+    ///          = relu(x) - negative_slope * relu(-x)
+    ///
+    /// NaN inputs are clamped to zero, consistent with relu behavior.
+    ///
+    /// # Arguments
+    ///
+    /// * `negative_slope` - The slope for negative values (typically 0.01)
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with LeakyReLU applied element-wise.
+    pub fn leaky_relu(&self, negative_slope: D) -> Result<Self>
+    where
+        B: CopyOp<D>
+            + ReluOp<D>
+            + NegOp<D>
+            + MulOp<D>
+            + SubOp<D>
+            + ReshapeOp<D>
+            + SumOp<D>
+            + 'static,
+        D: Float + PartialOrd + std::ops::Neg<Output = D> + std::ops::Sub<Output = D> + 'static,
+    {
+        // leaky_relu(x, a) = relu(x) - a * relu(-x)
+        let pos = self.relu()?;
+        let neg = self.neg()?.relu()?;
+
+        // Create scalar tensor for negative_slope
+        let slope_tensor = Tensor::from_slice(&self.backend, &[negative_slope], &[])?;
+        let scaled_neg = neg.mul(&slope_tensor)?;
+
+        pos.sub(&scaled_neg)
+    }
+
     pub fn sigmoid(&self) -> Result<Self>
     where
         B: CopyOp<D> + SigmoidOp<D> + 'static,
