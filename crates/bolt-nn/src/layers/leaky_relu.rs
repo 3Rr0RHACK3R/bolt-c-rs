@@ -8,7 +8,7 @@ use bolt_core::backend::{CopyOp, MulOp, NegOp, ReluOp, ReshapeOp, SubOp, SumOp};
 use bolt_core::{BaseBackend, Float};
 use bolt_tensor::Tensor;
 
-use crate::{ForwardCtx, Module, Result};
+use crate::{Error, ForwardCtx, Module, Result};
 
 /// LeakyReLU activation layer.
 ///
@@ -16,6 +16,7 @@ use crate::{ForwardCtx, Module, Result};
 /// which can help with gradient flow during training.
 ///
 /// Default negative_slope is 0.01, which is a common choice in practice.
+#[derive(Debug)]
 pub struct LeakyRelu {
     negative_slope: f64,
 }
@@ -40,16 +41,17 @@ impl LeakyRelu {
     ///
     /// * `negative_slope` - The slope for negative values (must be >= 0.0)
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if negative_slope < 0.0
-    pub fn with_negative_slope(negative_slope: f64) -> Self {
-        assert!(
-            negative_slope >= 0.0,
-            "negative_slope must be >= 0.0, got {}",
-            negative_slope
-        );
-        Self { negative_slope }
+    /// Returns an error if negative_slope < 0.0
+    pub fn with_negative_slope(negative_slope: f64) -> Result<Self> {
+        if negative_slope < 0.0 {
+            return Err(Error::State(format!(
+                "negative_slope must be >= 0.0, got {}",
+                negative_slope
+            )));
+        }
+        Ok(Self { negative_slope })
     }
 }
 

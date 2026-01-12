@@ -64,7 +64,7 @@ fn leaky_relu_forward_with_custom_slope() {
     let backend = Arc::new(CpuBackend::new());
     let input = Tensor::<B, D>::from_slice(&backend, &[-2.0, -1.0, 0.0, 1.0, 2.0], &[5]).unwrap();
 
-    let layer = LeakyRelu::with_negative_slope(0.1);
+    let layer = LeakyRelu::with_negative_slope(0.1).unwrap();
     let mut ctx = ForwardCtx::eval();
     let output = layer.forward(input, &mut ctx).unwrap();
     let data = output.to_vec().unwrap();
@@ -97,6 +97,18 @@ fn leaky_relu_forward_clamps_nan() {
     assert!((data[0] - 1.0).abs() < 1e-6);
     assert!((data[1] - 0.0).abs() < 1e-6);
     assert!((data[2] - (-0.01)).abs() < 1e-6);
+}
+
+#[test]
+fn leaky_relu_with_negative_slope_validates_input() {
+    let result = LeakyRelu::with_negative_slope(-0.1);
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("negative_slope must be >= 0.0")
+    );
 }
 
 #[test]
