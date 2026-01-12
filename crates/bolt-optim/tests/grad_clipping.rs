@@ -235,6 +235,26 @@ fn clip_grad_value_empty_params() {
     assert!(result.is_ok());
 }
 
+#[test]
+fn clip_grad_value_errors_on_nan_and_does_not_modify() {
+    let b = backend();
+    let store = Store::<B, D>::new(b.clone(), 42);
+
+    let p1 = store.param("p1", &[2], Init::Zeros).unwrap();
+    let p2 = store.param("p2", &[1], Init::Zeros).unwrap();
+
+    p1.set_grad(Some(Tensor::from_slice(&b, &[1.0, 2.0], &[2]).unwrap()));
+    p2.set_grad(Some(Tensor::from_slice(&b, &[f32::NAN], &[1]).unwrap()));
+
+    let result = clip_grad_value(&[p1.clone(), p2.clone()], 1.0);
+    assert!(result.is_err());
+
+    // Verify p1's grad is unchanged
+    let g1 = p1.grad().unwrap().to_vec().unwrap();
+    assert!((g1[0] - 1.0).abs() < 1e-5);
+    assert!((g1[1] - 2.0).abs() < 1e-5);
+}
+
 // ============================================================================
 // Deduplication tests
 // ============================================================================

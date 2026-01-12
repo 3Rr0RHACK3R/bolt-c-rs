@@ -129,8 +129,8 @@ where
     let mut result = Vec::new();
 
     for p in params {
-        let key = p.key().to_string();
-        if !seen.insert(key.clone()) {
+        let key = p.key();
+        if !seen.insert(key.to_string()) {
             continue;
         }
         if !p.requires_grad() {
