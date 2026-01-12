@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use bolt_cpu::CpuBackend;
 use bolt_losses::{
-    Reduction, accuracy_top1, accuracy_topk, binary_cross_entropy, binary_cross_entropy_with_logits,
-    cross_entropy, cross_entropy_from_logits, mae, mse,
+    Reduction, accuracy_top1, accuracy_topk, binary_cross_entropy,
+    binary_cross_entropy_with_logits, cross_entropy, cross_entropy_from_logits, mae, mse,
 };
 use bolt_tensor::Tensor;
 
@@ -149,7 +149,7 @@ fn accuracy_topk_top5() {
     logits_data[5] = 10.0; // Sample 1, class 5
     logits_data[13] = 10.0; // Sample 2, class 3
     logits_data[27] = 10.0; // Sample 3, class 7
-    
+
     let logits = Tensor::<B, D>::from_slice(&backend, &logits_data, &[3, 10]).unwrap();
     let targets = Tensor::<B, i32>::from_slice(&backend, &[5, 3, 7], &[3]).unwrap();
 

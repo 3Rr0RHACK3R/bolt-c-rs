@@ -21,8 +21,12 @@ fn bench_gemm_f32(c: &mut Criterion) {
     for &(m, k, n) in sizes {
         let id = BenchmarkId::from_parameter(format!("{m}x{k}x{n}"));
         // Deterministic inputs
-        let a = Tensor::<CpuBackend, f32>::uniform(&backend, &[m, k], -1.0, 1.0, RngKey::from_seed(42)).unwrap();
-        let b = Tensor::<CpuBackend, f32>::uniform(&backend, &[k, n], -1.0, 1.0, RngKey::from_seed(43)).unwrap();
+        let a =
+            Tensor::<CpuBackend, f32>::uniform(&backend, &[m, k], -1.0, 1.0, RngKey::from_seed(42))
+                .unwrap();
+        let b =
+            Tensor::<CpuBackend, f32>::uniform(&backend, &[k, n], -1.0, 1.0, RngKey::from_seed(43))
+                .unwrap();
         let a = a.contiguous().unwrap();
         let b = b.contiguous().unwrap();
         group.bench_with_input(id, &(m, k, n), |bencher, _dims| {

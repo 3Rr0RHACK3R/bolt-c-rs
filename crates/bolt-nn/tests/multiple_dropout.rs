@@ -24,7 +24,7 @@ fn multiple_dropout_layers_independent() {
 
     // First dropout
     let y1 = dropout1.forward(x.clone(), &mut ctx).unwrap();
-    
+
     // Second dropout (should get different key due to counter)
     let y2 = dropout2.forward(x.clone(), &mut ctx).unwrap();
 
@@ -96,7 +96,11 @@ fn many_dropout_layers_no_collisions() {
     // All outputs should be different (very unlikely to have collisions)
     for i in 0..outputs.len() {
         for j in (i + 1)..outputs.len() {
-            assert_ne!(outputs[i], outputs[j], "Collision detected between outputs {} and {}", i, j);
+            assert_ne!(
+                outputs[i], outputs[j],
+                "Collision detected between outputs {} and {}",
+                i, j
+            );
         }
     }
 }

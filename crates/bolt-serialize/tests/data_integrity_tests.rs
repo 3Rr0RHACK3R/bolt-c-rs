@@ -41,7 +41,9 @@ fn pattern_data_preserved_exactly() -> Result<(), Box<dyn std::error::Error>> {
 
     alternating.set_tensor(bolt_tensor::Tensor::from_slice(
         &backend,
-        &(0..100).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect::<Vec<_>>(),
+        &(0..100)
+            .map(|i| if i % 2 == 0 { 1.0 } else { -1.0 })
+            .collect::<Vec<_>>(),
         &[100],
     )?)?;
 
@@ -140,7 +142,11 @@ fn large_checkpoint_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let values: Vec<f32> = (0..tensor_size)
             .map(|j| (j as f32 * 0.000001) + (i as f32 * 100.0))
             .collect();
-        p.set_tensor(bolt_tensor::Tensor::from_slice(&backend, &values, &[tensor_size])?)?;
+        p.set_tensor(bolt_tensor::Tensor::from_slice(
+            &backend,
+            &values,
+            &[tensor_size],
+        )?)?;
     }
     store.seal();
 
@@ -347,7 +353,6 @@ fn i64_value_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let ckpt_dir = tmp.path().join("i64_values");
 
     let mut writer = CheckpointWriter::new(&ckpt_dir, &CheckpointOptions::default())?;
-
 
     writer.i64("positive", 12345678901234)?;
     writer.i64("negative", -98765432109876)?;

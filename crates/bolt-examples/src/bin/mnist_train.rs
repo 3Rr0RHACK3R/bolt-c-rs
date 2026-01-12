@@ -10,9 +10,7 @@ use bolt_nn::{ForwardCtx, Module, Store};
 use bolt_optim::{Sgd, SgdCfg, SgdGroupCfg};
 use bolt_rng::RngKey;
 
-use bolt_serialize::{
-    CheckpointMeta, CheckpointOptions, save,
-};
+use bolt_serialize::{CheckpointMeta, CheckpointOptions, save};
 
 use mnist_common::{B, D, MnistMLP, evaluate, train_loader};
 
@@ -33,11 +31,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     store.group_params_by_name(|name| name.contains("bias"), 1);
     store.seal();
 
-    let mut opt = Sgd::<B, D>::new(backend.clone(), SgdCfg {
-        lr: 0.01,
-        momentum: 0.9,
-        weight_decay: 1e-4,
-    })?;
+    let mut opt = Sgd::<B, D>::new(
+        backend.clone(),
+        SgdCfg {
+            lr: 0.01,
+            momentum: 0.9,
+            weight_decay: 1e-4,
+        },
+    )?;
     opt.set_group(
         1,
         SgdGroupCfg {
@@ -121,10 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &CheckpointMeta::default(),
         &CheckpointOptions::default(),
     )?;
-    println!(
-        "Saved checkpoint (model) to {}",
-        ckpt_dir.display()
-    );
+    println!("Saved checkpoint (model) to {}", ckpt_dir.display());
 
     println!(
         "Recorded final test accuracy: {:.2}% ({}/{})",

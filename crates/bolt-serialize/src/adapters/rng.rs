@@ -1,6 +1,6 @@
 use bolt_rng::RngKey;
 
-use crate::{CheckpointReader, CheckpointWriter, Result, LoadCheckpoint, SaveCheckpoint};
+use crate::{CheckpointReader, CheckpointWriter, LoadCheckpoint, Result, SaveCheckpoint};
 
 impl SaveCheckpoint for RngKey {
     fn save(&self, w: &mut CheckpointWriter) -> Result<()> {

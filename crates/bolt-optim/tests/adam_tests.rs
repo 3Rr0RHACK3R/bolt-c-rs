@@ -56,7 +56,16 @@ fn adam_converges_on_linear_regression() {
 /// Helper to create a constant-initialized scalar parameter
 fn const_scalar_param(store: &Store<B, D>, name: &str, value: f32) -> bolt_nn::Param<B, D> {
     // Use Uniform with same low/high to get constant initialization
-    let p = store.param(name, &[], Init::Uniform { low: value, high: value }).unwrap();
+    let p = store
+        .param(
+            name,
+            &[],
+            Init::Uniform {
+                low: value,
+                high: value,
+            },
+        )
+        .unwrap();
     p
 }
 
@@ -94,7 +103,10 @@ fn adam_converges_faster_than_baseline_for_quadratic() {
         opt.step(&params).unwrap();
     }
 
-    assert!(final_loss < 0.01, "Adam should converge quickly, final loss: {final_loss}");
+    assert!(
+        final_loss < 0.01,
+        "Adam should converge quickly, final loss: {final_loss}"
+    );
 
     let x_val: f32 = x.tensor().item().unwrap();
     assert!((x_val - 3.0).abs() < 0.1, "x should be ~3.0, got {x_val}");
@@ -176,7 +188,7 @@ fn adam_weight_decay_reduces_weights() {
 
     // Target is 0 - weight should decay toward zero with weight decay helping
     let target = Tensor::<B, D>::from_slice(&backend, &[0.0], &[]).unwrap();
-    
+
     for _ in 0..50 {
         store_wd.zero_grad();
         // Loss that pulls toward target (0), plus weight decay
@@ -188,7 +200,10 @@ fn adam_weight_decay_reduces_weights() {
 
     let w_wd_val: f32 = w_wd.tensor().item().unwrap();
     // With weight decay, weight should decay toward zero
-    assert!(w_wd_val < 1.0, "Weight with decay should be close to 0 from 5.0, got {w_wd_val}");
+    assert!(
+        w_wd_val < 1.0,
+        "Weight with decay should be close to 0 from 5.0, got {w_wd_val}"
+    );
 }
 
 #[test]
@@ -222,7 +237,7 @@ fn adam_validates_lr_not_negative() {
 #[test]
 fn adam_validates_beta1_range() {
     let backend = Arc::new(CpuBackend::new());
-    
+
     // beta1 >= 1.0 should fail
     let result = Adam::<B, D>::new(
         backend.clone(),
@@ -249,7 +264,7 @@ fn adam_validates_beta1_range() {
 #[test]
 fn adam_validates_beta2_range() {
     let backend = Arc::new(CpuBackend::new());
-    
+
     // beta2 >= 1.0 should fail
     let result = Adam::<B, D>::new(
         backend.clone(),
@@ -307,11 +322,11 @@ fn adam_validates_weight_decay_non_negative() {
 fn adam_group_config_overrides_lr() {
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 0);
-    
+
     // Create param and set its group to 1
     let x = const_scalar_param(&store, "x", 1.0);
     x.set_group(1);
-    
+
     let mut opt = Adam::<B, D>::new(
         backend.clone(),
         AdamCfg {
@@ -320,49 +335,67 @@ fn adam_group_config_overrides_lr() {
         },
     )
     .unwrap();
-    
-    opt.set_group(1, AdamGroupCfg {
-        lr_mult: 2.0,
-        weight_decay: None,
-    }).unwrap();
+
+    opt.set_group(
+        1,
+        AdamGroupCfg {
+            lr_mult: 2.0,
+            weight_decay: None,
+        },
+    )
+    .unwrap();
 
     let params = store.trainable();
-    
+
     // Do one step
     store.zero_grad();
     let loss = x.tensor().mul(&x.tensor()).unwrap();
     store.backward(&loss).unwrap();
-    
+
     let before: f32 = x.tensor().item().unwrap();
     opt.step(&params).unwrap();
     let after: f32 = x.tensor().item().unwrap();
-    
+
     // Parameter should have changed
-    assert!((after - before).abs() > 0.0, "Parameter should change after step");
+    assert!(
+        (after - before).abs() > 0.0,
+        "Parameter should change after step"
+    );
 }
 
 #[test]
 fn adam_group_validates_lr_mult_positive() {
     let backend = Arc::new(CpuBackend::new());
     let mut opt = Adam::<B, D>::new(backend, AdamCfg::default()).unwrap();
-    
-    let result = opt.set_group(0, AdamGroupCfg {
-        lr_mult: 0.0,
-        weight_decay: None,
-    });
+
+    let result = opt.set_group(
+        0,
+        AdamGroupCfg {
+            lr_mult: 0.0,
+            weight_decay: None,
+        },
+    );
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("lr_mult must be positive"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("lr_mult must be positive")
+    );
 }
 
 #[test]
 fn adam_group_validates_weight_decay_non_negative() {
     let backend = Arc::new(CpuBackend::new());
     let mut opt = Adam::<B, D>::new(backend, AdamCfg::default()).unwrap();
-    
-    let result = opt.set_group(0, AdamGroupCfg {
-        lr_mult: 1.0,
-        weight_decay: Some(-0.1),
-    });
+
+    let result = opt.set_group(
+        0,
+        AdamGroupCfg {
+            lr_mult: 1.0,
+            weight_decay: Some(-0.1),
+        },
+    );
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("weight_decay"));
 }
@@ -372,7 +405,7 @@ fn adam_default_config_is_valid() {
     let backend = Arc::new(CpuBackend::new());
     let result = Adam::<B, D>::new(backend, AdamCfg::default());
     assert!(result.is_ok());
-    
+
     let cfg = AdamCfg::default();
     assert_eq!(cfg.lr, 1e-3);
     assert_eq!(cfg.betas, (0.9, 0.999));
@@ -384,26 +417,35 @@ fn adam_default_config_is_valid() {
 fn adam_handles_multiple_params() {
     let backend = Arc::new(CpuBackend::new());
     let store = Store::<B, D>::new(backend.clone(), 0);
-    
+
     let x = const_scalar_param(&store, "x", 1.0);
     let y = const_scalar_param(&store, "y", -1.0);
     // For 2D param, use Uniform for simplicity
-    let z = store.param("z", &[2, 2], Init::Uniform { low: 0.5, high: 0.5 }).unwrap();
+    let z = store
+        .param(
+            "z",
+            &[2, 2],
+            Init::Uniform {
+                low: 0.5,
+                high: 0.5,
+            },
+        )
+        .unwrap();
 
     let mut opt = Adam::<B, D>::new(backend.clone(), AdamCfg::default()).unwrap();
     let params = store.trainable();
 
     for _ in 0..10 {
         store.zero_grad();
-        
+
         // Loss that depends on all params
         let x_sq = x.tensor().mul(&x.tensor()).unwrap();
         let y_sq = y.tensor().mul(&y.tensor()).unwrap();
         let z_sum = z.tensor().sum(None, false).unwrap();
         let z_sq = z_sum.mul(&z_sum).unwrap();
-        
+
         let loss = x_sq.add(&y_sq).unwrap().add(&z_sq).unwrap();
-        
+
         store.backward(&loss).unwrap();
         opt.step(&params).unwrap();
     }
@@ -411,16 +453,22 @@ fn adam_handles_multiple_params() {
     // All should move toward zero (minimizing sum of squares)
     let x_val: f32 = x.tensor().item().unwrap();
     let y_val: f32 = y.tensor().item().unwrap();
-    
-    assert!(x_val.abs() < 1.0, "x should move toward 0 from 1.0, got {x_val}");
-    assert!(y_val.abs() < 1.0, "y should move toward 0 from -1.0, got {y_val}");
+
+    assert!(
+        x_val.abs() < 1.0,
+        "x should move toward 0 from 1.0, got {x_val}"
+    );
+    assert!(
+        y_val.abs() < 1.0,
+        "y should move toward 0 from -1.0, got {y_val}"
+    );
 }
 
 #[test]
 fn adam_step_count_can_be_set() {
     let backend = Arc::new(CpuBackend::new());
     let mut opt = Adam::<B, D>::new(backend, AdamCfg::default()).unwrap();
-    
+
     assert_eq!(opt.step_count(), 0);
     opt.set_step_count(100);
     assert_eq!(opt.step_count(), 100);
@@ -448,18 +496,21 @@ fn adam_bias_correction_affects_early_steps() {
     .unwrap();
 
     let params = store.trainable();
-    
+
     // First step should have significant movement due to bias correction
     store.zero_grad();
     let diff = x.tensor().sub(&target).unwrap();
     let loss = diff.mul(&diff).unwrap();
     store.backward(&loss).unwrap();
-    
+
     let before: f32 = x.tensor().item().unwrap();
     opt.step(&params).unwrap();
     let after: f32 = x.tensor().item().unwrap();
-    
+
     // The change should be substantial (bias correction amplifies early updates)
     let change = (before - after).abs();
-    assert!(change > 0.5, "First step with bias correction should have significant movement, got {change}");
+    assert!(
+        change > 0.5,
+        "First step with bias correction should have significant movement, got {change}"
+    );
 }

@@ -5,8 +5,7 @@ use std::sync::Arc;
 use bolt_cpu::CpuBackend;
 use bolt_nn::{Init, Store};
 use bolt_serialize::{
-    CheckpointMeta, CheckpointOptions, CheckpointReader, CheckpointWriter, LoadOpts, load,
-    save,
+    CheckpointMeta, CheckpointOptions, CheckpointReader, CheckpointWriter, LoadOpts, load, save,
 };
 
 type B = CpuBackend;
@@ -16,8 +15,10 @@ type D = f32;
 /// Expected: Error message indicates the directory was not found.
 #[test]
 fn directory_not_found_on_load() {
-    let result =
-        CheckpointReader::open(Path::new("/nonexistent/path/that/does/not/exist"), &LoadOpts::default());
+    let result = CheckpointReader::open(
+        Path::new("/nonexistent/path/that/does/not/exist"),
+        &LoadOpts::default(),
+    );
 
     assert!(result.is_err());
     let err_msg = match result {
@@ -169,8 +170,7 @@ fn key_not_found_on_read() -> Result<(), Box<dyn std::error::Error>> {
 
     // Try to read a non-existent key
     let reader = CheckpointReader::open(&ckpt_dir, &LoadOpts::default())?;
-    let result: Result<bolt_tensor::Tensor<B, D>, _> =
-        reader.tensor("nonexistent_key", &backend);
+    let result: Result<bolt_tensor::Tensor<B, D>, _> = reader.tensor("nonexistent_key", &backend);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -193,7 +193,10 @@ fn manifest_missing_required_fields() -> Result<(), Box<dyn std::error::Error>> 
     fs::create_dir_all(&dir)?;
 
     // Write incomplete but valid JSON
-    fs::write(dir.join("bolt-checkpoint.json"), r#"{"unexpected": "field"}"#)?;
+    fs::write(
+        dir.join("bolt-checkpoint.json"),
+        r#"{"unexpected": "field"}"#,
+    )?;
 
     let result = CheckpointReader::open(&dir, &LoadOpts::default());
 
