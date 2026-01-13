@@ -1,6 +1,7 @@
 mod abs;
 mod add;
 mod broadcast_to;
+mod concat;
 mod cos;
 mod div;
 mod exp;
@@ -28,6 +29,7 @@ mod unsqueeze;
 pub(crate) use abs::AbsBackward;
 pub(crate) use add::AddBackward;
 pub(crate) use broadcast_to::BroadcastToBackward;
+pub(crate) use concat::ConcatBackward;
 pub(crate) use cos::CosBackward;
 pub(crate) use div::DivBackward;
 pub(crate) use exp::ExpBackward;

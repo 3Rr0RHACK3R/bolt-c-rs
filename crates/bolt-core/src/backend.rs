@@ -388,3 +388,11 @@ pub trait BernoulliMaskOp<D: Float>: Backend {
         key: bolt_rng::RngKey,
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
+
+pub trait ConcatOp<D: NativeType>: Backend {
+    fn concat(
+        &self,
+        tensors: &[(&Self::Storage<D>, &Layout)],
+        axis: usize,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}

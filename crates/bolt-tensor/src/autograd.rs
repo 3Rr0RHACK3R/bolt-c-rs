@@ -14,11 +14,11 @@ mod ops;
 pub(crate) mod utils;
 
 pub(crate) use ops::{
-    AbsBackward, AddBackward, BroadcastToBackward, CosBackward, DivBackward, ExpBackward,
-    LogBackward, MatmulBackward, MaxBackward, MeanBackward, MinBackward, MulBackward, NegBackward,
-    PowBackward, ProdBackward, ReluBackward, ReshapeBackward, SigmoidBackward, SinBackward,
-    SqrtBackward, SqueezeAllBackward, SqueezeAxisBackward, SubBackward, SumBackward, TanhBackward,
-    TransposeBackward, UnsqueezeBackward,
+    AbsBackward, AddBackward, BroadcastToBackward, ConcatBackward, CosBackward, DivBackward,
+    ExpBackward, LogBackward, MatmulBackward, MaxBackward, MeanBackward, MinBackward, MulBackward,
+    NegBackward, PowBackward, ProdBackward, ReluBackward, ReshapeBackward, SigmoidBackward,
+    SinBackward, SqrtBackward, SqueezeAllBackward, SqueezeAxisBackward, SubBackward, SumBackward,
+    TanhBackward, TransposeBackward, UnsqueezeBackward,
 };
 pub use utils::canonical_axes;
 
@@ -393,6 +393,45 @@ where
                 grad_fn: rhs.grad_fn(),
             },
         ],
+        op,
+        saved_tensors,
+    }))
+}
+
+pub(crate) fn create_multi_grad_fn<B, D>(
+    output_id: TensorId,
+    inputs: &[&Tensor<B, D>],
+    op: Box<dyn BackwardOp<B, D>>,
+    saved_tensors: Vec<Tensor<B, D>>,
+) -> Option<Arc<GradFn<B, D>>>
+where
+    B: Backend + 'static,
+    D: NativeType + 'static,
+{
+    if !D::SUPPORTS_GRAD || !grad_enabled() {
+        return None;
+    }
+
+    // Check if any input requires grad
+    let any_requires_grad = inputs.iter().any(|t| t.requires_grad_enabled());
+    if !any_requires_grad {
+        return None;
+    }
+
+    let saved_tensors: Vec<_> = saved_tensors.into_iter().map(|t| t.detach()).collect();
+
+    let input_edges: Vec<_> = inputs
+        .iter()
+        .map(|t| InputEdge {
+            id: t.tensor_id(),
+            requires_grad: t.requires_grad_enabled(),
+            grad_fn: t.grad_fn(),
+        })
+        .collect();
+
+    Some(Arc::new(GradFn {
+        output: output_id,
+        inputs: input_edges,
         op,
         saved_tensors,
     }))
