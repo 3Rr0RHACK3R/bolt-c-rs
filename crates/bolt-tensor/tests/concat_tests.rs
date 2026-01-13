@@ -127,15 +127,24 @@ fn concat_3d_tensors() {
 fn concat_non_contiguous() {
     let backend = Arc::new(CpuBackend::new());
 
+    // a = [[1, 2], [3, 4]] (row-major: [1, 2, 3, 4])
     let a = Tensor::from_slice(&backend, &[1.0f32, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+    // b = [[5, 6], [7, 8]] (row-major: [5, 6, 7, 8])
     let b = Tensor::from_slice(&backend, &[5.0f32, 6.0, 7.0, 8.0], &[2, 2]).unwrap();
 
-    // Create a view (non-contiguous)
+    // Create transposed views (non-contiguous)
+    // a_view = transpose(a) = [[1, 3], [2, 4]] (row-major: [1, 3, 2, 4])
     let a_view = a.transpose(0, 1).unwrap();
+    // b_view = transpose(b) = [[5, 7], [6, 8]] (row-major: [5, 7, 6, 8])
     let b_view = b.transpose(0, 1).unwrap();
 
     let c = Tensor::concat(&[a_view, b_view], 0).unwrap();
     assert_eq!(c.shape().as_slice(), &[4, 2]);
+    
+    // Verify output data: concat along axis 0 should give [[1, 3], [2, 4], [5, 7], [6, 8]]
+    // In row-major: [1, 3, 2, 4, 5, 7, 6, 8]
+    let data = c.to_vec().unwrap();
+    assert_eq!(data, vec![1.0, 3.0, 2.0, 4.0, 5.0, 7.0, 6.0, 8.0]);
 }
 
 #[test]

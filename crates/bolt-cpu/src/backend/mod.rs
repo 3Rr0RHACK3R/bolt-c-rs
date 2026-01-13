@@ -608,6 +608,9 @@ impl<D> UnsqueezeOp<D> for CpuBackend where D: CpuScalar {}
 impl<D> TransposeOp<D> for CpuBackend where D: CpuScalar {}
 impl<D> BroadcastToOp<D> for CpuBackend where D: CpuScalar {}
 
+// Note: ConcatKernel is not included in CpuScalar trait bounds (unlike CopyKernel, AddKernel, etc.)
+// because concat is a variadic operation that may not be needed for all use cases. The explicit
+// `D: CpuScalar + ConcatKernel` bound here allows selective implementation per type.
 impl<D> ConcatOp<D> for CpuBackend
 where
     D: CpuScalar + ConcatKernel,

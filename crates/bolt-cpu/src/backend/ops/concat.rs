@@ -146,7 +146,6 @@ where
             let out_idx = multi_to_linear_index_strided(&idx_buf[..rank], output_strides.as_slice());
             let value = unsafe { input_data[physical_idx].assume_init() };
             out_slice[out_idx].write(value);
-            idx_buf[axis] -= axis_cumsum;
         }
 
         axis_cumsum += axis_size;
