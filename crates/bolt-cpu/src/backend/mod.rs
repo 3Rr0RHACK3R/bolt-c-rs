@@ -10,15 +10,16 @@ use bolt_core::{
     BaseBackend, TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, CopyOp, CosOp, DivOp,
-        ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp, ReluOp,
-        ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, ConcatOp, CopyOp, CosOp,
+        DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp,
+        ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
         UnsqueezeOp,
     },
     device::{BackendDevice, DeviceId},
     dtype::{CastFrom, NativeType},
     error::{Error, Result},
     layout::Layout,
+    shape::Shape,
 };
 
 pub use storage::{CpuStorage, CpuTensorView};
@@ -29,10 +30,10 @@ use allocator::CpuAllocator;
 use context::CpuContext;
 use memory_pool::MemoryPool;
 use ops::{
-    AbsKernel, AddKernel, ArgmaxKernel, ArgminKernel, CopyKernel, CosKernel, CpuScalar, DivKernel,
-    ExpKernel, LogKernel, MatmulKernel, MaxKernel, MeanKernel, MinKernel, MulKernel, NegKernel,
-    PowKernel, ProdKernel, ReluKernel, SigmoidKernel, SinKernel, SqrtKernel, SubKernel, SumKernel,
-    TanhKernel,
+    AbsKernel, AddKernel, ArgmaxKernel, ArgminKernel, ConcatKernel, CopyKernel, CosKernel,
+    CpuScalar, DivKernel, ExpKernel, LogKernel, MatmulKernel, MaxKernel, MeanKernel, MinKernel,
+    MulKernel, NegKernel, PowKernel, ProdKernel, ReluKernel, SigmoidKernel, SinKernel,
+    SqrtKernel, SubKernel, SumKernel, TanhKernel,
 };
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
@@ -606,3 +607,76 @@ impl<D> SqueezeOp<D> for CpuBackend where D: CpuScalar {}
 impl<D> UnsqueezeOp<D> for CpuBackend where D: CpuScalar {}
 impl<D> TransposeOp<D> for CpuBackend where D: CpuScalar {}
 impl<D> BroadcastToOp<D> for CpuBackend where D: CpuScalar {}
+
+// Note: ConcatKernel is not included in CpuScalar trait bounds (unlike CopyKernel, AddKernel, etc.)
+// because concat is a variadic operation that may not be needed for all use cases. The explicit
+// `D: CpuScalar + ConcatKernel` bound here allows selective implementation per type.
+impl<D> ConcatOp<D> for CpuBackend
+where
+    D: CpuScalar + ConcatKernel,
+{
+    fn concat(
+        &self,
+        tensors: &[(&Self::Storage<D>, &Layout)],
+        axis: usize,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        if tensors.is_empty() {
+            return Err(Error::invalid_shape("cannot concat empty tensor list"));
+        }
+
+        // Validate shapes and compute output shape
+        let first_shape = tensors[0].1.shape();
+        let rank = first_shape.rank();
+        if axis >= rank {
+            return Err(Error::invalid_shape(format!(
+                "axis {} out of bounds for rank {}",
+                axis, rank
+            )));
+        }
+
+        // Compute output shape: sum sizes along axis, keep other dims
+        let mut output_dims = first_shape.as_slice().to_vec();
+        let mut total_axis_size = output_dims[axis];
+
+        for (_storage, layout) in &tensors[1..] {
+            let shape = layout.shape();
+            if shape.rank() != rank {
+                return Err(Error::invalid_shape(format!(
+                    "all tensors must have the same rank: expected {}, got {}",
+                    rank,
+                    shape.rank()
+                )));
+            }
+
+            // Check all dimensions match except the concat axis
+            for (i, &dim) in shape.as_slice().iter().enumerate() {
+                if i != axis && dim != output_dims[i] {
+                    return Err(Error::invalid_shape(format!(
+                        "dimension mismatch at axis {}: expected {}, got {}",
+                        i, output_dims[i], dim
+                    )));
+                }
+            }
+
+            total_axis_size += shape.as_slice()[axis];
+        }
+
+        output_dims[axis] = total_axis_size;
+        let output_shape = Shape::from_slice(&output_dims)?;
+
+        // Prepare tensor views with axis sizes
+        let mut tensor_views: Vec<(CpuTensorView<'_, D>, usize)> = Vec::with_capacity(tensors.len());
+        for (storage, layout) in tensors {
+            let view = CpuTensorView::new(storage, layout);
+            let axis_size = layout.shape().as_slice()[axis];
+            tensor_views.push((view, axis_size));
+        }
+
+        <D as ConcatKernel>::concat_kernel(
+            &tensor_views,
+            axis,
+            &output_shape,
+            &self.allocator::<D>(),
+        )
+    }
+}

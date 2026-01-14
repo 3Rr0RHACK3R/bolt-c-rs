@@ -3,10 +3,10 @@ use std::sync::Arc;
 use bolt_core::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp, CopyOp,
-        CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp,
-        ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp,
-        TanhOp, TransposeOp, UnsqueezeOp,
+        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp,
+        ConcatOp, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp,
+        MulOp, NegOp, PowOp, ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp,
+        SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     dtype::{Float, NativeType},
     error::{Error, Result},
@@ -359,6 +359,71 @@ where
         out_shape.push(n);
         out_shape.extend_from_slice(first_shape.as_slice());
         Tensor::from_vec(backend, buf, &out_shape)
+    }
+
+    pub fn concat(tensors: &[Self], axis: usize) -> Result<Self>
+    where
+        B: ConcatOp<D> + CopyOp<D> + 'static,
+    {
+        if tensors.is_empty() {
+            return Err(Error::invalid_shape("cannot concat empty tensor list"));
+        }
+
+        // Validate all tensors share the same backend
+        let backend = tensors[0].backend.clone();
+        for t in &tensors[1..] {
+            if !std::ptr::eq(t.backend.as_ref(), backend.as_ref()) {
+                return Err(Error::OpError(
+                    "all tensors must share the same backend for concat".into(),
+                ));
+            }
+        }
+
+        // Validate shapes
+        let first_shape = tensors[0].shape();
+        let rank = first_shape.rank();
+        if axis >= rank {
+            return Err(Error::invalid_shape(format!(
+                "axis {} out of bounds for rank {}",
+                axis, rank
+            )));
+        }
+
+        for t in &tensors[1..] {
+            let shape = t.shape();
+            if shape.rank() != rank {
+                return Err(Error::invalid_shape(format!(
+                    "all tensors must have the same rank: expected {}, got {}",
+                    rank,
+                    shape.rank()
+                )));
+            }
+
+            // Check all dimensions match except the concat axis
+            for (i, &dim) in shape.as_slice().iter().enumerate() {
+                if i != axis && dim != first_shape.as_slice()[i] {
+                    return Err(Error::invalid_shape(format!(
+                        "dimension mismatch at axis {}: expected {}, got {}",
+                        i, first_shape.as_slice()[i], dim
+                    )));
+                }
+            }
+        }
+
+        // Prepare storage and layout pairs for backend
+        let tensor_parts: Vec<_> = tensors
+            .iter()
+            .map(|t| (t.storage(), t.layout()))
+            .collect();
+
+        // Call backend concat
+        let parts = backend.concat(&tensor_parts, axis)?;
+        let mut out = Self::from_parts(backend.clone(), parts.storage, parts.layout);
+
+        // Record autograd operation
+        Self::record_concat(tensors, axis, &mut out)?;
+
+        Ok(out)
     }
 
     pub fn from_iter<I>(backend: &Arc<B>, iter: I) -> Result<Self>
@@ -1413,6 +1478,22 @@ where
             op,
             vec![self.clone(), other.clone(), out.clone()],
         );
+        Ok(())
+    }
+
+    fn record_concat(inputs: &[Self], axis: usize, out: &mut Self) -> Result<()>
+    where
+        B: CopyOp<D> + 'static,
+        D: NativeType + 'static,
+    {
+        let input_shapes: Vec<Vec<usize>> = inputs.iter().map(|t| t.shape().to_vec()).collect();
+        let op = Box::new(autograd::ConcatBackward::new(axis, input_shapes));
+        
+        let input_refs: Vec<&Self> = inputs.iter().collect();
+        let grad_fn = autograd::create_multi_grad_fn(out.autograd.origin, &input_refs, op, vec![]);
+        
+        out.autograd.requires_grad = grad_fn.is_some();
+        out.autograd.grad_fn = grad_fn;
         Ok(())
     }
 }
