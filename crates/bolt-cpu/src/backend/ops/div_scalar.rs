@@ -1,30 +1,35 @@
+use std::ops::Div;
+
 use bolt_core::{
+    dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
-    Float, StorageAllocator, TensorParts,
+    StorageAllocator, TensorParts,
 };
 
 use super::super::allocator::CpuAllocator;
 use super::super::storage::{CpuStorage, CpuTensorView};
 
-pub trait ExpKernel: Float {
-    fn exp_kernel(
+pub trait DivScalarKernel: NativeType {
+    fn div_scalar_kernel(
         _view: CpuTensorView<'_, Self>,
+        _scalar: Self,
         _allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
         Err(Error::OpError(format!(
-            "exp not implemented for {}",
+            "div_scalar not implemented for {}",
             Self::DTYPE
         )))
     }
 }
 
-pub fn exp<D>(
+pub fn div_scalar<D>(
     view: CpuTensorView<'_, D>,
+    scalar: D,
     allocator: &CpuAllocator<D>,
 ) -> Result<TensorParts<CpuStorage<D>>>
 where
-    D: Float,
+    D: NativeType + Div<Output = D>,
 {
     let shape = view.layout.shape();
     let numel: usize = shape.iter().product();
@@ -35,7 +40,7 @@ where
     if view.layout.is_contiguous() && view.layout.offset_bytes() == 0 {
         for (dst, &val) in out_data.iter_mut().zip(view_data.iter()) {
             let val = unsafe { val.assume_init() };
-            dst.write(val.exp());
+            dst.write(val / scalar);
         }
     } else {
         for (dst, idx) in out_data
@@ -43,7 +48,7 @@ where
             .zip(view.layout.iter_element_indices(D::DTYPE)?)
         {
             let val = unsafe { view_data[idx].assume_init() };
-            dst.write(val.exp());
+            dst.write(val / scalar);
         }
     }
 
@@ -54,20 +59,36 @@ where
     })
 }
 
-impl ExpKernel for f32 {
-    fn exp_kernel(
+impl DivScalarKernel for f32 {
+    fn div_scalar_kernel(
         view: CpuTensorView<'_, Self>,
+        scalar: Self,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        exp(view, allocator)
+        div_scalar(view, scalar, allocator)
     }
 }
 
-impl ExpKernel for f64 {
-    fn exp_kernel(
+impl DivScalarKernel for f64 {
+    fn div_scalar_kernel(
         view: CpuTensorView<'_, Self>,
+        scalar: Self,
         allocator: &CpuAllocator<Self>,
     ) -> Result<TensorParts<CpuStorage<Self>>> {
-        exp(view, allocator)
+        div_scalar(view, scalar, allocator)
+    }
+}
+
+impl DivScalarKernel for i32 {
+    fn div_scalar_kernel(
+        view: CpuTensorView<'_, Self>,
+        scalar: Self,
+        allocator: &CpuAllocator<Self>,
+    ) -> Result<TensorParts<CpuStorage<Self>>> {
+        // Check for division by zero for integers
+        if scalar == 0 {
+            return Err(Error::OpError("integer division by zero".into()));
+        }
+        div_scalar(view, scalar, allocator)
     }
 }

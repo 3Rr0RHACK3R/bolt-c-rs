@@ -1,10 +1,10 @@
-use bolt_core::Backend;
 use bolt_core::backend::CopyOp;
 use bolt_core::dtype::NativeType;
 use bolt_core::error::{Error, Result};
+use bolt_core::Backend;
 
+use crate::autograd::{utils, BackwardContext, BackwardOp};
 use crate::Tensor;
-use crate::autograd::{BackwardContext, BackwardOp, utils};
 
 pub(crate) struct SumBackward {
     input_shape: Vec<usize>,

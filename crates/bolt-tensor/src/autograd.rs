@@ -14,10 +14,11 @@ mod ops;
 pub(crate) mod utils;
 
 pub(crate) use ops::{
-    AbsBackward, AddBackward, BroadcastToBackward, ConcatBackward, CosBackward, DivBackward,
-    ExpBackward, LogBackward, MatmulBackward, MaxBackward, MeanBackward, MinBackward, MulBackward,
-    NegBackward, PowBackward, ProdBackward, ReluBackward, ReshapeBackward, SigmoidBackward,
-    SinBackward, SqrtBackward, SqueezeAllBackward, SqueezeAxisBackward, SubBackward, SumBackward,
+    AbsBackward, AddBackward, AddScalarBackward, BroadcastToBackward, ConcatBackward, CosBackward,
+    DivBackward, DivScalarBackward, ExpBackward, LogBackward, MatmulBackward, MaxBackward,
+    MeanBackward, MinBackward, MulBackward, MulScalarBackward, NegBackward, PowBackward,
+    ProdBackward, ReluBackward, ReshapeBackward, SigmoidBackward, SinBackward, SqrtBackward,
+    SqueezeAllBackward, SqueezeAxisBackward, SubBackward, SubScalarBackward, SumBackward,
     TanhBackward, TransposeBackward, UnsqueezeBackward,
 };
 pub use utils::canonical_axes;

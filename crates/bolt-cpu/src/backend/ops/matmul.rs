@@ -1,11 +1,11 @@
 use std::ops::{Add, Mul};
 
 use bolt_core::{
-    StorageAllocator, TensorParts,
     dtype::{Float, NativeType},
     error::{Error, Result},
     layout::Layout,
     shape::Shape,
+    StorageAllocator, TensorParts,
 };
 
 use matrixmultiply::{dgemm, sgemm};

@@ -1,10 +1,10 @@
-use bolt_core::Backend;
 use bolt_core::backend::CopyOp;
 use bolt_core::dtype::NativeType;
 use bolt_core::error::Result;
+use bolt_core::Backend;
 
+use crate::autograd::{utils, BackwardContext, BackwardOp};
 use crate::Tensor;
-use crate::autograd::{BackwardContext, BackwardOp, utils};
 
 pub(crate) struct MaxBackward {
     input_shape: Vec<usize>,

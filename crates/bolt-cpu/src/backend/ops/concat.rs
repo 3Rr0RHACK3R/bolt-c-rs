@@ -1,9 +1,9 @@
 use bolt_core::{
-    StorageAllocator, TensorParts,
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
-    shape::{MAX_RANK, Shape},
+    shape::{Shape, MAX_RANK},
+    StorageAllocator, TensorParts,
 };
 
 use super::super::allocator::CpuAllocator;
@@ -118,7 +118,9 @@ where
     }
 
     // Fast path: all inputs contiguous + offset 0 => block copies (no per-element math)
-    let all_contiguous = tensors.iter().all(|(t, _)| t.layout.is_contiguous() && t.layout.offset_bytes() == 0);
+    let all_contiguous = tensors
+        .iter()
+        .all(|(t, _)| t.layout.is_contiguous() && t.layout.offset_bytes() == 0);
     if all_contiguous {
         return concat_contiguous(tensors, axis, output_shape, allocator);
     }
@@ -140,10 +142,12 @@ where
         debug_assert!(input_shape_slice.len() <= MAX_RANK);
         let mut idx_buf = [0usize; MAX_RANK];
 
-        for (logical_idx, physical_idx) in input_layout.iter_element_indices(D::DTYPE)?.enumerate() {
+        for (logical_idx, physical_idx) in input_layout.iter_element_indices(D::DTYPE)?.enumerate()
+        {
             linear_to_multi_index_inplace(logical_idx, input_shape_slice, &mut idx_buf);
             idx_buf[axis] += axis_cumsum;
-            let out_idx = multi_to_linear_index_strided(&idx_buf[..rank], output_strides.as_slice());
+            let out_idx =
+                multi_to_linear_index_strided(&idx_buf[..rank], output_strides.as_slice());
             let value = unsafe { input_data[physical_idx].assume_init() };
             out_slice[out_idx].write(value);
         }
@@ -152,7 +156,10 @@ where
     }
 
     let layout = Layout::contiguous(output_shape.clone());
-    Ok(TensorParts { storage: out_storage, layout })
+    Ok(TensorParts {
+        storage: out_storage,
+        layout,
+    })
 }
 
 impl ConcatKernel for f32 {

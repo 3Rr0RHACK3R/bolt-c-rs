@@ -1,9 +1,9 @@
-use bolt_core::Backend;
 use bolt_core::dtype::NativeType;
 use bolt_core::error::Result;
+use bolt_core::Backend;
 
-use crate::Tensor;
 use crate::autograd::{BackwardContext, BackwardOp};
+use crate::Tensor;
 
 pub(crate) struct ConcatBackward {
     axis: usize,
@@ -12,10 +12,7 @@ pub(crate) struct ConcatBackward {
 
 impl ConcatBackward {
     pub(crate) fn new(axis: usize, input_shapes: Vec<Vec<usize>>) -> Self {
-        Self {
-            axis,
-            input_shapes,
-        }
+        Self { axis, input_shapes }
     }
 }
 

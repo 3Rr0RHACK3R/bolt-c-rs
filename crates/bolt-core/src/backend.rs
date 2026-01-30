@@ -396,3 +396,39 @@ pub trait ConcatOp<D: NativeType>: Backend {
         axis: usize,
     ) -> Result<TensorParts<Self::Storage<D>>>;
 }
+
+pub trait MulScalarOp<D: NativeType>: Backend {
+    fn mul_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}
+
+pub trait AddScalarOp<D: NativeType>: Backend {
+    fn add_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}
+
+pub trait SubScalarOp<D: NativeType>: Backend {
+    fn sub_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}
+
+pub trait DivScalarOp<D: NativeType>: Backend {
+    fn div_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>>;
+}

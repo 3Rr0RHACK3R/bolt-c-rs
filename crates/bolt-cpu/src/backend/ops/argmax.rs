@@ -1,9 +1,9 @@
 use bolt_core::{
-    StorageAllocator, TensorParts,
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
-    shape::{Shape, canonical_axes},
+    shape::{canonical_axes, Shape},
+    StorageAllocator, TensorParts,
 };
 
 use super::super::allocator::CpuAllocator;

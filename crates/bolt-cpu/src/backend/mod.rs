@@ -10,10 +10,10 @@ use bolt_core::{
     BaseBackend, TensorParts, TensorView,
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, ConcatOp, CopyOp, CosOp,
-        DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp, MulOp, NegOp, PowOp, ProdOp,
-        ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp,
-        UnsqueezeOp,
+        AbsOp, AddOp, AddScalarOp, ArgmaxOp, ArgminOp, Backend, BroadcastToOp, CastOp, ConcatOp,
+        CopyOp, CosOp, DivOp, DivScalarOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp,
+        MulOp, MulScalarOp, NegOp, PowOp, ProdOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp,
+        SqueezeOp, SubOp, SubScalarOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
     },
     device::{BackendDevice, DeviceId},
     dtype::{CastFrom, NativeType},
@@ -30,10 +30,11 @@ use allocator::CpuAllocator;
 use context::CpuContext;
 use memory_pool::MemoryPool;
 use ops::{
-    AbsKernel, AddKernel, ArgmaxKernel, ArgminKernel, ConcatKernel, CopyKernel, CosKernel,
-    CpuScalar, DivKernel, ExpKernel, LogKernel, MatmulKernel, MaxKernel, MeanKernel, MinKernel,
-    MulKernel, NegKernel, PowKernel, ProdKernel, ReluKernel, SigmoidKernel, SinKernel,
-    SqrtKernel, SubKernel, SumKernel, TanhKernel,
+    AbsKernel, AddKernel, AddScalarKernel, ArgmaxKernel, ArgminKernel, ConcatKernel, CopyKernel,
+    CosKernel, CpuScalar, DivKernel, DivScalarKernel, ExpKernel, LogKernel, MatmulKernel,
+    MaxKernel, MeanKernel, MinKernel, MulKernel, MulScalarKernel, NegKernel, PowKernel, ProdKernel,
+    ReluKernel, SigmoidKernel, SinKernel, SqrtKernel, SubKernel, SubScalarKernel, SumKernel,
+    TanhKernel,
 };
 use storage::{fill_storage, read_into_slice, write_from_slice};
 
@@ -676,6 +677,78 @@ where
             &tensor_views,
             axis,
             &output_shape,
+            &self.allocator::<D>(),
+        )
+    }
+}
+
+impl<D> MulScalarOp<D> for CpuBackend
+where
+    D: CpuScalar + MulScalarKernel,
+{
+    fn mul_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as MulScalarKernel>::mul_scalar_kernel(
+            TensorView::new(storage, layout),
+            scalar,
+            &self.allocator::<D>(),
+        )
+    }
+}
+
+impl<D> AddScalarOp<D> for CpuBackend
+where
+    D: CpuScalar + AddScalarKernel,
+{
+    fn add_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as AddScalarKernel>::add_scalar_kernel(
+            TensorView::new(storage, layout),
+            scalar,
+            &self.allocator::<D>(),
+        )
+    }
+}
+
+impl<D> SubScalarOp<D> for CpuBackend
+where
+    D: CpuScalar + SubScalarKernel,
+{
+    fn sub_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as SubScalarKernel>::sub_scalar_kernel(
+            TensorView::new(storage, layout),
+            scalar,
+            &self.allocator::<D>(),
+        )
+    }
+}
+
+impl<D> DivScalarOp<D> for CpuBackend
+where
+    D: CpuScalar + DivScalarKernel,
+{
+    fn div_scalar(
+        &self,
+        storage: &Self::Storage<D>,
+        layout: &Layout,
+        scalar: D,
+    ) -> Result<TensorParts<Self::Storage<D>>> {
+        <D as DivScalarKernel>::div_scalar_kernel(
+            TensorView::new(storage, layout),
+            scalar,
             &self.allocator::<D>(),
         )
     }
