@@ -1,8 +1,8 @@
 use bolt_core::{
-    StorageAllocator, TensorParts,
     dtype::NativeType,
     error::{Error, Result},
     layout::Layout,
+    StorageAllocator, TensorParts,
 };
 
 use super::super::allocator::CpuAllocator;

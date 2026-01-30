@@ -1,10 +1,10 @@
-use bolt_core::Backend;
 use bolt_core::backend::CopyOp;
 use bolt_core::dtype::Float;
 use bolt_core::error::Result;
+use bolt_core::Backend;
 
-use crate::Tensor;
 use crate::autograd::{BackwardContext, BackwardOp};
+use crate::Tensor;
 
 pub(crate) struct CosBackward;
 

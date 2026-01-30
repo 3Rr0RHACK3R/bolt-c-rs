@@ -1,7 +1,7 @@
 use bolt_core::{
-    Float, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
+    Float, StorageAllocator, TensorParts,
 };
 
 use super::super::allocator::CpuAllocator;

@@ -3,10 +3,11 @@ use std::sync::Arc;
 use bolt_core::{
     allocator::StorageAllocator,
     backend::{
-        AbsOp, AddOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp, CastOp,
-        ConcatOp, CopyOp, CosOp, DivOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp, MeanOp, MinOp,
-        MulOp, NegOp, PowOp, ProdOp, RandomOp, ReluOp, ReshapeOp, SigmoidOp, SinOp, SqrtOp,
-        SqueezeOp, SubOp, SumOp, TanhOp, TransposeOp, UnsqueezeOp,
+        AbsOp, AddOp, AddScalarOp, ArgmaxOp, ArgminOp, Backend, BernoulliMaskOp, BroadcastToOp,
+        CastOp, ConcatOp, CopyOp, CosOp, DivOp, DivScalarOp, ExpOp, FillOp, LogOp, MatmulOp, MaxOp,
+        MeanOp, MinOp, MulOp, MulScalarOp, NegOp, PowOp, ProdOp, RandomOp, ReluOp, ReshapeOp,
+        SigmoidOp, SinOp, SqrtOp, SqueezeOp, SubOp, SubScalarOp, SumOp, TanhOp, TransposeOp,
+        UnsqueezeOp,
     },
     dtype::{Float, NativeType},
     error::{Error, Result},
@@ -404,17 +405,16 @@ where
                 if i != axis && dim != first_shape.as_slice()[i] {
                     return Err(Error::invalid_shape(format!(
                         "dimension mismatch at axis {}: expected {}, got {}",
-                        i, first_shape.as_slice()[i], dim
+                        i,
+                        first_shape.as_slice()[i],
+                        dim
                     )));
                 }
             }
         }
 
         // Prepare storage and layout pairs for backend
-        let tensor_parts: Vec<_> = tensors
-            .iter()
-            .map(|t| (t.storage(), t.layout()))
-            .collect();
+        let tensor_parts: Vec<_> = tensors.iter().map(|t| (t.storage(), t.layout())).collect();
 
         // Call backend concat
         let parts = backend.concat(&tensor_parts, axis)?;
@@ -923,6 +923,74 @@ where
             .pow(&self.storage, &other.storage, &self.layout, &other.layout)?;
         let mut out = Self::from_parts(self.backend.clone(), parts.storage, parts.layout);
         self.record_pow(other, &mut out)?;
+        Ok(out)
+    }
+
+    /// Multiplies each element by a scalar value.
+    ///
+    /// This is more efficient than creating a scalar tensor and using `mul`,
+    /// as it avoids allocation and broadcasting overhead.
+    pub fn mul_scalar(&self, scalar: D) -> Result<Self>
+    where
+        B: CopyOp<D> + MulScalarOp<D> + 'static,
+        D: std::ops::Mul<Output = D> + 'static,
+    {
+        let parts = self
+            .backend
+            .mul_scalar(&self.storage, &self.layout, scalar)?;
+        let mut out = Self::from_parts(self.backend.clone(), parts.storage, parts.layout);
+        self.record_mul_scalar(scalar, &mut out)?;
+        Ok(out)
+    }
+
+    /// Adds a scalar value to each element.
+    ///
+    /// This is more efficient than creating a scalar tensor and using `add`,
+    /// as it avoids allocation and broadcasting overhead.
+    pub fn add_scalar(&self, scalar: D) -> Result<Self>
+    where
+        B: CopyOp<D> + AddScalarOp<D> + 'static,
+        D: std::ops::Add<Output = D> + 'static,
+    {
+        let parts = self
+            .backend
+            .add_scalar(&self.storage, &self.layout, scalar)?;
+        let mut out = Self::from_parts(self.backend.clone(), parts.storage, parts.layout);
+        self.record_add_scalar(&mut out)?;
+        Ok(out)
+    }
+
+    /// Subtracts a scalar value from each element.
+    ///
+    /// This is more efficient than creating a scalar tensor and using `sub`,
+    /// as it avoids allocation and broadcasting overhead.
+    pub fn sub_scalar(&self, scalar: D) -> Result<Self>
+    where
+        B: CopyOp<D> + SubScalarOp<D> + 'static,
+        D: std::ops::Sub<Output = D> + 'static,
+    {
+        let parts = self
+            .backend
+            .sub_scalar(&self.storage, &self.layout, scalar)?;
+        let mut out = Self::from_parts(self.backend.clone(), parts.storage, parts.layout);
+        self.record_sub_scalar(&mut out)?;
+        Ok(out)
+    }
+
+    /// Divides each element by a scalar value.
+    ///
+    /// This is more efficient than creating a scalar tensor and using `div`,
+    /// as it avoids allocation and broadcasting overhead.
+    pub fn div_scalar(&self, scalar: D) -> Result<Self>
+    where
+        B: CopyOp<D> + DivScalarOp<D> + 'static,
+        D: std::ops::Div<Output = D> + 'static,
+    {
+        let parts = self
+            .backend
+            .div_scalar(&self.storage, &self.layout, scalar)?;
+        let mut out = Self::from_parts(self.backend.clone(), parts.storage, parts.layout);
+        self.record_div_scalar(scalar, &mut out)?;
         Ok(out)
     }
 
@@ -1481,6 +1549,46 @@ where
         Ok(())
     }
 
+    fn record_mul_scalar(&self, scalar: D, out: &mut Self) -> Result<()>
+    where
+        B: CopyOp<D> + MulScalarOp<D> + 'static,
+        D: NativeType + std::ops::Mul<Output = D> + 'static,
+    {
+        let op = Box::new(autograd::MulScalarBackward::new(scalar));
+        self.record_unary_node(out, op, vec![]);
+        Ok(())
+    }
+
+    fn record_add_scalar(&self, out: &mut Self) -> Result<()>
+    where
+        B: CopyOp<D> + 'static,
+        D: NativeType + 'static,
+    {
+        let op = Box::new(autograd::AddScalarBackward::new());
+        self.record_unary_node(out, op, vec![]);
+        Ok(())
+    }
+
+    fn record_sub_scalar(&self, out: &mut Self) -> Result<()>
+    where
+        B: CopyOp<D> + 'static,
+        D: NativeType + 'static,
+    {
+        let op = Box::new(autograd::SubScalarBackward::new());
+        self.record_unary_node(out, op, vec![]);
+        Ok(())
+    }
+
+    fn record_div_scalar(&self, scalar: D, out: &mut Self) -> Result<()>
+    where
+        B: CopyOp<D> + DivScalarOp<D> + 'static,
+        D: NativeType + std::ops::Div<Output = D> + 'static,
+    {
+        let op = Box::new(autograd::DivScalarBackward::new(scalar));
+        self.record_unary_node(out, op, vec![]);
+        Ok(())
+    }
+
     fn record_concat(inputs: &[Self], axis: usize, out: &mut Self) -> Result<()>
     where
         B: CopyOp<D> + 'static,
@@ -1488,10 +1596,10 @@ where
     {
         let input_shapes: Vec<Vec<usize>> = inputs.iter().map(|t| t.shape().to_vec()).collect();
         let op = Box::new(autograd::ConcatBackward::new(axis, input_shapes));
-        
+
         let input_refs: Vec<&Self> = inputs.iter().collect();
         let grad_fn = autograd::create_multi_grad_fn(out.autograd.origin, &input_refs, op, vec![]);
-        
+
         out.autograd.requires_grad = grad_fn.is_some();
         out.autograd.grad_fn = grad_fn;
         Ok(())

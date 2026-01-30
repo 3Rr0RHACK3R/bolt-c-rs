@@ -1,8 +1,8 @@
 use bolt_core::{
-    Float, StorageAllocator, TensorParts,
     error::{Error, Result},
     layout::Layout,
-    shape::{Shape, canonical_axes},
+    shape::{canonical_axes, Shape},
+    Float, StorageAllocator, TensorParts,
 };
 
 use super::super::allocator::CpuAllocator;

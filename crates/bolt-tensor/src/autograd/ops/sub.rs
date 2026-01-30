@@ -1,11 +1,11 @@
-use bolt_core::Backend;
 use bolt_core::backend::{CopyOp, NegOp, ReshapeOp, SumOp};
 use bolt_core::dtype::NativeType;
 use bolt_core::error::Result;
+use bolt_core::Backend;
 
-use crate::Tensor;
 use crate::autograd::utils;
 use crate::autograd::{BackwardContext, BackwardOp};
+use crate::Tensor;
 
 pub(crate) struct SubBackward {
     lhs_shape: Vec<usize>,

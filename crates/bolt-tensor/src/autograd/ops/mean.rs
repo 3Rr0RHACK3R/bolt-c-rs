@@ -1,10 +1,10 @@
-use bolt_core::Backend;
 use bolt_core::backend::CopyOp;
 use bolt_core::dtype::Float;
 use bolt_core::error::Result;
+use bolt_core::Backend;
 
+use crate::autograd::{utils, BackwardContext, BackwardOp};
 use crate::Tensor;
-use crate::autograd::{BackwardContext, BackwardOp, utils};
 
 pub(crate) struct MeanBackward {
     input_shape: Vec<usize>,

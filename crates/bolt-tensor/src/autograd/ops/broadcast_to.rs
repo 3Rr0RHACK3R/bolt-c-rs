@@ -1,11 +1,11 @@
-use bolt_core::Backend;
 use bolt_core::backend::{ReshapeOp, SumOp};
 use bolt_core::dtype::NativeType;
 use bolt_core::error::{Error, Result};
+use bolt_core::Backend;
 
-use crate::Tensor;
 use crate::autograd::utils;
 use crate::autograd::{BackwardContext, BackwardOp};
+use crate::Tensor;
 
 pub(crate) struct BroadcastToBackward {
     input_shape: Vec<usize>,

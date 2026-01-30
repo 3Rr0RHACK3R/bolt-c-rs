@@ -1,6 +1,6 @@
-use bolt_core::{Layout, NativeType, StorageAllocator, TensorParts, error::Result};
+use bolt_core::{error::Result, Layout, NativeType, StorageAllocator, TensorParts};
 
-use crate::backend::{CpuStorage, allocator::CpuAllocator, storage::read_into_uninit_slice};
+use crate::backend::{allocator::CpuAllocator, storage::read_into_uninit_slice, CpuStorage};
 
 pub trait CopyKernel: NativeType {
     fn copy_kernel(
