@@ -181,16 +181,35 @@ where
 pub struct BatchSource<E> {
     inner: Box<dyn Source<E>>,
     batch_size: usize,
+    drop_last: bool,
 }
 
 impl<E> BatchSource<E> {
     pub fn new(inner: Box<dyn Source<E>>, batch_size: usize) -> Self {
-        Self { inner, batch_size }
+        Self {
+            inner,
+            batch_size,
+            drop_last: false,
+        }
+    }
+
+    pub fn new_drop_last(inner: Box<dyn Source<E>>, batch_size: usize) -> Self {
+        Self {
+            inner,
+            batch_size,
+            drop_last: true,
+        }
     }
 }
 
 impl<E> Source<Vec<E>> for BatchSource<E> {
     fn next(&mut self) -> Result<Option<Vec<E>>> {
+        if self.batch_size == 0 {
+            return Err(DataError::InvalidShape(
+                "batch_size must be > 0".to_string(),
+            ));
+        }
+
         let mut batch = Vec::with_capacity(self.batch_size);
 
         while batch.len() < self.batch_size {
@@ -201,6 +220,10 @@ impl<E> Source<Vec<E>> for BatchSource<E> {
         }
 
         if batch.is_empty() {
+            return Ok(None);
+        }
+
+        if self.drop_last && batch.len() < self.batch_size {
             return Ok(None);
         }
 

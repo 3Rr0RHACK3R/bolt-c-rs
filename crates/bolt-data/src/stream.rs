@@ -5,6 +5,12 @@ pub struct Stream<E> {
     pub(crate) inner: Box<dyn Source<E>>, // visible within crate for adapters
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatchRemainder {
+    Keep,
+    DropLast,
+}
+
 impl<E> Stream<E> {
     pub fn new<S>(source: S) -> Self
     where
@@ -38,7 +44,18 @@ impl<E> Stream<E> {
     where
         E: Send + 'static,
     {
-        Stream::new(BatchSource::new(self.inner, batch_size))
+        self.batch_with(batch_size, BatchRemainder::Keep)
+    }
+
+    pub fn batch_with(self, batch_size: usize, remainder: BatchRemainder) -> Stream<Vec<E>>
+    where
+        E: Send + 'static,
+    {
+        let source = match remainder {
+            BatchRemainder::Keep => BatchSource::new(self.inner, batch_size),
+            BatchRemainder::DropLast => BatchSource::new_drop_last(self.inner, batch_size),
+        };
+        Stream::new(source)
     }
 
     pub fn take(self, n: usize) -> Stream<E>

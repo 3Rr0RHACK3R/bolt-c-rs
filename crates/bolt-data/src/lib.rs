@@ -12,4 +12,4 @@ pub use crate::source::{
     BatchSource, EnumerateSource, MapSource, MapWithSource, ShuffleSource, Source, TakeSource,
     TryMapSource, TryMapWithSource,
 };
-pub use crate::stream::{Stream, StreamIter};
+pub use crate::stream::{BatchRemainder, Stream, StreamIter};
