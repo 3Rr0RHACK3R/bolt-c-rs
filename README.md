@@ -6,9 +6,10 @@ A deep learning framework written in Rust. If you come from PyTorch this will fe
 
 ## What is this?
 
-Bolt is a tensor library and neural network framework built entirely in Rust. It gives you the flexibility to build and train models with the performance benefits of Rust's zero-cost abstractions.
+Bolt is a modern tensor library and neural network framework built entirely in Rust. It gives you the flexibility to build and train models with the performance benefits of Rust's zero-cost abstractions.
 
 I've been working on this because I wanted a DL framework that:
+
 - Doesn't drag Python along for the ride
 - Actually catches bugs at compile time
 - Ships to environments where Python isn't welcome
@@ -65,7 +66,7 @@ use bolt_tensor::Tensor;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = Arc::new(CpuBackend::new());
-    
+
     let root_key = RngKey::from_seed(1337);
     let store = Store::new_with_init_key(backend.clone(), root_key.derive("init"));
 
@@ -73,10 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     store.seal();
 
     let params = store.trainable();
-    let mut opt = Sgd::new(SgdCfg { 
-        lr: 0.01, 
-        momentum: 0.9, 
-        ..Default::default() 
+    let mut opt = Sgd::new(SgdCfg {
+        lr: 0.01,
+        momentum: 0.9,
+        ..Default::default()
     })?;
 
     let x = Tensor::from_slice(&backend, &[1.0, 2.0, 3.0, 4.0], &[4, 1])?;
@@ -88,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let step_key = root_key.derive("forward").fold_in(step as u64);
         let mut ctx = ForwardCtx::train_with_key(step_key);
         let output = layer.forward(x.clone(), &mut ctx)?;
-        
+
         let diff = output.sub(&y)?;
         let loss = diff.mul(&diff)?.mean(None, false)?;
 
@@ -99,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("step {}: loss={:.4}", step, loss.item()?);
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -128,8 +129,6 @@ cargo run -p bolt-examples
 
 ---
 
-
-
 ## What works now
 
 - **Tensors**: creation, slicing, reshaping, broadcasting
@@ -151,21 +150,21 @@ GPU support is next. CUDA first, then Metal for Apple Silicon. After that: more 
 
 Bolt is a workspace. Use what you need:
 
-| crate | what it does |
-|-------|-------------|
-| `bolt-core` | tensor types, layouts, storage, allocators |
-| `bolt-tensor` | tensor operations + autograd |
-| `bolt-cpu` | CPU backend |
-| `bolt-nn` | layers and module system |
-| `bolt-optim` | optimizers |
-| `bolt-losses` | loss functions |
-| `bolt-serialize` | checkpoint I/O |
-| `bolt-data` | data loading streams |
-| `bolt-datasets` | built-in datasets |
-| `bolt-vision` | vision utilities |
-| `bolt-rng` | random number generation |
-| `bolt-profiler` | performance profiling |
-| `bolt-benchmark` | operation benchmarks |
+| crate            | what it does                               |
+| ---------------- | ------------------------------------------ |
+| `bolt-core`      | tensor types, layouts, storage, allocators |
+| `bolt-tensor`    | tensor operations + autograd               |
+| `bolt-cpu`       | CPU backend                                |
+| `bolt-nn`        | layers and module system                   |
+| `bolt-optim`     | optimizers                                 |
+| `bolt-losses`    | loss functions                             |
+| `bolt-serialize` | checkpoint I/O                             |
+| `bolt-data`      | data loading streams                       |
+| `bolt-datasets`  | built-in datasets                          |
+| `bolt-vision`    | vision utilities                           |
+| `bolt-rng`       | random number generation                   |
+| `bolt-profiler`  | performance profiling                      |
+| `bolt-benchmark` | operation benchmarks                       |
 
 ---
 
@@ -176,8 +175,6 @@ Bolt is a workspace. Use what you need:
 - Anyone curious about building a DL framework in Rust
 
 ---
-
-
 
 ## Contributing
 
